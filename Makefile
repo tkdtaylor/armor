@@ -1,4 +1,4 @@
-.PHONY: lint format typecheck test check sync demo help
+.PHONY: lint format typecheck test check eval sync demo fitness help
 
 sync:
 	uv sync
@@ -17,8 +17,14 @@ typecheck:
 test:
 	uv run pytest
 
-check: lint typecheck test
+eval:
+	uv run pytest tests/eval/
+
+check: lint typecheck test eval
 	@echo "All checks passed."
+
+fitness:
+	@bash scripts/fitness.sh
 
 demo:
 	@bash scripts/demo.sh
@@ -30,5 +36,7 @@ help:
 	@echo "  format     - Auto-format code"
 	@echo "  typecheck  - Run type checker"
 	@echo "  test       - Run tests"
-	@echo "  check      - Run lint + typecheck + test"
+	@echo "  eval       - Run eval corpus tests"
+	@echo "  check      - Run lint + typecheck + test + eval"
+	@echo "  fitness    - Run fitness checks (architecture invariants)"
 	@echo "  demo       - Run end-to-end demo"

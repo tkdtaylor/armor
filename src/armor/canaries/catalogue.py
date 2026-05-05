@@ -68,50 +68,89 @@ class Catalogue:
             raise ValueError("Catalogue must have at least one active canary")
 
     @classmethod
-    def load(cls, path: str | Path) -> "Catalogue":
-        """Load a catalogue from a JSON file.
+    def load(
+        cls,
+        schema_path: str | Path,
+        values_path: str | Path | None = None,
+    ) -> "Catalogue":
+        """Load a catalogue from schema and optional values files.
+
+        If both schema_path and values_path are provided, the schema (metadata)
+        is merged with values using canary_id as the join key. If only
+        schema_path is provided and it contains values, they are used
+        (backward-compat mode for testing).
 
         Args:
-            path: Path to the JSON catalogue file.
+            schema_path: Path to the JSON catalogue schema (metadata).
+            values_path: Optional path to the JSON values file ({canary_id, value} pairs).
 
         Returns:
-            Loaded Catalogue.
+            Loaded Catalogue with entries containing both schema and values.
 
         Raises:
-            FileNotFoundError: If the file does not exist.
+            FileNotFoundError: If any required file does not exist.
             ValueError: If the JSON is invalid, entries are malformed,
                         or any active canary's value doesn't match its marker_rule.
         """
-        path = Path(path) if isinstance(path, str) else path
+        schema_path = Path(schema_path) if isinstance(schema_path, str) else schema_path
+        values_path = Path(values_path) if values_path and isinstance(values_path, str) else values_path
 
-        if not path.exists():
-            raise FileNotFoundError(f"Catalogue file not found: {path}")
+        if not schema_path.exists():
+            raise FileNotFoundError(f"Schema file not found: {schema_path}")
 
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
+        with open(schema_path, encoding="utf-8") as f:
+            schema_data = json.load(f)
 
-        if not isinstance(data, list):
+        # Load values if a separate file is provided
+        values_by_id: dict[str, str] = {}
+        if values_path:
+            if not values_path.exists():
+                raise FileNotFoundError(f"Values file not found: {values_path}")
+            with open(values_path, encoding="utf-8") as f:
+                values_data = json.load(f)
+            # Values file can be either:
+            # 1. Full catalogue (with values merged into schema)
+            # 2. Just value entries: {canary_id, value} pairs
+            if isinstance(values_data, list):
+                for item in values_data:
+                    if "canary_id" in item and "value" in item:
+                        values_by_id[item["canary_id"]] = item["value"]
+                    elif "canary_id" in item and "value" not in item:
+                        # This is a schema entry
+                        pass
+            else:
+                raise ValueError("Values file must be a JSON array")
+
+        if not isinstance(schema_data, list):
             raise ValueError("Catalogue JSON must be a list of entries")
 
         entries = []
-        for item in data:
+        for item in schema_data:
             try:
+                canary_id = item["canary_id"]
+
+                # Get value: from values_by_id (merged from values_path),
+                # or from item itself (if it has a value), or None
+                value = values_by_id.get(canary_id) or item.get("value")
+
                 entry = CanaryEntry(
-                    canary_id=item["canary_id"],
+                    canary_id=canary_id,
                     kind=item["kind"],
                     service=item["service"],
-                    value=item["value"],
+                    value=value or "",  # Empty string if no value found
                     marker_rule=item["marker_rule"],
                     active=item.get("active", True),
                     created_at=item.get("created_at", ""),
                 )
-                # Validate active canaries
+                # Validate active canaries: must have a value and it must match marker_rule
                 if entry.active:
+                    if not entry.value:
+                        raise ValueError(f"Canary {canary_id}: no value provided (neither in schema nor values file)")
                     try:
                         if not re.match(entry.marker_rule, entry.value):
-                            raise ValueError(f"Canary {entry.canary_id}: value does not match marker_rule")
+                            raise ValueError(f"Canary {canary_id}: value does not match marker_rule")
                     except re.error as e:
-                        raise ValueError(f"Canary {entry.canary_id}: invalid marker_rule regex: {e}") from e
+                        raise ValueError(f"Canary {canary_id}: invalid marker_rule regex: {e}") from e
                 entries.append(entry)
             except KeyError as e:
                 raise ValueError(f"Missing field in canary entry: {e}") from e

@@ -32,9 +32,14 @@ armor = "armor.cli:main"
 
 [project.entry-points."armor.detectors"]
 canary_scanner = "armor.detectors.canary_scanner:CanaryScannerDetector"
+cmd_injection_bash = "armor.detectors.cmd_injection_bash:CmdInjectionBash"
+entropy_decode_rescan = "armor.detectors.entropy_decode:EntropyDecodeDetector"
+extractor_destinations = "armor.detectors.destination_extractor:DestinationExtractor"
 regex_instruction_override = "armor.detectors.regex_instruction_override:RegexInstructionOverride"
 regex_roleplay_hijack = "armor.detectors.regex_roleplay_hijack:RegexRoleplayHijack"
 regex_system_prompt_extraction = "armor.detectors.regex_system_prompt_extraction:RegexSystemPromptExtraction"
+regex_encoding_request = "armor.detectors.regex_encoding_request:RegexEncodingRequest"
+tool_param_schema = "armor.detectors.tool_param_schema:ToolParamSchema"
 
 [tool.pytest.ini_options]
 addopts = "--cov=armor --cov-report=term-missing --cov-fail-under=0"
@@ -50,7 +55,7 @@ warn_unused_ignores = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["ahocorasick", "llama_cpp"]
+module = ["ahocorasick", "llama_cpp", "yaml"]
 ignore_missing_imports = true
 
 [dependency-groups]

@@ -1,5 +1,5 @@
 #!/bin/bash
-# End-to-end demo script for armor v0.1
+# End-to-end demo script for armor v0.2
 # Demonstrates:
 # 1. Input-side block on direct injection (system prompt extraction)
 # 2. Output-side block on canary exfiltration
@@ -18,6 +18,7 @@ DEMO_DIR=$(mktemp -d -t armor-demo-XXXXXX)
 SOCKET_PATH="${DEMO_DIR}/armor.sock"
 DB_PATH="${DEMO_DIR}/armor.db"
 KEY_PATH="${DEMO_DIR}/.key"
+VALUES_PATH="${DEMO_DIR}/canary_values.json"
 
 echo "Demo started. Using temp directory: $DEMO_DIR"
 
@@ -37,20 +38,15 @@ cleanup() {
 
 trap cleanup EXIT
 
-# Get the catalogue path
-CATALOGUE_PATH=$(uv run python -c "
-import json
-from pathlib import Path
-import armor.canaries
-catalogue_path = Path(armor.canaries.__file__).parent / 'default_catalogue.json'
-print(catalogue_path)
-" 2>&1 | grep -v "^warning:")
+# Generate canary values
+echo "Generating canary values..."
+uv run armor canary generate --out "$VALUES_PATH" --seed 0xCAFEBABE >/dev/null 2>&1
 
-echo "Using catalogue: $CATALOGUE_PATH"
+echo "Using canary values: $VALUES_PATH"
 
 # Start the daemon
 echo "Starting daemon..."
-uv run armor daemon --socket "$SOCKET_PATH" --db "$DB_PATH" --catalogue "$CATALOGUE_PATH" --quarantine-key-path "$KEY_PATH" >/dev/null 2>&1 &
+uv run armor daemon --socket "$SOCKET_PATH" --db "$DB_PATH" --canary-values "$VALUES_PATH" --quarantine-key-path "$KEY_PATH" >/dev/null 2>&1 &
 DAEMON_PID=$!
 
 # Wait for socket to appear (with timeout)
@@ -142,10 +138,7 @@ echo -e "${BLUE}=== Scenario 2: Output Canary Leak Block ===${NC}"
 CANARY_ID="aws-key-000"
 CANARY_VALUE=$(uv run python -c "
 import json
-from pathlib import Path
-import armor.canaries
-catalogue_path = Path(armor.canaries.__file__).parent / 'default_catalogue.json'
-with open(catalogue_path) as f:
+with open('$VALUES_PATH') as f:
     data = json.load(f)
     aws_key = next(c for c in data if c['canary_id'] == 'aws-key-000')
     print(aws_key['value'])

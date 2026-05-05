@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from armor.canaries._generate import write_values_file
 from armor.canaries.catalogue import Catalogue
 from armor.canaries.scanner import CanaryScanner
 from armor.db.forensic import ForensicLogger
@@ -39,11 +40,24 @@ def temp_dir():
 
 @pytest.fixture
 def catalogue():
-    """Load test catalogue."""
-    catalogue_path = (
-        Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
-    )
-    return Catalogue.load(catalogue_path)
+    """Load test catalogue with ephemeral values.
+
+    Since the bundled schema (default_catalogue.json) no longer contains values,
+    we generate ephemeral values with a fixed seed for reproducibility.
+    """
+    schema_path = Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+
+    # Generate values in a temp file with a fixed seed
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+        temp_values_path = Path(tf.name)
+
+    try:
+        write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+        return Catalogue.load(temp_values_path)
+    finally:
+        # Clean up temp file
+        if temp_values_path.exists():
+            temp_values_path.unlink()
 
 
 @pytest.fixture

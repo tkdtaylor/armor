@@ -27,14 +27,16 @@ The code is one *realization* of this spec. If the spec and code disagree, one o
 
 When ADR-005 supersedes ADR-001, the spec just reflects the new choice. The ADRs preserve the reasoning trail; the spec preserves the current truth.
 
-## The four files
+## The spec files
 
 | File | Covers | Read this when |
 |------|--------|---------------|
 | [behaviors.md](behaviors.md) | What the system does — detection categories, block/pass/forensic-capture semantics, session escalation rules | You need to know what should happen when X |
+| [architecture.md](architecture.md) | System structure — containers, components, source paths, cross-container edges (paired with `docs/architecture/diagrams.md`) | You need to know what the deployable units and modules are, or audit drift against the code |
 | [data-model.md](data-model.md) | Detector verdicts, session state, canary catalogue, forensic incident records | You need to know what data exists and how it's structured |
 | [interfaces.md](interfaces.md) | The `armor` CLI, the daemon IPC protocol, the Python SDK surface, hook contracts | You need to know what calls into or out of the system |
 | [configuration.md](configuration.md) | Detector thresholds, hook profile env vars, model selection, container limits | You need to know what's tunable |
+| [fitness-functions.md](fitness-functions.md) | Executable architectural invariants — what `make fitness` checks (no network in daemon, no canary leak, layering, complexity, coverage) | You need to know which invariants are mechanically verified, or propose a new one |
 
 ## Maintenance rules
 

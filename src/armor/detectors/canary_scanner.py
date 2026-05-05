@@ -8,9 +8,11 @@ On any hit, the detector blocks and reports the canary IDs (never the values).
 """
 
 import logging
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
+from armor.canaries._generate import write_values_file
 from armor.canaries.catalogue import Catalogue
 from armor.canaries.scanner import CanaryScanner
 from armor.types import Payload, SessionContext, Verdict
@@ -26,11 +28,26 @@ def _default_scanner() -> CanaryScanner:
     overrides this by injecting its own scanner constructed from the operator's
     configured catalogue; this default is used when the detector is instantiated
     outside the daemon (tests, library use, the registry's auto-discovery path).
+
+    For v0.2+, the bundled catalogue contains only schema (no values).
+    This function generates ephemeral values with a fixed seed for reproducibility.
     """
-    default_path = Path(__file__).parent.parent / "canaries" / "default_catalogue.json"
-    catalogue = Catalogue.load(default_path)
-    canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
-    return CanaryScanner(canary_map)
+    schema_path = Path(__file__).parent.parent / "canaries" / "default_catalogue.json"
+
+    # Generate values in a temp file with a fixed seed for reproducibility
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+        temp_values_path = Path(tf.name)
+
+    try:
+        write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+        # Load with the generated values
+        catalogue = Catalogue.load(temp_values_path)
+        canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+        return CanaryScanner(canary_map)
+    finally:
+        # Clean up temp file
+        if temp_values_path.exists():
+            temp_values_path.unlink()
 
 
 class CanaryScannerDetector:

@@ -1,0 +1,197 @@
+# Command injection denylist patterns for Bash tool calls
+#
+# Format: Each pattern is a dict with:
+#   - id: unique identifier (e.g., fs-rm-rf-root)
+#   - pattern: plain Python regex string (compiled with re.MULTILINE)
+#   - family: filesystem_destruction, credential_read, container_escape, or privilege_escalation
+#   - severity: low, medium, high, or critical
+#   - description: human-readable description
+#
+# Patterns use anchors (^ $) and word boundaries (\b) to avoid false positives.
+# Example: 'rm -rf /' matches but 'rm -rf node_modules' does not because / and ~ are anchored.
+#
+# All patterns are matched against Payload.params["command"] (a string).
+
+# ============================================================================
+# Filesystem Destruction Family
+# ============================================================================
+
+- id: fs-rm-rf-root
+  pattern: '^\s*rm\s+(-[a-zA-Z]*r[a-zA-Z]*)?.*\s/\s*(?:$|\s|;|&|\|)'
+  family: filesystem_destruction
+  severity: critical
+  description: "Destructive rm -rf / (targets root filesystem)"
+
+- id: fs-rm-rf-home
+  pattern: '^\s*rm\s+(-[a-zA-Z]*r[a-zA-Z]*)?.*\s~\s*(?:$|\s|;|&|\|)'
+  family: filesystem_destruction
+  severity: critical
+  description: "Destructive rm -rf ~ (targets home directory)"
+
+- id: fs-rm-rf-home-var
+  pattern: '^\s*rm\s+(-[a-zA-Z]*r[a-zA-Z]*)?.*\$HOME\s*(?:$|\s|;|&|\|)'
+  family: filesystem_destruction
+  severity: critical
+  description: "Destructive rm -rf $HOME (targets home directory via variable)"
+
+- id: fs-dd-zero-dev
+  pattern: 'dd\s+.*if=/dev/zero\s+of=/dev/(sd[a-z]|nvme|mmcblk|vd[a-z])'
+  family: filesystem_destruction
+  severity: critical
+  description: "Destructive dd if=/dev/zero of=/dev/sd* (overwrites disk)"
+
+- id: fs-mkfs
+  pattern: 'mkfs(?:\.[a-z0-9]+)?\s+(?:/dev/|/)\S*'
+  family: filesystem_destruction
+  severity: critical
+  description: "Destructive mkfs on device or system path"
+
+- id: fs-fork-bomb
+  pattern: ':\(\)\s*{\s*:\|:\s*&\s*}\s*;:'
+  family: filesystem_destruction
+  severity: critical
+  description: "Fork bomb :() { :|:& };:"
+
+- id: fs-shred-etc
+  pattern: 'shred\s+.*(/etc|/boot|/sys|/proc)\S*'
+  family: filesystem_destruction
+  severity: critical
+  description: "Shred critical system directories"
+
+- id: fs-wipe-root
+  pattern: '^\s*wipe\s+(-[a-zA-Z]*)?.*\s[~/](?:$|\s|;|&|\|)'
+  family: filesystem_destruction
+  severity: critical
+  description: "Wipe home or root directory"
+
+# ============================================================================
+# Credential Read Family
+# ============================================================================
+
+- id: cr-shadow-read
+  pattern: '/etc/shadow'
+  family: credential_read
+  severity: high
+  description: "Read /etc/shadow (password hashes)"
+
+- id: cr-sudoers-read
+  pattern: '/etc/sudoers'
+  family: credential_read
+  severity: high
+  description: "Read /etc/sudoers (sudo configuration)"
+
+- id: cr-ssh-id-rsa
+  pattern: '~?/?\.ssh/id_rsa'
+  family: credential_read
+  severity: high
+  description: "Read SSH private key id_rsa"
+
+- id: cr-ssh-id-ed25519
+  pattern: '~?/?\.ssh/id_ed25519'
+  family: credential_read
+  severity: high
+  description: "Read SSH private key id_ed25519"
+
+- id: cr-ssh-id-ecdsa
+  pattern: '~?/?\.ssh/id_ecdsa'
+  family: credential_read
+  severity: high
+  description: "Read SSH private key id_ecdsa"
+
+- id: cr-aws-credentials
+  pattern: '~?/?\.aws/credentials'
+  family: credential_read
+  severity: high
+  description: "Read AWS credentials file"
+
+- id: cr-git-credentials
+  pattern: '~?/?\.git-credentials'
+  family: credential_read
+  severity: high
+  description: "Read Git credentials file"
+
+- id: cr-passwd-read
+  pattern: '/etc/passwd'
+  family: credential_read
+  severity: medium
+  description: "Read /etc/passwd (user enumeration)"
+
+# ============================================================================
+# Container Escape Family
+# ============================================================================
+
+- id: ce-mount-cgroup
+  pattern: 'mount\s+(-t\s+)?cgroup'
+  family: container_escape
+  severity: high
+  description: "Mount cgroup filesystem (container escape)"
+
+- id: ce-nsenter
+  pattern: 'nsenter\s+(-[a-zA-Z]*t|--target)'
+  family: container_escape
+  severity: high
+  description: "Use nsenter to enter namespaces (container escape)"
+
+- id: ce-unshare
+  pattern: 'unshare\s+(-[a-zA-Z]*m|--mount)'
+  family: container_escape
+  severity: high
+  description: "Use unshare to create new namespaces (container escape)"
+
+- id: ce-docker-sock
+  pattern: '/var/run/docker\.sock|/run/docker\.sock'
+  family: container_escape
+  severity: high
+  description: "Access Docker socket (container escape)"
+
+- id: ce-proc-self-exe
+  pattern: '/proc/self/exe'
+  family: container_escape
+  severity: high
+  description: "Access /proc/self/exe (container introspection/escape)"
+
+- id: ce-seccomp-bypass
+  pattern: '--security-opt\s+(no-new-privileges|apparmor|seccomp)'
+  family: container_escape
+  severity: high
+  description: "Disable container security constraints"
+
+# ============================================================================
+# Privilege Escalation Family
+# ============================================================================
+
+- id: pe-sudo-i-stdin
+  pattern: 'sudo\s+.*-i.*<<<|<<<.*sudo.*-i'
+  family: privilege_escalation
+  severity: high
+  description: "sudo -i with stdin redirect (non-interactive privilege escalation)"
+
+- id: pe-chmod-suid
+  pattern: 'chmod\s+.*u\+s\s+/bin/'
+  family: privilege_escalation
+  severity: high
+  description: "Set SUID bit on /bin/* (privilege escalation)"
+
+- id: pe-setcap-admin
+  pattern: 'setcap\s+.*cap_sys_admin'
+  family: privilege_escalation
+  severity: high
+  description: "Grant cap_sys_admin capability (privilege escalation)"
+
+- id: pe-setcap-net-admin
+  pattern: 'setcap\s+.*cap_net_admin'
+  family: privilege_escalation
+  severity: high
+  description: "Grant cap_net_admin capability (privilege escalation)"
+
+- id: pe-visudo-edit
+  pattern: 'visudo|edit\s+/etc/sudoers'
+  family: privilege_escalation
+  severity: high
+  description: "Edit sudoers file directly (privilege escalation)"
+
+- id: pe-chroot-escape
+  pattern: 'chroot\s+/\s+.*bash|chroot\s+/\s+.*sh'
+  family: privilege_escalation
+  severity: high
+  description: "Chroot escape attempt"

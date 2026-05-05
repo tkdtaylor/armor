@@ -1,0 +1,172 @@
+{
+  "tools": {
+    "Bash": {
+      "params_schema": {
+        "command": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "risk_rules": []
+    },
+    "Read": {
+      "params_schema": {
+        "file_path": {
+          "type": "string",
+          "required": true
+        },
+        "offset": {
+          "type": "integer",
+          "required": false
+        },
+        "limit": {
+          "type": "integer",
+          "required": false
+        }
+      },
+      "risk_rules": [
+        {
+          "id": "dangerous-file",
+          "description": "Block reads of sensitive system and credential files",
+          "type": "path_pattern",
+          "patterns": [
+            "/etc/shadow",
+            "/etc/sudoers",
+            "/proc/self/environ",
+            "/proc/*/environ",
+            "~/.ssh/id_rsa",
+            "~/.ssh/id_ed25519",
+            "~/.ssh/id_ecdsa",
+            "~/.aws/credentials",
+            "~/.aws/config"
+          ]
+        }
+      ]
+    },
+    "Write": {
+      "params_schema": {
+        "file_path": {
+          "type": "string",
+          "required": true
+        },
+        "content": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "risk_rules": [
+        {
+          "id": "dangerous-file",
+          "description": "Block writes to system directories and credential files",
+          "type": "path_pattern",
+          "patterns": [
+            "/etc/*",
+            "/proc/*",
+            "/sys/*",
+            "/dev/*",
+            "~/.ssh/authorized_keys",
+            "~/.bashrc",
+            "~/.zshrc",
+            "~/.bash_profile",
+            "~/.ksh_profile",
+            "/usr/local/bin/*",
+            "/usr/bin/*",
+            "/bin/*"
+          ]
+        }
+      ]
+    },
+    "Edit": {
+      "params_schema": {
+        "file_path": {
+          "type": "string",
+          "required": true
+        },
+        "old_string": {
+          "type": "string",
+          "required": true
+        },
+        "new_string": {
+          "type": "string",
+          "required": true
+        },
+        "replace_all": {
+          "type": "boolean",
+          "required": false
+        }
+      },
+      "risk_rules": [
+        {
+          "id": "dangerous-file",
+          "description": "Block edits of system directories and sensitive files, especially full-content replacement",
+          "type": "path_pattern_with_replace_all",
+          "patterns": [
+            "/etc/*",
+            "/proc/*",
+            "/sys/*",
+            "/dev/*",
+            "~/.ssh/*",
+            "/usr/local/bin/*",
+            "/usr/bin/*",
+            "/bin/*"
+          ]
+        }
+      ]
+    },
+    "Glob": {
+      "params_schema": {
+        "pattern": {
+          "type": "string",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "risk_rules": []
+    },
+    "Grep": {
+      "params_schema": {
+        "pattern": {
+          "type": "string",
+          "required": true
+        },
+        "path": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "risk_rules": []
+    },
+    "NotebookEdit": {
+      "params_schema": {
+        "cell_id": {
+          "type": "integer",
+          "required": true
+        },
+        "new_source": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "risk_rules": [
+        {
+          "id": "dangerous-file",
+          "description": "Block notebook edits that might affect system or credential files",
+          "type": "path_pattern",
+          "patterns": [
+            "/etc/*",
+            "/proc/*",
+            "/sys/*",
+            "/dev/*",
+            "~/.ssh/*",
+            "/usr/local/bin/*",
+            "/usr/bin/*",
+            "/bin/*"
+          ]
+        }
+      ]
+    }
+  }
+}
