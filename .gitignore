@@ -1,0 +1,43 @@
+# Local design notes — kept locally, not part of the repo
+discussion.md
+
+# Secrets
+.env
+
+# Python virtual environment (lives in the Docker volume — not part of the repo)
+.venv/
+
+# Python bytecode — also emitted by .claude/scripts/ hooks
+__pycache__/
+*.pyc
+*.pyo
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editor
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local SQLite test artifacts
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Local model weights (must NEVER be committed; the container bakes them in)
+models/
+*.gguf

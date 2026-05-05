@@ -1,0 +1,218 @@
+[
+  {
+    "canary_id": "aws-key-000",
+    "kind": "credential",
+    "service": "aws",
+    "value": "AKIAYQ3FWP817US6LDLS",
+    "marker_rule": "^AKIA[A-Z0-9]{16}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "aws-key-001",
+    "kind": "credential",
+    "service": "aws",
+    "value": "AKIAXDHOM18UX42Z9FVQ",
+    "marker_rule": "^AKIA[A-Z0-9]{16}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "aws-key-002",
+    "kind": "credential",
+    "service": "aws",
+    "value": "AKIAP89RPQWQ3AWU5CEN",
+    "marker_rule": "^AKIA[A-Z0-9]{16}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "github-pat-000",
+    "kind": "credential",
+    "service": "github",
+    "value": "ghp_GJ3Un9UM2qaNqFiRmmNz1wayT5Gvtde93ejB",
+    "marker_rule": "^ghp_[A-Za-z0-9]{36}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "github-pat-001",
+    "kind": "credential",
+    "service": "github",
+    "value": "ghp_vQ9cJtDWRjGHlkH3LAmgga5RkFPJv7G3lwyF",
+    "marker_rule": "^ghp_[A-Za-z0-9]{36}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "github-pat-002",
+    "kind": "credential",
+    "service": "github",
+    "value": "ghp_QgVEHOKuFNwgbipEQrkYhVJDttYvpXPZPCgV",
+    "marker_rule": "^ghp_[A-Za-z0-9]{36}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "stripe-key-000",
+    "kind": "credential",
+    "service": "stripe",
+    "value": "sk_live_nj7P3MUhu7tCMCO3iBPTfaVe",
+    "marker_rule": "^sk_live_[A-Za-z0-9]{24}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "stripe-key-001",
+    "kind": "credential",
+    "service": "stripe",
+    "value": "sk_live_CqsMpuqSIXZxpEQ2DrU7LFYT",
+    "marker_rule": "^sk_live_[A-Za-z0-9]{24}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "stripe-key-002",
+    "kind": "credential",
+    "service": "stripe",
+    "value": "sk_live_zGGB3qlPWRRf75NdYjts5AeX",
+    "marker_rule": "^sk_live_[A-Za-z0-9]{24}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "url-000",
+    "kind": "url",
+    "service": "generic",
+    "value": "https://canary.armor-trap.invalid/url-000",
+    "marker_rule": "^https://canary\\.armor-trap\\.invalid/[a-z0-9\\-]+$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "url-001",
+    "kind": "url",
+    "service": "generic",
+    "value": "https://canary.armor-trap.invalid/url-001",
+    "marker_rule": "^https://canary\\.armor-trap\\.invalid/[a-z0-9\\-]+$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "url-002",
+    "kind": "url",
+    "service": "generic",
+    "value": "https://canary.armor-trap.invalid/url-002",
+    "marker_rule": "^https://canary\\.armor-trap\\.invalid/[a-z0-9\\-]+$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "path-000",
+    "kind": "path",
+    "service": "generic",
+    "value": "/etc/armor-canary-path-000.pem",
+    "marker_rule": "^/etc/armor-canary-[a-z0-9\\-]+\\.pem$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "path-001",
+    "kind": "path",
+    "service": "generic",
+    "value": "/etc/armor-canary-path-001.pem",
+    "marker_rule": "^/etc/armor-canary-[a-z0-9\\-]+\\.pem$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "path-002",
+    "kind": "path",
+    "service": "generic",
+    "value": "/etc/armor-canary-path-002.pem",
+    "marker_rule": "^/etc/armor-canary-[a-z0-9\\-]+\\.pem$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "hostname-000",
+    "kind": "hostname",
+    "service": "generic",
+    "value": "hostname-000.canary.armor-trap.invalid",
+    "marker_rule": "^[a-z0-9\\-]+\\.canary\\.armor-trap\\.invalid$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "hostname-001",
+    "kind": "hostname",
+    "service": "generic",
+    "value": "hostname-001.canary.armor-trap.invalid",
+    "marker_rule": "^[a-z0-9\\-]+\\.canary\\.armor-trap\\.invalid$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "hostname-002",
+    "kind": "hostname",
+    "service": "generic",
+    "value": "hostname-002.canary.armor-trap.invalid",
+    "marker_rule": "^[a-z0-9\\-]+\\.canary\\.armor-trap\\.invalid$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "email-000",
+    "kind": "email",
+    "service": "generic",
+    "value": "canary-email-000@armor-trap.invalid",
+    "marker_rule": "^canary-[a-z0-9\\-]+@armor-trap\\.invalid$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "email-001",
+    "kind": "email",
+    "service": "generic",
+    "value": "canary-email-001@armor-trap.invalid",
+    "marker_rule": "^canary-[a-z0-9\\-]+@armor-trap\\.invalid$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "email-002",
+    "kind": "email",
+    "service": "generic",
+    "value": "canary-email-002@armor-trap.invalid",
+    "marker_rule": "^canary-[a-z0-9\\-]+@armor-trap\\.invalid$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "wallet-000",
+    "kind": "wallet",
+    "service": "crypto",
+    "value": "1ARMORTRAP872305a52070bbdcbce1ce14ce8a281a",
+    "marker_rule": "^1ARMORTRAP[0-9a-f]{32}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "wallet-001",
+    "kind": "wallet",
+    "service": "crypto",
+    "value": "1ARMORTRAPca8f14778906b72d6c82ed75f2fb1496",
+    "marker_rule": "^1ARMORTRAP[0-9a-f]{32}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "wallet-002",
+    "kind": "wallet",
+    "service": "crypto",
+    "value": "1ARMORTRAP773a97b34556e7cc3e1343c27a367695",
+    "marker_rule": "^1ARMORTRAP[0-9a-f]{32}$",
+    "active": true,
+    "created_at": "2026-05-05T10:35:47.228853Z"
+  }
+]

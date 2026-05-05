@@ -1,0 +1,7 @@
+# requirements.txt — armor
+# Note: armor uses `uv` for primary dependency management; this file exists for the
+# Docker entrypoint's bootstrap pip install. Real dependencies are tracked in
+# pyproject.toml (added in Task 001) and resolved via `uv sync`.
+#
+# Keep this list to bootstrap-only essentials.
+uv

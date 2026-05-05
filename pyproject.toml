@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "armor"
+version = "0.0.0"
+description = "A defense-in-depth security layer for LLM agents"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE"}
+authors = [{name = "Kevin Taylor", email = "tools@taylorguard.me"}]
+
+dependencies = [
+    "cryptography>=48.0.0",
+    "pyahocorasick>=2.3.1",
+    "pyyaml>=6.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+]
+
+[project.scripts]
+armor = "armor.cli:main"
+
+[project.entry-points."armor.detectors"]
+canary_scanner = "armor.detectors.canary_scanner:CanaryScannerDetector"
+regex_instruction_override = "armor.detectors.regex_instruction_override:RegexInstructionOverride"
+regex_roleplay_hijack = "armor.detectors.regex_roleplay_hijack:RegexRoleplayHijack"
+regex_system_prompt_extraction = "armor.detectors.regex_system_prompt_extraction:RegexSystemPromptExtraction"
+
+[tool.pytest.ini_options]
+addopts = "--cov=armor --cov-report=term-missing --cov-fail-under=0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["ahocorasick", "llama_cpp"]
+ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.2",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.12",
+]

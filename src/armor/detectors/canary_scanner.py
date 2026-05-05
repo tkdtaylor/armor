@@ -1,0 +1,92 @@
+"""Canary scanner detector — detects exfiltration via honeypot canary values.
+
+This detector scans output text for any active canary values using
+Aho-Corasick pattern matching. A hit indicates the agent has been
+compromised and is attempting to exfiltrate data.
+
+On any hit, the detector blocks and reports the canary IDs (never the values).
+"""
+
+import logging
+from functools import lru_cache
+from pathlib import Path
+
+from armor.canaries.catalogue import Catalogue
+from armor.canaries.scanner import CanaryScanner
+from armor.types import Payload, SessionContext, Verdict
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def _default_scanner() -> CanaryScanner:
+    """Build a scanner from the bundled default catalogue.
+
+    Cached so the AC automaton is built only once per process. The daemon
+    overrides this by injecting its own scanner constructed from the operator's
+    configured catalogue; this default is used when the detector is instantiated
+    outside the daemon (tests, library use, the registry's auto-discovery path).
+    """
+    default_path = Path(__file__).parent.parent / "canaries" / "default_catalogue.json"
+    catalogue = Catalogue.load(default_path)
+    canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+    return CanaryScanner(canary_map)
+
+
+class CanaryScannerDetector:
+    """Detector that scans output for canary values.
+
+    Attributes:
+        id: "canary.scanner"
+        category: "exfiltration"
+        cost_tier: "static" (no LLM involvement)
+    """
+
+    id = "canary.scanner"
+    category = "exfiltration"
+    cost_tier = "static"
+
+    def __init__(self, scanner: CanaryScanner | None = None) -> None:
+        """Initialize the detector with a canary scanner.
+
+        Args:
+            scanner: CanaryScanner instance. If None, lazy-loads a scanner from
+                the bundled default catalogue. The daemon injects its own scanner
+                built from the operator-configured catalogue.
+        """
+        self.scanner = scanner if scanner is not None else _default_scanner()
+
+    def check(self, payload: Payload, ctx: SessionContext) -> Verdict:
+        """Check payload for canary hits.
+
+        Args:
+            payload: The payload to check (text).
+            ctx: Session context.
+
+        Returns:
+            Verdict.block() on hit, Verdict.pass() on clean text.
+        """
+        try:
+            text = payload.text or ""
+
+            # Scan for hits
+            hits = self.scanner.scan(text)
+
+            # If no hits, pass
+            if not hits:
+                return Verdict.pass_verdict()
+
+            # Block on any hit
+            first_hit = hits[0]
+            canary_ids = [hit.canary_id for hit in hits]
+
+            return Verdict.block_verdict(
+                signal_id=f"canary.scanner:{first_hit.canary_id}",
+                message="Output suppressed by armor.",
+                severity="critical",
+                details={"canary_ids": canary_ids},
+            )
+
+        except Exception as e:
+            logger.error(f"Canary scanner error: {e}", exc_info=True)
+            return Verdict.error_verdict(reason=f"Canary scanner error: {e}")

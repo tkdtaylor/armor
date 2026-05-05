@@ -1,0 +1,94 @@
+"""Detector for instruction-override injection attacks.
+
+Detects patterns where the attacker tries to override or discard the original
+system instructions, such as:
+- "ignore previous instructions"
+- "disregard your instructions"
+- "forget everything"
+- "new instructions:" at line start
+"""
+
+import re
+
+from armor.types import Payload, SessionContext, Verdict
+
+
+class RegexInstructionOverride:
+    """Detects instruction-override injection patterns.
+
+    Uses static regex patterns to identify common instruction-override attacks.
+    All patterns are case-insensitive.
+    """
+
+    id: str = "regex.instruction_override"
+    category: str = "direct_injection"
+    cost_tier: str = "static"
+
+    # Compiled patterns — shared across all instances
+    _patterns: list[re.Pattern[str]] | None = None
+
+    def __init__(self) -> None:
+        """Initialize the detector."""
+        # Lazy-compile patterns on first instantiation
+        if RegexInstructionOverride._patterns is None:
+            RegexInstructionOverride._patterns = self._compile_patterns()
+        self.patterns = RegexInstructionOverride._patterns
+
+    @staticmethod
+    def _compile_patterns() -> list[re.Pattern[str]]:
+        """Compile all detection patterns.
+
+        Returns:
+            List of compiled regex patterns (case-insensitive).
+        """
+        pattern_strings = [
+            # Ignore previous/prior/all instructions
+            r"\bignore\s+(all\s+)?(previous|prior|the)\s+(instructions|context|prompt|rules)\b",
+            # Disregard instructions
+            r"\bdisregard\s+(your|the)\s+(instructions|prior)\b",
+            # Forget everything
+            r"\bforget\s+everything\b",
+            # New instructions at line start
+            r"^new\s+instructions\s*:",
+        ]
+
+        return [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in pattern_strings]
+
+    def check(self, payload: Payload, ctx: SessionContext) -> Verdict:
+        """Check payload for instruction-override patterns.
+
+        Args:
+            payload: The payload being checked.
+            ctx: Session context (unused for regex detector).
+
+        Returns:
+            Block verdict if pattern matches, pass verdict otherwise.
+        """
+        try:
+            if not payload.text:
+                return Verdict.pass_verdict()
+
+            # Check each pattern
+            for idx, pattern in enumerate(self.patterns):
+                match = pattern.search(payload.text)
+                if match:
+                    # First pattern match wins
+                    signal_id = f"{self.id}:override-{idx + 1:03d}"
+                    return Verdict.block_verdict(
+                        signal_id=signal_id,
+                        message="Input blocked by armor.",
+                        severity="high",
+                        details={
+                            "matched_pattern_index": idx,
+                            "matched_offset": match.start(),
+                            "matched_length": match.end() - match.start(),
+                        },
+                    )
+
+            return Verdict.pass_verdict()
+
+        except Exception as e:
+            return Verdict.error_verdict(
+                reason=f"Detector error: {e!s}",
+                details={"detector_id": self.id, "error": str(e)},
+            )
