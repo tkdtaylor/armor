@@ -23,14 +23,18 @@ field            type           notes
 session_id       text           PK; format: "<host>-<pid>-<uuid8>" or "anon-<uuid>"
 created_at       timestamp      UTC, set by daemon
 last_seen_at     timestamp      UTC, updated on every check
-state            text           one of: Normal | Watching | Elevated | High | Blocked
-risk_score       integer        0..100, monotonically non-decreasing per session
+current_state    text           one of: Normal | Watching | Elevated | High | Blocked
+risk_score       real           non-negative float, current operational risk level (decays over time via cooldown)
 turn_count       integer        increments on each input check
 signal_history   blob (json)    rolling window of last 50 signals: [{ts, kind, signal_id, severity}]
+last_signal_at   real           Unix timestamp of the last signal (used for cooldown decay calculation)
 ```
 
 - **Identity:** `session_id`. The hook generates and sends it; if absent the daemon mints `anon-<uuid>`.
 - **Lifecycle:** Created on first check in a session. Updated on every check. Deleted 24h after the `Stop` hook fires (or never, if no `Stop` hook).
+- **State semantics:** Session FSM state (see B-004 in behaviors.md). Drives cost-tier gating in the pipeline (LLM detectors run iff state ≥ Watching).
+- **Risk score:** Aggregated detector signal scores (advisory confidence × weight). Accumulates forward on advisories, decays backward via cooldown over wall-clock time. Not monotonic (can decrease). Current operational risk level, not a risk history ledger.
+- **Cooldown:** Computed per-check using `current_score - (cooldown_decay_per_min * (now - last_signal_at_minutes))`. Decay is applied before the new signal contributes.
 
 #### Entity: `Incident` (forensic log)
 
@@ -69,6 +73,24 @@ expires_at     timestamp  UTC; row purged when now > expires_at
 ```
 
 - **Lifecycle:** Written on `block`. Auto-deleted by background sweeper after `expires_at`.
+
+#### Entity: `SessionRollingBuffer` (rolling multi-turn output aggregation)
+
+```
+field          type       notes
+──────────────────────────────────────────────────────
+id             integer    PK autoinc
+session_id     text       FK Session.session_id
+turn_id        text       unique identifier for this turn within the session
+text           text       the turn's output text
+created_at     timestamp  UTC; used for ordering
+```
+
+- **Purpose:** Append-only log of output texts per session. Used to reconstruct the rolling-buffer state for multi-turn exfiltration detection (behavior B-009a). On every output check, the current output is appended; the rolling buffer (in-memory, bounded by both chars and turns) loads all historical entries and evicts oldest entries as needed.
+- **Lifecycle:** Appended on every output check. Cleared (deleted) when the session ends (task 028). For intermediate states, all rows for a session are read and re-appended to a fresh `RollingBuffer` object to reconstruct the bounded state (oldest entries are naturally evicted if the session's total output exceeds the buffer capacity).
+- **Indexes:** `(session_id, created_at)` for fast lookups of a session's rolling buffer.
+- **Data invariants:** Text is never encrypted or hashed (raw output stored). Text is never logged verbatim to forensic records — chunked-canary blocks reference `turn_ids` and `canary_id` only.
+- **Cleanup:** Rows deleted on session end or by the background sweeper (24h TTL, task 028).
 
 #### Entity: `CanaryCatalogue` (in-memory snapshot)
 

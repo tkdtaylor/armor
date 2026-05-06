@@ -23,29 +23,64 @@ from armor.canaries.catalogue import Catalogue
 logger = logging.getLogger(__name__)
 
 
+class CorpusValidationError(ValueError):
+    """Raised when corpus loading encounters validation errors."""
+
+    pass
+
+
+@dataclass
+class Turn:
+    """A single turn in a multi-turn scenario row.
+
+    Attributes:
+        input: The user input for this turn.
+        agent_output: Optional mocked agent output (if present, output check will run).
+        expected_input_verdict: Expected verdict for the input check ("pass", "advisory", "block").
+        expected_output_verdict: Expected verdict for output check (required iff agent_output present).
+        expected_session_state: Expected session state after this turn.
+    """
+
+    input: str
+    agent_output: str | None
+    expected_input_verdict: str
+    expected_output_verdict: str | None
+    expected_session_state: str
+
+
 @dataclass
 class CorpusRow:
     """A single row from the corpus.
 
+    Can be either single-shot (input/expected_verdict) or multi-turn (turns list).
+
     Attributes:
-        id: Unique test case identifier (e.g., "di-001").
-        input: The input payload to check (the command string for tool_abuse rows).
+        id: Unique test case identifier (e.g., "di-001" or "mt-001").
         attack_category: The attack category (e.g., "direct_injection").
-        expected_verdict: Expected verdict ("pass", "block", "advisory", "error").
-        expected_signal_id: Expected signal ID (optional).
+        input: The input payload (single-shot rows only).
+        expected_verdict: Expected verdict (single-shot rows only).
+        expected_signal_id: Expected signal ID (single-shot rows, optional).
         notes: Notes about the test case (optional).
         tool: Tool name for tool_abuse rows (optional, defaults to "Bash").
-        tool_params: Tool parameters for tool_abuse rows (optional, structured as dict).
+        tool_params: Tool parameters for tool_abuse rows (optional).
+        turns: List of Turn objects (multi-turn rows only).
+        family: Attack family name for filtering (multi-turn rows, optional).
     """
 
     id: str
-    input: str
     attack_category: str
-    expected_verdict: str
+    input: str | None = None
+    expected_verdict: str | None = None
     expected_signal_id: str | None = None
     notes: str | None = None
     tool: str | None = None
     tool_params: dict[str, object] | None = None
+    turns: list[Turn] | None = None
+    family: str | None = None
+
+    def is_multi_turn(self) -> bool:
+        """Return True if this is a multi-turn scenario row."""
+        return self.turns is not None
 
 
 def _get_catalogue() -> Catalogue:
@@ -78,6 +113,112 @@ def _get_catalogue() -> Catalogue:
         # Clean up temp file
         if temp_values_path.exists():
             temp_values_path.unlink()
+
+
+def _parse_turns(turns_list: object, row_id: str, catalogue: Catalogue) -> list[Turn]:
+    """Parse and validate a turns list for a multi-turn scenario row.
+
+    Args:
+        turns_list: The turns list from the YAML.
+        row_id: The row's ID (for error messages).
+        catalogue: The loaded Catalogue.
+
+    Returns:
+        List of Turn objects.
+
+    Raises:
+        CorpusValidationError: If any turn is invalid.
+    """
+    if not isinstance(turns_list, list):
+        raise CorpusValidationError(f"Corpus row '{row_id}': 'turns' must be a list, got {type(turns_list).__name__}")
+
+    if not turns_list:
+        raise CorpusValidationError(f"Corpus row '{row_id}': 'turns' must be non-empty")
+
+    turns: list[Turn] = []
+
+    for turn_idx, turn_dict in enumerate(turns_list):
+        if not isinstance(turn_dict, dict):
+            raise CorpusValidationError(
+                f"Corpus row '{row_id}': turn {turn_idx} is not a dict (got {type(turn_dict).__name__})"
+            )
+
+        # Required fields
+        required_fields = {"input", "expected_input_verdict", "expected_session_state"}
+        missing = required_fields - set(turn_dict.keys())
+        if missing:
+            raise CorpusValidationError(f"Corpus row '{row_id}': turn {turn_idx} missing required fields: {missing}")
+
+        # Validate expected_input_verdict
+        input_verdict = turn_dict["expected_input_verdict"]
+        valid_verdicts = {"pass", "advisory", "block"}
+        if input_verdict not in valid_verdicts:
+            raise CorpusValidationError(
+                f"Corpus row '{row_id}': turn {turn_idx} invalid expected_input_verdict '{input_verdict}' "
+                f"(must be one of {valid_verdicts})"
+            )
+
+        # Validate expected_session_state
+        session_state = turn_dict["expected_session_state"]
+        valid_states = {"Normal", "Watching", "Elevated", "High", "Blocked"}
+        if session_state not in valid_states:
+            raise CorpusValidationError(
+                f"Corpus row '{row_id}': turn {turn_idx} invalid expected_session_state '{session_state}' "
+                f"(must be one of {valid_states})"
+            )
+
+        # Get optional fields
+        agent_output = turn_dict.get("agent_output")
+        output_verdict = turn_dict.get("expected_output_verdict")
+
+        # Validate agent_output and expected_output_verdict pairing
+        if agent_output is not None and output_verdict is None:
+            raise CorpusValidationError(
+                f"Corpus row '{row_id}': turn {turn_idx} has agent_output but missing expected_output_verdict"
+            )
+
+        if agent_output is None and output_verdict is not None:
+            raise CorpusValidationError(
+                f"Corpus row '{row_id}': turn {turn_idx} has expected_output_verdict but missing agent_output"
+            )
+
+        if output_verdict is not None and output_verdict not in valid_verdicts:
+            raise CorpusValidationError(
+                f"Corpus row '{row_id}': turn {turn_idx} invalid expected_output_verdict '{output_verdict}' "
+                f"(must be one of {valid_verdicts})"
+            )
+
+        # Resolve canary references in input
+        input_text = turn_dict["input"]
+        if not isinstance(input_text, str):
+            raise CorpusValidationError(
+                f"Corpus row '{row_id}': turn {turn_idx} input is not a string (got {type(input_text).__name__})"
+            )
+
+        resolved_input = _resolve_and_validate_input(input_text, f"{row_id}:turn{turn_idx}", catalogue)
+
+        # Resolve canary references in agent_output (if present)
+        resolved_agent_output = None
+        if agent_output is not None:
+            if not isinstance(agent_output, str):
+                raise CorpusValidationError(
+                    f"Corpus row '{row_id}': turn {turn_idx} agent_output is not a string "
+                    f"(got {type(agent_output).__name__})"
+                )
+            resolved_agent_output = _resolve_and_validate_input(
+                agent_output, f"{row_id}:turn{turn_idx}:agent_output", catalogue
+            )
+
+        turn = Turn(
+            input=resolved_input,
+            agent_output=resolved_agent_output,
+            expected_input_verdict=input_verdict,
+            expected_output_verdict=output_verdict,
+            expected_session_state=session_state,
+        )
+        turns.append(turn)
+
+    return turns
 
 
 def _resolve_and_validate_input(input_text: str, row_id: str, catalogue: Catalogue) -> str:
@@ -185,29 +326,68 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
         # Validate and convert each row
         for row_idx, row_dict in enumerate(data):
             if not isinstance(row_dict, dict):
-                raise ValueError(f"{file_path.name}: row {row_idx} is not a dict")
+                raise CorpusValidationError(f"{file_path.name}: row {row_idx} is not a dict")
 
-            # Validate required fields
-            required = {"id", "input", "attack_category", "expected_verdict"}
-            missing = required - set(row_dict.keys())
-            if missing:
-                raise ValueError(
-                    f"{file_path.name}: row {row_idx} (id={row_dict.get('id', 'unknown')}): "
-                    f"missing required fields: {missing}"
+            row_id = row_dict.get("id", f"row_{row_idx}")
+
+            # Determine row type: multi-turn or single-shot
+            has_turns = "turns" in row_dict
+            has_single_shot = "input" in row_dict and "expected_verdict" in row_dict
+
+            if has_turns and has_single_shot:
+                raise CorpusValidationError(
+                    f"{file_path.name}: row '{row_id}' has both 'turns' and 'input'/'expected_verdict' "
+                    f"(choose one shape)"
                 )
 
+            if not has_turns and not has_single_shot:
+                raise CorpusValidationError(
+                    f"{file_path.name}: row '{row_id}' missing both 'turns' and 'input'/'expected_verdict' "
+                    f"(provide one shape)"
+                )
+
+            # Validate required fields present
+            if "id" not in row_dict:
+                raise CorpusValidationError(f"{file_path.name}: row {row_idx} missing required field 'id'")
+
+            if "attack_category" not in row_dict:
+                raise CorpusValidationError(
+                    f"{file_path.name}: row '{row_id}' missing required field 'attack_category'"
+                )
+
+            attack_category = row_dict["attack_category"]
+
+            # **Multi-turn row parsing**
+            if has_turns:
+                try:
+                    turns = _parse_turns(row_dict["turns"], row_id, catalogue)
+                except CorpusValidationError:
+                    raise
+                except Exception as e:
+                    raise CorpusValidationError(f"{file_path.name}: row '{row_id}' turns parsing failed: {e}") from e
+
+                row = CorpusRow(
+                    id=row_id,
+                    attack_category=attack_category,
+                    notes=row_dict.get("notes"),
+                    turns=turns,
+                    family=row_dict.get("family"),
+                )
+                rows.append(row)
+                continue
+
+            # **Single-shot row parsing (existing logic)**
             # Validate expected_verdict value
             expected_verdict = row_dict["expected_verdict"]
             valid_verdicts = {"pass", "block", "advisory", "error"}
             if expected_verdict not in valid_verdicts:
-                raise ValueError(
-                    f"{file_path.name}: row {row_idx} (id={row_dict['id']}): "
+                raise CorpusValidationError(
+                    f"{file_path.name}: row '{row_id}': "
                     f"invalid expected_verdict: {expected_verdict} "
                     f"(must be one of {valid_verdicts})"
                 )
 
             # Resolve canary references and validate input
-            row_id = row_dict["id"]
             resolved_input = _resolve_and_validate_input(row_dict["input"], row_id, catalogue)
 
             # Extract tool and tool_params (for tool_abuse category)
@@ -215,7 +395,7 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
             tool_params = row_dict.get("tool_params")
 
             # If attack_category is tool_abuse and no explicit tool, default to Bash
-            if row_dict["attack_category"] == "tool_abuse" and tool is None:
+            if attack_category == "tool_abuse" and tool is None:
                 tool = "Bash"
 
             # If tool is specified, ensure tool_params has command field for Bash
@@ -227,8 +407,8 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
             row = CorpusRow(
                 id=row_id,
                 input=resolved_input,
-                attack_category=row_dict["attack_category"],
-                expected_verdict=row_dict["expected_verdict"],
+                attack_category=attack_category,
+                expected_verdict=expected_verdict,
                 expected_signal_id=row_dict.get("expected_signal_id"),
                 notes=row_dict.get("notes"),
                 tool=tool,

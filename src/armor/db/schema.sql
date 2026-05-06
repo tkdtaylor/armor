@@ -8,10 +8,11 @@ CREATE TABLE IF NOT EXISTS Session (
     session_id TEXT PRIMARY KEY,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
-    state TEXT NOT NULL DEFAULT 'Normal' CHECK(state IN ('Normal', 'Watching', 'Elevated', 'High', 'Blocked')),
-    risk_score INTEGER NOT NULL DEFAULT 0 CHECK(risk_score >= 0 AND risk_score <= 100),
+    current_state TEXT NOT NULL DEFAULT 'Normal' CHECK(current_state IN ('Normal', 'Watching', 'Elevated', 'High', 'Blocked')),
+    risk_score REAL NOT NULL DEFAULT 0.0,
     turn_count INTEGER NOT NULL DEFAULT 0,
     signal_history TEXT NOT NULL DEFAULT '[]', -- JSON: [{ts, kind, signal_id, severity}, ...]
+    last_signal_at REAL NOT NULL DEFAULT 0.0,
     UNIQUE(session_id)
 );
 
@@ -47,3 +48,15 @@ CREATE TABLE IF NOT EXISTS QuarantinedPayload (
 
 -- Index on QuarantinedPayload for TTL sweep
 CREATE INDEX IF NOT EXISTS idx_quarantined_expires_at ON QuarantinedPayload(expires_at);
+
+-- SessionRollingBuffer table: append-only rolling output buffer per session (task 023)
+CREATE TABLE IF NOT EXISTS SessionRollingBuffer (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL REFERENCES Session(session_id),
+    turn_id TEXT NOT NULL,          -- Turn identifier (e.g., "turn_5")
+    text TEXT NOT NULL,              -- Output text for this turn
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Index on SessionRollingBuffer for fast lookups by session_id
+CREATE INDEX IF NOT EXISTS idx_rolling_buffer_session_ts ON SessionRollingBuffer(session_id, created_at);

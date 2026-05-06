@@ -6,7 +6,10 @@ import logging
 import sqlite3
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 
+from armor.session.rolling_buffer import RollingBuffer
+from armor.session.state_machine import SessionState, apply_signal
 from armor.types import Verdict
 
 logger = logging.getLogger(__name__)
@@ -27,10 +30,11 @@ class SessionRow:
     session_id: str
     created_at: str
     last_seen_at: str
-    state: str
-    risk_score: int
+    current_state: str
+    risk_score: float
     turn_count: int
     signal_history: list[dict[str, object]] = field(default_factory=list)
+    last_signal_at: float = 0.0  # Unix timestamp of last signal (for cooldown calculation)
 
 
 class SessionStore:
@@ -88,10 +92,85 @@ class SessionStore:
 
             return row
 
-    async def update_after_check(self, session_id: str, verdict: Verdict) -> None:
-        """Update session after a check.
+    async def apply_and_persist(
+        self,
+        session_id: str,
+        verdict: Verdict,
+        config: dict[str, object] | None = None,
+    ) -> tuple[str, float]:
+        """Apply a signal to the session state machine and persist.
 
-        Updates turn_count, last_seen_at, signal_history, and risk_score.
+        This is the main integration point: applies cooldown decay, updates state based
+        on the new signal, and persists to DB. Used by the daemon to gate detectors
+        and update session state atomically.
+
+        Args:
+            session_id: The session ID.
+            verdict: The verdict (signal) to apply.
+            config: Configuration dict (thresholds, weights, decay rate).
+
+        Returns:
+            Tuple of (new_state_str, new_risk_score).
+        """
+        if session_id not in self._locks:
+            self._locks[session_id] = asyncio.Lock()
+
+        async with self._locks[session_id]:
+            # Get or create session
+            if session_id in self._cache:
+                row = self._cache[session_id]
+            else:
+                row = await asyncio.to_thread(self._load_or_create_from_db, session_id)
+                self._cache[session_id] = row
+                self._update_lru(session_id)
+
+            # Apply state machine
+            current_state = SessionState(row.current_state)
+            now = datetime.now()
+            last_signal_at = datetime.fromtimestamp(row.last_signal_at)
+
+            new_state, new_score = apply_signal(
+                current_state=current_state,
+                current_score=row.risk_score,
+                signal=verdict,
+                last_signal_at=last_signal_at,
+                now=now,
+                config=config or {},
+            )
+
+            # Update row with new state and score
+            row.current_state = new_state.value
+            row.risk_score = new_score
+            row.last_signal_at = now.timestamp()
+
+            # Update turn count and last_seen_at
+            row.turn_count += 1
+            row.last_seen_at = time.strftime("%Y-%m-%d %H:%M:%S")
+
+            # Add signal to history
+            if verdict.signal_id:
+                signal = {
+                    "ts": time.time(),
+                    "kind": verdict.signal_id.split(":")[0],  # Category before colon
+                    "signal_id": verdict.signal_id,
+                    "severity": verdict.severity,
+                }
+                row.signal_history.append(signal)
+
+                # Keep only last 50 signals
+                if len(row.signal_history) > 50:
+                    row.signal_history = row.signal_history[-50:]
+
+            # Persist to DB
+            await asyncio.to_thread(self._persist_to_db, row)
+
+            return (new_state.value, new_score)
+
+    async def update_after_check(self, session_id: str, verdict: Verdict) -> None:
+        """Update session after a check (legacy method for forensic logging).
+
+        This method is kept for backward compatibility. New code should use
+        apply_and_persist() instead to also update session state via the FSM.
 
         Args:
             session_id: The session ID.
@@ -179,7 +258,7 @@ class SessionStore:
 
             # Try to load existing session
             cursor.execute(
-                "SELECT session_id, created_at, last_seen_at, state, risk_score, turn_count, signal_history FROM Session WHERE session_id = ?",
+                "SELECT session_id, created_at, last_seen_at, current_state, risk_score, turn_count, signal_history, last_signal_at FROM Session WHERE session_id = ?",
                 (session_id,),
             )
             row = cursor.fetchone()
@@ -189,28 +268,31 @@ class SessionStore:
                     session_id=row["session_id"],
                     created_at=row["created_at"],
                     last_seen_at=row["last_seen_at"],
-                    state=row["state"],
-                    risk_score=row["risk_score"],
+                    current_state=row["current_state"],
+                    risk_score=float(row["risk_score"]),
                     turn_count=row["turn_count"],
                     signal_history=json.loads(row["signal_history"]),
+                    last_signal_at=float(row["last_signal_at"]),
                 )
 
             # Create new session
-            now = time.strftime("%Y-%m-%d %H:%M:%S")
+            now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+            now_timestamp = time.time()
             cursor.execute(
-                "INSERT INTO Session (session_id, created_at, last_seen_at, state, risk_score, turn_count, signal_history) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (session_id, now, now, "Normal", 0, 0, json.dumps([])),
+                "INSERT INTO Session (session_id, created_at, last_seen_at, current_state, risk_score, turn_count, signal_history, last_signal_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (session_id, now_str, now_str, "Normal", 0.0, 0, json.dumps([]), now_timestamp),
             )
             conn.commit()
 
             return SessionRow(
                 session_id=session_id,
-                created_at=now,
-                last_seen_at=now,
-                state="Normal",
-                risk_score=0,
+                created_at=now_str,
+                last_seen_at=now_str,
+                current_state="Normal",
+                risk_score=0.0,
                 turn_count=0,
                 signal_history=[],
+                last_signal_at=now_timestamp,
             )
 
         finally:
@@ -229,16 +311,99 @@ class SessionStore:
             cursor = conn.cursor()
 
             cursor.execute(
-                "UPDATE Session SET last_seen_at = ?, state = ?, risk_score = ?, turn_count = ?, signal_history = ? WHERE session_id = ?",
+                "UPDATE Session SET last_seen_at = ?, current_state = ?, risk_score = ?, turn_count = ?, signal_history = ?, last_signal_at = ? WHERE session_id = ?",
                 (
                     row.last_seen_at,
-                    row.state,
+                    row.current_state,
                     row.risk_score,
                     row.turn_count,
                     json.dumps(row.signal_history),
+                    row.last_signal_at,
                     row.session_id,
                 ),
             )
+            conn.commit()
+
+        finally:
+            conn.close()
+
+    def save_rolling_buffer(self, session_id: str, buffer: RollingBuffer) -> None:
+        """Persist rolling buffer entries to the SessionRollingBuffer table.
+
+        This is a synchronous method. It appends all current entries in the buffer
+        to the database. Existing entries are not deleted (append-only semantics).
+
+        Args:
+            session_id: The session ID.
+            buffer: The RollingBuffer instance to persist.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cursor = conn.cursor()
+            now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+
+            for entry in buffer.entries():
+                cursor.execute(
+                    "INSERT INTO SessionRollingBuffer (session_id, turn_id, text, created_at) VALUES (?, ?, ?, ?)",
+                    (session_id, entry.turn_id, entry.text, now_str),
+                )
+
+            conn.commit()
+
+        finally:
+            conn.close()
+
+    def load_rolling_buffer(
+        self, session_id: str, capacity_chars: int = 8192, capacity_turns: int = 20
+    ) -> RollingBuffer:
+        """Load rolling buffer entries from the SessionRollingBuffer table.
+
+        Reconstructs the RollingBuffer from the database, applying the capacity
+        limits. Returns an empty buffer if the session has no entries.
+
+        Args:
+            session_id: The session ID.
+            capacity_chars: Character capacity for the buffer (default 8192).
+            capacity_turns: Turn capacity for the buffer (default 20).
+
+        Returns:
+            RollingBuffer instance reconstructed from database entries.
+        """
+        buffer = RollingBuffer(capacity_chars=capacity_chars, capacity_turns=capacity_turns)
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            cursor = conn.cursor()
+
+            # Load all entries for this session, ordered by creation (oldest first)
+            cursor.execute(
+                "SELECT turn_id, text FROM SessionRollingBuffer WHERE session_id = ? ORDER BY created_at ASC",
+                (session_id,),
+            )
+            rows = cursor.fetchall()
+
+            # Re-append entries to reconstruct the buffer (and apply capacity limits)
+            for row in rows:
+                buffer.append(row["turn_id"], row["text"])
+
+            return buffer
+
+        finally:
+            conn.close()
+
+    def clear_rolling_buffer(self, session_id: str) -> None:
+        """Clear all rolling buffer entries for a session.
+
+        Used when a session ends or is explicitly reset.
+
+        Args:
+            session_id: The session ID.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM SessionRollingBuffer WHERE session_id = ?", (session_id,))
             conn.commit()
 
         finally:

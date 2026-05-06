@@ -34,7 +34,7 @@ async def test_get_or_create_new_session(session_store):
     row = await session_store.get_or_create(session_id)
 
     assert row.session_id == session_id
-    assert row.state == "Normal"
+    assert row.current_state == "Normal"
     assert row.risk_score == 0
     assert row.turn_count == 0
     assert row.signal_history == []

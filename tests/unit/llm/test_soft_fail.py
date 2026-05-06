@@ -194,3 +194,52 @@ def test_advisory_with_zero_confidence_does_not_block():
     assert verdict.decision == "advisory"
     assert verdict.details["confidence"] == 0.0
     assert verdict.decision != "block"
+
+
+def test_validator_with_no_llm_session_returns_advisory():
+    """TC-021-10: ARMOR_DISABLE_LLM disables validator path.
+
+    When llm_session is None, validator should return advisory with confidence=0.
+    This simulates the ARMOR_DISABLE_LLM=true behavior.
+    """
+    ctx = SessionContext(session_id="test-no-llm", signal_history=[])
+
+    # Call validator with no LLM session
+    verdict = validator.validate("test payload", ctx, llm_session=None)
+
+    # Should return advisory with confidence=0
+    assert verdict.decision == "advisory"
+    assert verdict.details["confidence"] == 0.0
+    assert verdict.signal_id == "llm.validator:no_model"
+
+
+def test_honeypot_with_no_llm_session_returns_empty():
+    """TC-021-10: ARMOR_DISABLE_LLM disables honeypot path.
+
+    When llm_session is None, honeypot should return empty string.
+    This simulates the ARMOR_DISABLE_LLM=true behavior.
+    """
+    from armor.canaries.catalogue import CanaryEntry, Catalogue
+
+    # Create a minimal catalogue
+    catalogue = Catalogue(
+        entries=[
+            CanaryEntry(
+                canary_id="test-canary",
+                kind="credential",
+                service="test",
+                marker_rule=r"CANARY",
+                value="CANARY-VALUE-123",
+                active=True,
+                created_at="2026-05-06T00:00:00Z",
+            )
+        ]
+    )
+
+    ctx = SessionContext(session_id="test-no-llm", signal_history=[])
+
+    # Call honeypot with no LLM session
+    response = honeypot_respond("test payload", ctx, catalogue, llm_session=None)
+
+    # Should return empty string
+    assert response == ""

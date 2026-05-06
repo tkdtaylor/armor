@@ -40,10 +40,11 @@ def test_schema_applies_cleanly(temp_db):
         "session_id",
         "created_at",
         "last_seen_at",
-        "state",
+        "current_state",
         "risk_score",
         "turn_count",
         "signal_history",
+        "last_signal_at",
     }
     assert session_cols == expected_session_cols
 
@@ -84,9 +85,10 @@ def test_migrations_idempotent(temp_db):
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
     now = "2026-05-05 12:00:00"
+    now_ts = 1000.0
     cursor.execute(
-        "INSERT INTO Session (session_id, created_at, last_seen_at, state, signal_history) VALUES (?, ?, ?, ?, ?)",
-        ("test-session", now, now, "Normal", "[]"),
+        "INSERT INTO Session (session_id, created_at, last_seen_at, current_state, signal_history, last_signal_at) VALUES (?, ?, ?, ?, ?, ?)",
+        ("test-session", now, now, "Normal", "[]", now_ts),
     )
     conn.commit()
 

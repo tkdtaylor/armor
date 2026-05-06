@@ -99,6 +99,16 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# Check 10: Session state machine transition coverage
+echo -n "  Checking session state transition coverage ... "
+if uv run python tests/fitness/transition_coverage.py > /dev/null 2>&1; then
+    echo "PASS"
+else
+    echo "FAIL"
+    uv run python tests/fitness/transition_coverage.py
+    ERRORS=$((ERRORS + 1))
+fi
+
 # Summary
 echo ""
 if [ $ERRORS -eq 0 ]; then

@@ -1,5 +1,7 @@
 """Fitness check: Corpus passes with ARMOR_DISABLE_LLM=true.
 
+TC-021-04: Static corpus passes with ARMOR_DISABLE_LLM=true
+
 This verifies the invariant: static detectors alone catch all P0/P1 attacks.
 The LLM is advisory; if disabled, the system should still function correctly
 on the evaluation corpus.

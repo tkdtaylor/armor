@@ -144,9 +144,14 @@ class TestLoaderIntegration:
         # Should have loaded some rows
         assert len(rows) > 0
 
-        # All rows should have resolved input (no {canary:...} placeholders)
+        # All single-shot rows should have resolved input (no {canary:...} placeholders)
         for row in rows:
-            assert "{canary:" not in row.input, f"Row {row.id} has unresolved canary reference"
+            if row.input is not None:  # Single-shot rows
+                assert "{canary:" not in row.input, f"Row {row.id} has unresolved canary reference"
+            else:  # Multi-turn rows
+                # Multi-turn rows have inputs in turns
+                for turn_idx, turn in enumerate(row.turns or []):
+                    assert "{canary:" not in turn.input, f"Row {row.id} turn {turn_idx} has unresolved canary reference"
 
     def test_load_corpus_specific_category(self, corpus_loader_module):
         """Load a specific corpus category."""

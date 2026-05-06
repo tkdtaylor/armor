@@ -27,7 +27,11 @@ load_corpus = corpus_loader.load_corpus
 # Load registry and corpus at collection time
 registry = DetectorRegistry()
 detectors = registry.all()
-corpus = load_corpus()
+all_rows = load_corpus()
+
+# Filter to single-shot rows only for the parametrized test
+# Multi-turn rows are tested separately in test_runner_multi_turn.py
+corpus = [r for r in all_rows if not r.is_multi_turn()]
 
 # Latency budget in milliseconds (per detector, static-only for v0.2)
 LATENCY_BUDGET_MS = 50

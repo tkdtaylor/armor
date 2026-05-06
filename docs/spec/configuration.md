@@ -1,7 +1,7 @@
 # Configuration
 
 **Project:** armor
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 
 Every knob the system exposes — env vars, config files, runtime parameters, deployment settings.
 
@@ -35,11 +35,21 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `pipeline.llm_validator_weight` | float | `0.3` | no | Weight for validator confidence → session risk score (task 022 risk scoring) |
 | `destination_whitelist` | array of strings | `[]` | no | List of hostnames to whitelist for destination extraction (exact-match, case-insensitive) |
 | `entropy.min_length` | integer | `40` | no | Min substring length to entropy-check (consumed by `entropy.decode_rescan` detector) |
-| `entropy.threshold` | float | `4.5` | no | Shannon entropy bits/char above which to flag (consumed by `entropy.decode_rescan` detector) |
+| `entropy.threshold` | float | `4.5` | no | Shannon entropy bits/char above which to flag (consumed by `entropy.decode_rescan` detector); used for single-turn output checks |
+| `entropy.rolling_threshold` | float | `4.5` | no | Shannon entropy bits/char threshold for rolling-buffer multi-turn aggregation (task 023). Separate from per-turn threshold; applied to `buffer.concatenated()` |
+| `detector.canary.partial_match_min_chars` | integer | `12` | no | Minimum prefix length (chars) of a canary value to trigger a partial-match advisory signal (task 023) |
+| `detector.topic_coherence.distance_threshold` | float | `0.5` | no | Cosine distance threshold above which to emit advisory (task 024) |
+| `detector.topic_coherence.margin` | float | `0.2` | no | Confidence scaling margin: `confidence = min(1.0, (distance - threshold) / margin)` (task 024) |
+| `detector.topic_coherence.window_turns` | integer | `5` | no | EMA window size: number of prior turns to include in rolling average (task 024) |
+| `detector.topic_coherence.budget_ms` | integer | `50` | no | Per-call latency budget for topic-coherence embedding (milliseconds); soft-fail on exceed (task 024) |
+| `session.rolling_buffer.capacity_chars` | integer | `8192` | no | Rolling buffer max character count (8 KB default; see ADR-025) |
+| `session.rolling_buffer.capacity_turns` | integer | `20` | no | Rolling buffer max turn count (task 023; see ADR-025) |
 | `session.cache_size` | integer | `1024` | no | LRU cap for in-memory session rows |
-| `session.escalation.advisory_to_watching` | integer | `1` | no | Signals before session goes Watching |
-| `session.escalation.watching_to_elevated` | integer | `2` | no | More signals to escalate |
-| `session.escalation.cooldown_turns` | integer | `10` | no | Clean turns to step state down |
+| `session.thresholds.watching` | float | `0.4` | no | Risk score threshold: Normal → Watching |
+| `session.thresholds.elevated` | float | `0.9` | no | Risk score threshold: Watching → Elevated |
+| `session.thresholds.high` | float | `1.5` | no | Risk score threshold: Elevated → High |
+| `session.cooldown_decay_per_min` | float | `0.1` | no | Risk score decay rate (per minute of inactivity) |
+| `session.signal_weights.<detector_id>` | float | `1.0` | no | Per-detector advisory weight (e.g., `session.signal_weights."llm.validator" = 0.8`); defaults to 1.0 |
 | `quarantine.ttl_hours` | integer | `168` | no | TTL on raw payload retention (7 days) |
 | `safe_message.input_block` | string | `"Input blocked by armor."` | no | User-facing message on input block |
 | `safe_message.output_block` | string | `"Output suppressed by armor."` | no | User-facing message on output block |
@@ -62,11 +72,35 @@ per_detector_budget_ms = 100
 
 [session]
 cache_size = 1024
+cooldown_decay_per_min = 0.1
 
-[session.escalation]
-advisory_to_watching = 1
-watching_to_elevated = 2
-cooldown_turns = 10
+[session.thresholds]
+watching = 0.4
+elevated = 0.9
+high = 1.5
+
+[session.rolling_buffer]
+capacity_chars = 8192
+capacity_turns = 20
+
+[session.signal_weights]
+# Per-detector advisory weights (defaults to 1.0 if not specified)
+# "llm.validator" = 0.8
+# "regex.encoding_request" = 0.5
+
+[detector.canary]
+partial_match_min_chars = 12
+
+[detector.entropy]
+per_turn_threshold = 4.5
+rolling_threshold = 4.5
+min_length = 40
+
+[detector.topic_coherence]
+distance_threshold = 0.5
+margin = 0.2
+window_turns = 5
+budget_ms = 50
 
 destination_whitelist = [
   "internal.example.com",

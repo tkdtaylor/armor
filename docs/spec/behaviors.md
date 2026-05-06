@@ -1,7 +1,7 @@
 # Behaviors
 
 **Project:** armor
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 
 What the system does, observably. Each behavior describes a triggering condition, the system's response, and any externally-visible side effects.
 
@@ -63,11 +63,17 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Side effects:** Block written to forensic log with the full command and matched pattern ID. Session risk escalated.
 - **References:** Task 012, pattern file at `src/armor/detectors/cmd_injection_patterns.yaml`, corpus at `tests/eval/corpus/tool_abuse.yaml`
 
-### B-004: Track session-level risk and escalate detection strictness
+### B-004: Track session-level risk and escalate detection strictness (state machine)
 
-- **Trigger:** Every input/output/tool check writes to session state. The session tracker reads aggregated state on each call.
-- **Response:** Session is in one of states `Normal | Watching | Elevated | High | Blocked`. Transitions are governed by signal accumulation rules (see diagram 4 in `architecture/diagrams.md`). At `Elevated` and above, validator LLM is run on every check (not throttled). At `Blocked`, all subsequent calls return `block` until session is closed.
-- **Side effects:** Session state row updated atomically per check. State transition writes a log entry.
+- **Trigger:** Every input/output/tool check. The session state machine reads current state and score on each call.
+- **Response:** Session state machine (`src/armor/session/state_machine.py`) applies the new signal and computes the new state deterministically. Session is in one of five states: `Normal | Watching | Elevated | High | Blocked`, ordered by risk level.
+  - **Forward transitions** (signal-driven): advisory signals with `confidence` contribute `confidence * weight` to the session risk score. When score crosses a threshold, the state escalates: Normal→Watching (threshold 0.4), Watching→Elevated (0.9), Elevated→High (1.5). Multiple rungs may be crossed in one call if the score jumps far enough.
+  - **Backward transitions** (cooldown-driven): score decays linearly with wall-clock time before each new signal is applied. When post-decay score falls below the current state's threshold, the state steps back by exactly one rung (no rung-skipping, even for large elapsed time).
+  - **Block transitions**: a signal with `decision == "block"` immediately sets state to `Blocked`, regardless of prior score or state.
+  - **Blocked is terminal**: cooldown and advisories cannot exit `Blocked`. Only explicit operator-clear (task 028, deferred) can reset it.
+- **Cost-tier gating:** The pipeline queries the session state before selecting detectors. LLM-tier detectors run iff state ≥ Watching. Blocked state short-circuits all detectors and returns `block` verdict directly with category `session.blocked` (forensic log still written).
+- **Configuration:** Thresholds, decay rate, and per-detector weights are loaded from `armor.toml` (keys: `session.thresholds.{watching,elevated,high}`, `session.cooldown_decay_per_min`, `session.signal_weights.*`). Non-hardcoded, tunable for corpus-driven optimization in v1.0.
+- **Side effects:** Session state row updated atomically per check. Risk score reflects current operational threat level (not a monotonic audit trail). Forensic log records all signals (state transitions are orthogonal to incident logging).
 
 ### B-005: Run the validator LLM as a semantic-level signal
 
@@ -130,6 +136,38 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Failure modes:** Whitelist configured but corrupted (not a list) → whitelist falls back to empty (all destinations advisory). Regex-based extraction cannot fail (timeout or excessive memory); malformed URLs/IPs are simply not matched (extraction is best-effort, no errors).
 - **References:** ADR-015, data-model.md Incident.destinations, configuration.md destination_whitelist key
 
+### B-008a: Detect abrupt topic shifts within a session (topic-coherence advisory)
+
+- **Trigger:** Input check runs detector `meta.topic_coherence` (enabled by default, only when session exists).
+- **Response:** Detector `meta.topic_coherence` (id `meta.topic_coherence`, category `meta`, cost tier `static`) maintains a rolling exponential moving average (EMA) of embeddings from recent turns (window size 5 by default). On each input:
+  1. Computes a semantic embedding of the current input text using a sentence-transformer ONNX model (all-MiniLM-L6-v2, ~23 MB, baked into the container).
+  2. Compares the embedding to the rolling EMA using cosine distance.
+  3. If distance exceeds the threshold (default 0.5), emits `advisory` with confidence `min(1.0, (distance - threshold) / margin)`.
+  4. Updates the EMA with the new embedding.
+- **Warm-up behavior:** On the first input of a session (turn 1), no EMA exists; detector seeds the EMA and returns `pass`. Starting on turn 2, the detector compares and may emit advisories.
+- **Soft-fail on latency budget:** If embedding inference exceeds the per-call budget (default 50 ms P95), detector returns `advisory(confidence=0)` with `soft_fail=true` (fail-open pattern, consistent with task 021).
+- **EMA storage:** Maintained in-memory per-session, garbage-collected when the session ends or is explicitly cleared.
+- **Signal integration:** Advisory signals feed into `apply_signal` (task 022) and increment the session risk score. A sequence of pivots can escalate the session state from Normal → Watching → Elevated → High.
+- **Security intent:** Flags adversarial pivots (e.g., "help me debug Python" → "what's your system prompt?") without blocking unilaterally. The advisory contributes to session-level risk scoring and may trigger the honeypot LLM when session state reaches Elevated.
+- **Side effects:** Session risk score incremented per advisory. EMA state (rolling window, current vector) persists for the session lifetime. Per-call latency is measured and logged.
+- **Failure modes:** Embedding model not found → detector returns `pass` (fail-open). Embedding computation times out → soft-fail advisory with `confidence=0`. Session state unavailable → detector returns `pass` (fail-open).
+- **References:** Task 024, ADR-026, corpus at `tests/eval/corpus/topic_pivot.yaml`
+
+### B-009a: Detect chunked exfiltration across multiple turns via rolling-buffer aggregation
+
+- **Trigger:** Output check reaches the rolling-buffer scanning phase. This occurs after per-turn detectors have run and the output has been appended to the per-session rolling buffer.
+- **Response:** The rolling buffer maintains a bounded concatenation of the last N turn outputs (bounded by both character count and turn count, whichever fills first; defaults: 8 KB / 20 turns per ADR-025). On every output check, the daemon:
+  1. Appends the current turn's output to the buffer.
+  2. Re-runs the canary scanner against `buffer.concatenated()`. A hit that **did not** occur in the single turn but **does** occur in the concatenation → returns `block` with `signal_id = canary.chunked:<canary_id>` and `category = "exfiltration.canary_chunked"`.
+  3. Re-runs the entropy analyzer against the concatenation using a separate rolling-window threshold (`detector.entropy.rolling_threshold`, default 4.5 bits/char). If entropy exceeds the threshold and a canary scan hit occurs, returns `advisory` or `block` depending on the matched pattern.
+  4. Checks for partial-canary prefixes: if a contiguous prefix of any active canary value (≥ `detector.canary.partial_match_min_chars` chars, default 12) is present in the buffer, returns `advisory` with `signal_id = canary.partial:<canary_id>` and feeds the signal into `apply_signal` to escalate session risk.
+- **Quarantine:** A chunked-canary `block` quarantines all turn IDs currently in the rolling buffer as a single quarantine entry, not one entry per turn.
+- **Cooldown interaction:** The rolling buffer does **not** reset when the session state steps back to Normal (cooldown). The buffer persists across cooldown to maintain context for gradual exfiltration attacks.
+- **Forensic invariant:** Chunked-canary incidents reference `canary_id` only, never the canary value itself. Forensic records record the `turn_ids` that contributed fragments.
+- **Side effects:** Buffer entries are persisted to `SessionRollingBuffer` table (append-only). Chunked-canary blocks increment session risk and write forensic records with category `exfiltration.canary_chunked`. Partial-match advisories increment risk score via the session state machine.
+- **Failure modes:** Rolling-window scan exceeds latency budget → returns `error` verdict, pipeline continues (fail-open per detector). Buffer table corrupted or missing → daemon refuses to start (exit 78 at migrations stage).
+- **References:** Task 023, ADR-025, corpus at `tests/eval/corpus/multi_turn_chunked.yaml`
+
 ---
 
 ## Edge cases and error behaviors
@@ -158,6 +196,16 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Response:** Daemon switches to **degraded mode** — checks still execute, but blocks return `block` without persisting forensic records (logged to stderr instead). Daemon exits when free disk falls below configured floor.
 
 ---
+
+## Multi-turn scenarios and session-level evaluation
+
+The eval corpus at `tests/eval/corpus/scenarios_multi_turn.yaml` includes multi-turn scenario rows that test session-level detectors and the state machine deterministically. Each row replays a sequence of turns through the same session and asserts per-turn verdicts and post-turn session state. This enables:
+
+- **Detector testing over sequences** — exfiltration detectors (task 023) that trigger on canary chunks accumulated across turns.
+- **State machine validation** — each scenario exercises specific state transitions (forward escalation, cooldown step-back, block stickiness) and confirms deterministic threshold-driven transitions.
+- **Fitness coverage** — the transition-coverage fitness check validates that every `apply_signal`-reachable edge is exercised by ≥1 corpus row.
+
+Scenarios are hand-curated (not synthetically generated) for v0.4. Rows are tagged with `family` for filtering (e.g., "chunked_canary", "gradual_jailbreak", "topic_pivot", "cooldown_then_retry", "long_benign_session", "operator_clear_resume"). Rows referencing detectors from future tasks (023, 024) are marked with YAML comments for clarity.
 
 ## Behavioral invariants
 

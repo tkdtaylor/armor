@@ -1,7 +1,7 @@
 # Fitness Functions
 
 **Project:** armor
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 
 Executable architectural invariants. Each fitness function is a check that runs uniformly under one entry point (preferred: `make fitness`; fallback: `./scripts/fitness.sh`) and either passes silently or fails with a description of the violation.
 
@@ -28,9 +28,10 @@ The following categories cover what the spec asserts and what experience has sho
 
 | Invariant | Why | Candidate check | Status |
 |-----------|-----|-----------------|--------|
-| Daemon cold-start under N seconds | Hooks block on the first request; long startup blocks the agent | Measure core-import latency (v0.3) and daemon socket-accept (v0.4+); fail if > 5 seconds | implemented (`tests/fitness/cold_start_budget.py`) |
-| Validator P95 latency under 500 ms | Validator is on the user-facing path; must fit the SLA | Run validator on 100+ corpus rows; assert P95 ≤ 500 ms (empirical: 486 ms per ADR-018) | implemented (`tests/fitness/llm_p95_latency.py`) |
-| Honeypot P95 latency under 12,000 ms | Honeypot generates longer responses; separate budget from validator | Run honeypot on 30+ corpus rows; assert P95 ≤ 12,000 ms (empirical: 11,875 ms per ADR-018) | implemented (`tests/fitness/llm_p95_latency.py`) |
+| Daemon cold-start under N seconds | Hooks block on the first request; long startup blocks the agent | Launch daemon, measure time to first socket accept; fail if > 5 seconds | implemented (`tests/fitness/cold_start_budget.py`) |
+| Validator P95 latency under 500 ms | Validator is on the user-facing path; must fit the SLA | Run validator on 100+ corpus rows; assert P95 ≤ 500 ms (empirical: 486 ms per ADR-018) | implemented (`tests/fitness/llm_p95_latency.py` — smoke: 20 rows, full: 100+) |
+| Honeypot P95 latency under 12,000 ms | Honeypot generates longer responses; separate budget from validator | Run honeypot on 30+ corpus rows; assert P95 ≤ 12,000 ms (empirical: 11,875 ms per ADR-018) | implemented (`tests/fitness/llm_p95_latency.py` — smoke: 5 rows, full: 30+) |
+| Topic-coherence P95 latency under 50 ms | Embedding inference is on the user-facing path; must not block LLM calls | Run detector on 30+ representative inputs; assert P95 ≤ 50 ms (per ADR-026, ONNX embedding is ~10-30ms; tolerance 20%) | implemented (`tests/fitness/test_topic_coherence_latency.py`) |
 | P95 corpus latency under per-detector budget | Catches latency regressions before they impact users; enables early warning of performance degradation | Microbenchmark `tests/eval/corpus/` rows; fail if P95 > 50 ms (v0.2 static detectors) or 500 ms (v0.3+ with LLM) | implemented (`tests/eval/test_corpus.py`) |
 
 ### Coverage
@@ -42,6 +43,7 @@ The following categories cover what the spec asserts and what experience has sho
 | Validator soft-fails to advisory(confidence=0) on timeout | Timeouts must not block; must not escalate session state | Unit test with mock slow LLM; assert timeout fires and returns `advisory(confidence=0)` | implemented (`tests/fitness/validator_soft_fail.py`) |
 | Every spec `B-NNN` behavior has a test referencing it | Spec coverage should be mechanically verifiable | Grep `behaviors.md` for `B-\d+` markers, then grep `tests/` for the same | candidate |
 | Every tool in `tool_schemas.json` has at least one TP and one TN corpus row | Schema coverage should be testable; unknown tools should be observable | For each tool in `src/armor/detectors/tool_schemas.json`, check that `tests/eval/corpus/tool_abuse.yaml` has rows with `tool: <tool_name>` and both `expected_verdict: "block"` (TP) and `expected_verdict: "pass"` (TN) | candidate |
+| Every session state machine transition is exercised by ≥1 corpus row | State machine determinism requires comprehensive edge coverage; transitions must be verifiable not just in unit tests but against realistic multi-turn scenarios | Walk `scenarios_multi_turn.yaml` and extract observed transitions between consecutive turns; compare against enumerated reachable transitions from `apply_signal()` | implemented (`tests/fitness/transition_coverage.py`) |
 
 ### Security
 
