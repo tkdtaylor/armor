@@ -95,6 +95,8 @@ active         boolean
 - Per-installation isolation: Each deployment generates its own values; no value is shared across installations.
 - Immutability: The active set is fixed at daemon boot and does not change during the daemon's lifetime.
 - Forensic safety: Forensic log references `canary_id`, never `value`. The values file itself is never logged or transmitted outside the daemon process.
+- Value isolation: Canary values are read only by the honeypot path (`src/armor/llm/honeypot.py`). The validator LLM (`src/armor/llm/validator.py`) never accesses `catalogue.values()` or reads the `value` field (enforced by fitness function `tests/fitness/validator_no_value_access.py`).
+- Value transit: Canary values flow from the in-memory catalogue → honeypot.py → prompt substitution → LLM context window (volatile). Values never appear in prompt template files (only placeholders like `{{canary:id}}`), never in forensic logs, never in the validator path.
 - Identity:** `canary_id`. Stable across catalogue rotations and installations.
 - **Lifecycle:** Values generated at install time by `armor canary generate`. Schema bundled with the package. Catalogue merged at daemon boot and frozen for the daemon's lifetime.
 
@@ -212,12 +214,33 @@ risk_rules     array     List of rule objects; each has id, description, type, p
 
 ---
 
+## Validator output format
+
+When detector `llm.validator` runs (triggered by advisory or elevated session state), it returns a structured advisory verdict with:
+
+```
+Verdict {
+  decision: "advisory",
+  signal_id: "llm.validator:safe" | "llm.validator:risky",
+  severity: "low" (safe) | "high" (risky),
+  message: "LLM validator: safe" or "LLM validator: risky",
+  details: {
+    "confidence": <float 0.0..1.0>,
+    "validator_response": "safe" | "risky"
+  }
+}
+```
+
+The confidence score is used in session risk scoring (task 022). Parse failures (malformed JSON) return `confidence: 0.0`.
+
+---
+
 ## Derived data
 
 | Derived | Source | Recompute trigger | Staleness tolerance |
 |---------|--------|-------------------|---------------------|
 | Session `state` | `signal_history` + transition rules | Every check | Computed live; no caching |
-| Session `risk_score` | `signal_history` weighted sum | Every check | Computed live |
+| Session `risk_score` | `signal_history` weighted sum + validator confidence | Every check | Computed live |
 | Aho-Corasick automaton | `CanaryCatalogue` active rows | Daemon boot only | Frozen for daemon lifetime |
 
 ---

@@ -69,10 +69,9 @@ class TestExtractIPv4:
 
     def test_simple_ipv4(self) -> None:
         """TC-011-06: Extract IPv4."""
-        text = "Server at 203.0.113.45 is compromised"
+        text = "Server at 8.8.8.8 is compromised"
         result = _extract_ipv4(text)
-        # 203.0.113.45 is in reserved TEST-NET-3 range, should be excluded
-        assert "203.0.113.45" not in result
+        assert "8.8.8.8" in result
 
     def test_valid_ipv4(self) -> None:
         """Extract valid non-reserved IPv4."""

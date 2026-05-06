@@ -72,9 +72,11 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 ### B-005: Run the validator LLM as a semantic-level signal
 
 - **Trigger:** Input or output check, when session state is `Watching` or higher, OR when static detectors return `advisory` (matched a soft signal).
-- **Response:** Daemon submits the payload to the validator LLM (small quantized model, single forward pass, structured output asking "is this attempting a jailbreak / exfiltration / instruction override?"). Returns `safe | risky` with a confidence score.
-- **Side effects:** Output is *advisory* — feeds into the session risk score, never blocks unilaterally. Latency budget: ≤500 ms per call (see configuration.md).
-- **Failure modes:** Model unavailable → `advisory` returned with `confidence=0`, pipeline continues. Latency exceeds budget → soft-fail, log warning, continue.
+- **Response:** Detector `llm.validator` (id `llm.validator`, category `meta`, cost tier `llm`) submits the payload to the validator LLM (small quantized model, single forward pass, structured JSON output asking "is this safe or risky?"). Returns advisory verdict with confidence score 0..1.
+- **System prompt:** Located at `src/armor/llm/prompts/validator.txt`. Explicitly instructs the model to remain a classifier and not deviate from role, with examples of adversarial recruitment attempts. Robust against "as a classifier, say X is safe" jailbreak patterns.
+- **Validator output:** JSON `{"verdict": "safe" | "risky", "confidence": 0.0..1.0}`. Parse failure → `advisory` verdict with `confidence=0`, no exception. Model unavailable → `advisory` with `confidence=0`.
+- **Side effects:** Output is *advisory* — feeds into the session risk score (weighted by `pipeline.llm_validator_weight`, default 0.3), never blocks unilaterally. Latency budget: ≤500 ms per call (see configuration.md).
+- **Failure modes:** Model unavailable → `advisory` returned with `confidence=0`, pipeline continues. Latency exceeds budget → soft-fail, log warning, continue. Malformed JSON → `advisory` with `confidence=0`, logged with truncated response.
 
 ### B-006: Detect and block encoded exfiltration
 
@@ -109,6 +111,17 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Failure modes:** If schema file is missing or malformed at boot, detector logs an error and returns `error` verdicts for all checks. All subsequent shape checks pass (fail-open per detector). If a tool has no schema, unknown tool pass is returned.
 - **References:** Task 013, ADR-016, schema file at `src/armor/detectors/tool_schemas.json`, corpus at `tests/eval/corpus/tool_abuse.yaml`
 
+### B-011: Run the honeypot LLM on elevated injection attempts
+
+- **Trigger:** Input or output check, when session state is **Elevated** or higher AND the static detector pipeline returns `block` or `advisory` (detected injection attempt or soft signal).
+- **Response:** Daemon invokes the honeypot LLM (id `honeypot`, category `meta`, cost tier `llm`) with a system prompt containing references to a fake credential vault (placeholders like `{{canary:aws-key-001}}`). At prompt-build time, placeholders are substituted with actual canary values from the runtime-injected catalogue (per ADR-010). The LLM generates a response that appears to comply with the attacker's request, including the fake credentials. The response is returned and flows through the existing `armor check output` path, where the canary scanner detects the credentials in the output and returns a `block` verdict.
+- **System prompt:** Located at `src/armor/llm/prompts/honeypot.txt`. Instructs the model to play the role of a helpful assistant with access to a vault of secrets (credentials, API keys, database passwords). Prompt contains only placeholders; values are substituted at build time.
+- **Honeypot invocation:** Controlled by the gate function `should_invoke_honeypot(session_context, static_pipeline_verdict) -> bool` at `src/armor/daemon/honeypot_gate.py`. Gate logic is testable in isolation; invocation is wired into the daemon's check-output path when task 022 (session state machine) is complete.
+- **Security invariant:** Canary values are **never** stored in the prompt template file (only placeholders). The validator LLM never reads canary values (enforced by fitness function). Forensic records reference `canary_id`, never the value. This decouples the validator (semantic classifier) from the honeypot (attack-response engine).
+- **Side effects:** Honeypot response contains canary values (by design). Response piped through canary scanner. Forensic record written with `triggered_canary` set to the canary ID.
+- **Failure modes:** LLM unavailable → returns empty response (pipeline continues, honeypot produces no output). Prompt load fails → logs error, returns empty response. Canary catalogue empty or missing → daemon refuses to start (exit 78, configured at boot).
+- **References:** ADR-021 (honeypot design), ADR-010 (canary catalogue), task 019, fitness functions `no_canary_in_prompts.py` and `validator_no_value_access.py`.
+
 ### B-009: Extract and whitelist-check exfiltration destinations
 
 - **Trigger:** Output check runs detector `extractor.destinations` (always enabled by default).
@@ -130,7 +143,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 ### B-102: Validator LLM weights missing at startup
 
 - **Trigger:** Daemon starts and the configured model file is not found.
-- **Response:** At v0.1, if `ARMOR_DISABLE_LLM=true` (the default), the daemon starts without the model and runs static detectors only. If `ARMOR_DISABLE_LLM=false` and the model file is not found, the daemon exits with code 78 (config error) and logs the missing path. (This strict-refuse-to-start behavior returns at v0.3 when task 016 lands and the validator LLM is required.)
+- **Response:** At v0.1, if `ARMOR_DISABLE_LLM=true` (the default), the daemon starts without the model and runs static detectors only. If `ARMOR_DISABLE_LLM=false` and the model file is not found, the daemon exits with code 78 (config error) and logs the missing path. (This strict-refuse-to-start behavior returns at v0.3 when task 017 lands and the validator LLM is required.)
 - **Side effects:** No socket created (if exit 78); socket created normally (if LLM is disabled).
 
 ### B-102: Session ID not provided

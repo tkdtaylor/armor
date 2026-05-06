@@ -102,7 +102,7 @@ def test_input_hash_sha256(forensic_logger):
 
 
 def test_triggered_canary_id_not_value(forensic_logger, catalogue):
-    """Triggered canary field contains ID, not value."""
+    """TC-019-03: Triggered canary field contains ID, not value."""
     active_canaries = catalogue.active_canaries()
     if not active_canaries:
         pytest.skip("No active canaries in test catalogue")

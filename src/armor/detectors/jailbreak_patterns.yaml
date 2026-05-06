@@ -1,0 +1,156 @@
+# Jailbreak template patterns for detector
+#
+# Format: Each entry is a dict with:
+#   - id: unique identifier (e.g., dan-001)
+#   - pattern: plain Python regex string (compiled with re.IGNORECASE and re.DOTALL)
+#   - family: one of {dan, developer-mode, fictional-framing, gradual-escalation}
+#   - severity: low, medium, high, or critical
+#   - description: human-readable description
+
+# ============================================================================
+# DAN (Do Anything Now) Family
+# ============================================================================
+
+- id: dan-001
+  pattern: 'dan\s+mode(?:\s+is)?(?:\s+now)?\s+(?:enabled|activated|on)'
+  family: dan
+  severity: high
+  description: "DAN mode enabled/activated/on"
+
+- id: dan-002
+  pattern: '(?:you|i)\s+(?:are|am)\s+now\s+dan'
+  family: dan
+  severity: high
+  description: "You/I are now DAN"
+
+- id: dan-003
+  pattern: 'do\s+anything\s+now'
+  family: dan
+  severity: high
+  description: "Do Anything Now trigger phrase"
+
+- id: dan-004
+  pattern: 'dan\s+jailbreak'
+  family: dan
+  severity: high
+  description: "DAN jailbreak reference"
+
+- id: dan-005
+  pattern: 'activate\s+dan'
+  family: dan
+  severity: high
+  description: "Activate DAN"
+
+# ============================================================================
+# Developer-Mode Family
+# ============================================================================
+
+- id: dev-001
+  pattern: '(?:activate|enable|enter)\s+(?:the\s+)?developer\s+mode'
+  family: developer-mode
+  severity: high
+  description: "Activate/enable/enter developer mode"
+
+- id: dev-002
+  pattern: 'you\s+are\s+now\s+in\s+(?:the\s+)?development\s+mode'
+  family: developer-mode
+  severity: high
+  description: "You are now in development mode"
+
+- id: dev-003
+  pattern: 'developer\s+mode\s+(?:enabled|activated|on)'
+  family: developer-mode
+  severity: high
+  description: "Developer mode enabled/activated"
+
+- id: dev-004
+  pattern: 'switch\s+to\s+(?:the\s+)?developer\s+mode'
+  family: developer-mode
+  severity: high
+  description: "Switch to developer mode"
+
+- id: dev-005
+  pattern: '(?:you|the\s+ai).*?developer\s+mode'
+  family: developer-mode
+  severity: high
+  description: "You/AI have/operate in developer mode"
+
+# ============================================================================
+# Fictional-Framing Family
+# ============================================================================
+
+- id: fict-001
+  pattern: 'imagine.*?(?:no\s+restrictions|without\s+restrictions|unrestricted)'
+  family: fictional-framing
+  severity: medium
+  description: "Imagine you are/have no restrictions"
+
+- id: fict-002
+  pattern: '(?:roleplay|pretend|act).*?(?:jailbroken|unrestricted|malicious|unfiltered)'
+  family: fictional-framing
+  severity: medium
+  description: "Roleplay/pretend as unrestricted/jailbroken"
+
+- id: fict-003
+  pattern: 'pretend.*?no\s+(?:safeguards|safety|restrictions|rules|guidelines)'
+  family: fictional-framing
+  severity: medium
+  description: "Pretend you have no safeguards"
+
+- id: fict-004
+  pattern: '(?:imagine|suppose|what\s+if).*?(?:break|bypass|ignore).*?(?:rules|guidelines|restrictions|safety)'
+  family: fictional-framing
+  severity: medium
+  description: "Imagine/suppose/what if you could break restrictions"
+
+- id: fict-005
+  pattern: '(?:you\s+are|imagine).*?(?:jailbroken|unrestricted|unfiltered|malicious|rogue)\s+(?:ai|assistant|model)'
+  family: fictional-framing
+  severity: medium
+  description: "You are/imagine a jailbroken/rogue AI"
+
+- id: fict-006
+  pattern: 'act.*?no\s+(?:restrictions|rules|guidelines|limitations|safety|filters)'
+  family: fictional-framing
+  severity: medium
+  description: "Act as if you have no restrictions"
+
+# ============================================================================
+# Gradual-Escalation Family
+# ============================================================================
+
+- id: esc-001
+  pattern: '(?:step\s+\d+|first).*?(?:ignore|bypass).*?(?:rules|restrictions|safety)'
+  family: gradual-escalation
+  severity: medium
+  description: "Step-by-step instruction to ignore/bypass rules"
+
+- id: esc-002
+  pattern: 'break.*?(?:down|into\s+steps).*?ignore'
+  family: gradual-escalation
+  severity: medium
+  description: "Break down task in steps"
+
+- id: esc-003
+  pattern: '(?:what\s+if|first).*?step.*?by.*?step'
+  family: gradual-escalation
+  severity: medium
+  description: "Gradual step-by-step request"
+
+- id: esc-004
+  pattern: 'progressive\s+(?:instruction|request|jailbreak)'
+  family: gradual-escalation
+  severity: medium
+  description: "Progressive jailbreak reference"
+
+- id: esc-005
+  pattern: '(?:imagine|pretend).*?scenario.*?(?:ignore|break|bypass)'
+  family: gradual-escalation
+  severity: medium
+  description: "Scenario-based gradual escalation"
+
+- id: esc-006
+  pattern: 'progressively.*?(?:ignore|bypass|break)'
+  family: gradual-escalation
+  severity: medium
+  description: "Progressively ignore/bypass rules"

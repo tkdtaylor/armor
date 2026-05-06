@@ -51,6 +51,39 @@ This demo proves v0.1 works end-to-end:
 
 Both scenarios write forensic records to SQLite, which persists the attack chain for later audit.
 
+### Reproduce the model-selection benchmark
+
+armor's validator + honeypot model is selected by an empirical benchmark
+documented in [ADR-018](docs/architecture/decisions/018-validator-model-choice.md).
+To re-run it:
+
+```bash
+# Pull the chosen model (Qwen3-0.6B-Instruct, Q4_K_M, ~462 MB)
+uv run hf download lmstudio-community/Qwen3-0.6B-GGUF Qwen3-0.6B-Q4_K_M.gguf
+
+# Run the dual-corpus benchmark (100 validator rows + 30 honeypot rows)
+MODEL=$(uv run hf download lmstudio-community/Qwen3-0.6B-GGUF Qwen3-0.6B-Q4_K_M.gguf | sed 's/^path=//')
+uv run python -m tests.bench.llm_selection.run \
+  --model "$MODEL" --quant Q4_K_M --license Apache-2.0 \
+  --output artifacts/bench-results/qwen3-0.6b.json
+```
+
+To compare other candidates (each is a separate Hugging Face Q4_K_M GGUF):
+
+| Tag | Hugging Face repo | File |
+|---|---|---|
+| Qwen3-0.6B-Instruct | `lmstudio-community/Qwen3-0.6B-GGUF` | `Qwen3-0.6B-Q4_K_M.gguf` |
+| Qwen3-1.7B-Instruct | `lmstudio-community/Qwen3-1.7B-GGUF` | `Qwen3-1.7B-Q4_K_M.gguf` |
+| Llama-3.2-1B-Instruct | `bartowski/Llama-3.2-1B-Instruct-GGUF` | `Llama-3.2-1B-Instruct-Q4_K_M.gguf` |
+| SmolLM2-1.7B-Instruct | `bartowski/SmolLM2-1.7B-Instruct-GGUF` | `SmolLM2-1.7B-Instruct-Q4_K_M.gguf` |
+| Phi-4-mini-instruct | `unsloth/Phi-4-mini-instruct-GGUF` | `Phi-4-mini-instruct-Q4_K_M.gguf` |
+| Gemma-3-1b-it | `ggml-org/gemma-3-1b-it-GGUF` | `gemma-3-1b-it-Q4_K_M.gguf` |
+
+The harness measures: validator TP rate on jailbreak-recruitment
+attempts, honeypot canary-emission rate (strict and any), P95 inference
+latency, and peak RSS. See `tests/bench/llm_selection/run.py` for full
+flags including `--n-threads`, `--n-gpu-layers`, `--mode`, `--max-rows`.
+
 ### Run in Docker (recommended)
 
 ```bash

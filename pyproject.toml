@@ -15,6 +15,7 @@ dependencies = [
     "cryptography>=48.0.0",
     "pyahocorasick>=2.3.1",
     "pyyaml>=6.0.3",
+    "llama-cpp-python>=0.2.45",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,8 @@ canary_scanner = "armor.detectors.canary_scanner:CanaryScannerDetector"
 cmd_injection_bash = "armor.detectors.cmd_injection_bash:CmdInjectionBash"
 entropy_decode_rescan = "armor.detectors.entropy_decode:EntropyDecodeDetector"
 extractor_destinations = "armor.detectors.destination_extractor:DestinationExtractor"
+jailbreak_template = "armor.detectors.jailbreak_template:JailbreakTemplate"
+llm_validator = "armor.detectors.llm_validator:LLMValidator"
 regex_instruction_override = "armor.detectors.regex_instruction_override:RegexInstructionOverride"
 regex_roleplay_hijack = "armor.detectors.regex_roleplay_hijack:RegexRoleplayHijack"
 regex_system_prompt_extraction = "armor.detectors.regex_system_prompt_extraction:RegexSystemPromptExtraction"
@@ -55,7 +58,7 @@ warn_unused_ignores = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["ahocorasick", "llama_cpp", "yaml"]
+module = ["ahocorasick", "llama_cpp", "yaml", "psutil"]
 ignore_missing_imports = true
 
 [dependency-groups]
@@ -66,4 +69,7 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.12",
+    "llama-cpp-python>=0.2.45",
+    "psutil>=6.0.0",
+    "huggingface-hub>=0.24.0",
 ]

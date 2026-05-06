@@ -12,6 +12,7 @@ Single-pass decode only (not recursive). Time-budgeted per pipeline config.
 """
 
 import base64
+import binascii
 import logging
 import math
 import tempfile
@@ -87,7 +88,7 @@ def _try_decode_base64(text: str) -> str | None:
 
         return decoded_str
 
-    except (base64.binascii.Error, ValueError, TypeError):
+    except (binascii.Error, ValueError, TypeError):
         return None
 
 

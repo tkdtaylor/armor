@@ -54,7 +54,7 @@ The validator LLM and the **honeypot** are the same model — one weight set, tw
 | Primary integration point | Claude Code hooks (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`) | ADR-001 |
 | Secondary integration | Importable Python library wrapping SDK calls | ADR-001 |
 | Implementation language | Python 3.12, daemon architecture for sub-millisecond per-hook latency | ADR-002 |
-| Validator + honeypot model | Single small quantized LLM (Qwen 2.5 / Phi 3.5 / Llama 3.2 / Gemma 2 — TBD by benchmark) | ADR-003 |
+| Validator + honeypot model | `lmstudio-community/Qwen3-0.6B-GGUF` (Qwen3-0.6B-Q4_K_M, Apache 2.0) — same weights, two system prompts | ADR-018 |
 | Inference runtime | `llama.cpp` via `llama-cpp-python` | ADR-003 |
 | Session state store | SQLite, file-backed | ADR-004 |
 | Pattern matcher | `pyahocorasick` for multi-pattern canary scanning | ADR-005 |

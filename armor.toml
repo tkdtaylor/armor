@@ -1,0 +1,37 @@
+[daemon]
+socket = "/var/run/armor.sock"
+db = "/var/lib/armor/armor.db"
+max_concurrent = 64
+
+[model]
+path = "/models/active.gguf"
+context_tokens = 2048
+budget_ms = 500
+
+[pipeline]
+input_detectors = ["*"]
+output_detectors = ["*"]
+tool_detectors = ["cmd_injection.*"]
+per_detector_budget_ms = 100
+llm_validator_weight = 0.3
+
+[session]
+cache_size = 1024
+
+[session.escalation]
+advisory_to_watching = 1
+watching_to_elevated = 2
+cooldown_turns = 10
+
+[entropy]
+min_length = 40
+threshold = 4.5
+
+[quarantine]
+ttl_hours = 168
+
+[safe_message]
+input_block = "Input blocked by armor."
+output_block = "Output suppressed by armor."
+
+destination_whitelist = []

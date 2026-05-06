@@ -41,3 +41,8 @@ coverage.xml
 # Local model weights (must NEVER be committed; the container bakes them in)
 models/
 *.gguf
+
+# Local benchmark artifacts — per-row JSONs contain literal canary values
+# emitted by candidate models, so they must stay local. Aggregate numbers
+# are documented in docs/architecture/decisions/018-validator-model-choice.md.
+artifacts/bench-results/

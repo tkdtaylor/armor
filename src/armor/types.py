@@ -188,7 +188,10 @@ class SessionContext:
     Attributes:
         session_id: Unique session identifier.
         signal_history: Rolling history of signals (list of Signal objects).
+        state: Session state level (v0.3 placeholder; task 022 will populate with enum).
+               "elevated" enables honeypot invocation. None (default) disables it.
     """
 
     session_id: str
     signal_history: list[Signal] = field(default_factory=list)
+    state: str | None = None

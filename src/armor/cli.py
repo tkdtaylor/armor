@@ -439,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
             args.log_level,
         ]
         if args.model:
-            logger.warning("--model flag accepted but validator LLM is not used in v0.1")
+            daemon_args.extend(["--model", args.model])
         if args.config:
             daemon_args.extend(["--config", args.config])
         if args.catalogue:
@@ -499,14 +499,7 @@ def main(argv: list[str] | None = None) -> int:
                 # Get path to the bundled schema
                 from importlib import resources
 
-                try:
-                    # Python 3.9+
-                    schema_data = resources.files("armor").joinpath("canaries/default_catalogue.json").read_text()
-                except (AttributeError, TypeError):
-                    # Fallback for older Python
-                    import pkgutil
-
-                    schema_data = pkgutil.get_data("armor", "canaries/default_catalogue.json").decode("utf-8")
+                schema_data = resources.files("armor").joinpath("canaries/default_catalogue.json").read_text()
 
                 # Create a temporary schema file to pass to the generator
                 import tempfile

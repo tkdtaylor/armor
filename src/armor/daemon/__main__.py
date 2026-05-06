@@ -77,10 +77,6 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(args.log_level)
     logger = logging.getLogger(__name__)
 
-    # Warn if model flag is used (not supported in v0.1)
-    if args.model:
-        logger.warning("--model flag accepted but validator LLM is not used in v0.1")
-
     # Determine canary values path: env var > CLI arg > default
     canary_values_path = (
         os.environ.get("ARMOR_CANARY_VALUES_PATH") or args.canary_values or (args.catalogue if args.catalogue else None)
@@ -96,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             db_path=args.db,
             quarantine_key_path=args.quarantine_key_path,
             config_path=args.config,
+            model_path=args.model,
         )
         asyncio.run(server.run())
         return 0

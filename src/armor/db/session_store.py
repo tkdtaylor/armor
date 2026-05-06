@@ -145,7 +145,7 @@ class SessionStore:
         Args:
             session_id: The session ID.
         """
-        # TODO: Implement 24h deletion in task 021
+        # TODO: Implement 24h deletion in task 022
         pass
 
     def _update_lru(self, session_id: str) -> None:

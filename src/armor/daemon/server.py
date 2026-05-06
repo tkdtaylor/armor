@@ -10,7 +10,9 @@ import logging
 import os
 import signal
 import sys
+import time
 import tomllib
+from pathlib import Path
 from typing import Any
 
 from armor.canaries.catalogue import Catalogue
@@ -23,6 +25,7 @@ from armor.db.sweeper import start_sweeper
 from armor.detectors import DetectorRegistry
 from armor.detectors.canary_scanner import CanaryScannerDetector
 from armor.detectors.destination_extractor import DestinationExtractor
+from armor.llm.session import LLMSession
 from armor.pipeline import Pipeline
 from armor.types import Payload, SessionContext
 
@@ -41,6 +44,7 @@ class DaemonServer:
         db_path: str | None = None,
         quarantine_key_path: str | None = None,
         config_path: str | None = None,
+        model_path: str | None = None,
     ) -> None:
         """Initialize the daemon server.
 
@@ -52,10 +56,11 @@ class DaemonServer:
             db_path: Path to SQLite database (default /var/lib/armor/armor.db)
             quarantine_key_path: Path to quarantine encryption key (default <db_dir>/.key)
             config_path: Path to armor.toml configuration file (optional)
+            model_path: Path to validator LLM GGUF weights (optional; loads if ARMOR_DISABLE_LLM=false)
 
         Raises:
             ValueError: If catalogue is provided but invalid or empty.
-            SystemExit: If catalogue validation fails (exit code 78).
+            SystemExit: If catalogue validation fails (exit code 78) or model load fails (exit code 78).
         """
         self.socket_path = socket_path
         self.max_concurrent = max_concurrent
@@ -63,6 +68,7 @@ class DaemonServer:
         self._shutdown_event: asyncio.Event | None = None
         self._server: asyncio.Server | None = None
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        self._start_time = time.time()
 
         # Database paths
         self.db_path = db_path or "/var/lib/armor/armor.db"
@@ -73,6 +79,27 @@ class DaemonServer:
         self.forensic_logger: ForensicLogger | None = None
         self.quarantine_store: QuarantineStore | None = None
         self._sweeper_task: asyncio.Task[None] | None = None
+
+        # LLM session (loaded if ARMOR_DISABLE_LLM=false and model path exists/provided)
+        self.llm_session: LLMSession | None = None
+        disable_llm = os.environ.get("ARMOR_DISABLE_LLM", "false").lower() in ("true", "1", "yes")
+
+        # Determine if we should load LLM:
+        # - If ARMOR_DISABLE_LLM=true, skip loading
+        # - If ARMOR_DISABLE_LLM=false or unset:
+        #   - If model_path is explicitly provided, load it
+        #   - If default /models/active.gguf exists, load it
+        #   - Otherwise, skip (non-fatal)
+        if not disable_llm and (model_path or Path("/models/active.gguf").exists()):
+            effective_model_path = model_path or "/models/active.gguf"
+            try:
+                from armor.llm.loader import load_llm
+
+                self.llm_session = load_llm(effective_model_path)
+                logger.info("Validator LLM loaded successfully")
+            except SystemExit:
+                # load_llm exits with 78 on failure; propagate it
+                raise
 
         # Load and validate canary catalogue if provided
         self.catalogue: Catalogue | None = None
@@ -96,16 +123,7 @@ class DaemonServer:
                         # If that fails, try to merge with bundled schema
                         from importlib import resources
 
-                        try:
-                            # Python 3.9+
-                            schema_data = (
-                                resources.files("armor").joinpath("canaries/default_catalogue.json").read_text()
-                            )
-                        except (AttributeError, TypeError):
-                            # Fallback for older Python
-                            import pkgutil
-
-                            schema_data = pkgutil.get_data("armor", "canaries/default_catalogue.json").decode("utf-8")
+                        schema_data = resources.files("armor").joinpath("canaries/default_catalogue.json").read_text()
 
                         # Write schema to temp file for loading
                         import tempfile
@@ -379,6 +397,10 @@ class DaemonServer:
         self._server = await asyncio.start_unix_server(self._handle_client, path=self.socket_path)
 
         logger.info(f"Daemon listening on {self.socket_path}")
+
+        # Log cold-start time
+        elapsed_ms = int((time.time() - self._start_time) * 1000)
+        logger.info(f"armor daemon cold-start: {elapsed_ms} ms")
 
     async def wait(self) -> None:
         """Wait for the shutdown event."""

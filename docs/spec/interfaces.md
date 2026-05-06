@@ -118,9 +118,9 @@ armor makes **no outbound network calls by default.** Telemetry/upload is gated 
 from typing import Protocol
 
 class Detector(Protocol):
-    id: str                # e.g. "regex.instruction_override"
-    category: str          # taxonomy bucket from ADR-007 (e.g. "direct_injection")
-    cost_tier: str         # "static" | "semantic"  — semantic = needs the LLM
+    id: str                # e.g. "regex.instruction_override" or "llm.validator"
+    category: str          # taxonomy bucket from ADR-007 (e.g. "direct_injection", "meta")
+    cost_tier: str         # "static" (≤100ms) | "llm" (≤500ms)  — llm = uses LLM inference
 
     def check(self, payload: Payload, ctx: SessionContext) -> Verdict: ...
 ```
@@ -133,6 +133,7 @@ class Detector(Protocol):
   - Must not raise — must catch internal errors and return `Verdict.error(reason)`.
   - Must not perform I/O outside the daemon (no network, no filesystem writes).
   - Must complete within the configured per-detector budget (default 100 ms; LLM detectors get 500 ms).
+  - **Canary isolation (v0.2+):** Detectors must NOT read canary values (via `catalogue.values()` or the `.value` field). The honeypot detector (task 019) has exclusive read access. Validator detector passes only `canary_id` references to forensic logs and verdicts.
 
 ### Trait: `Verdict`
 
