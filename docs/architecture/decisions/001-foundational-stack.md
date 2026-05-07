@@ -54,7 +54,7 @@ The specific model and binding library were left open at bootstrap: candidates l
 
 ### Detection categories in v1
 
-**P0 → P3 from the threat-model taxonomy in `discussion.md`:** direct injection, exfiltration, encoding/obfuscation, jailbreak templates, tool/API abuse, context attacks, multi-turn / session attacks. The roadmap (`docs/plans/roadmap.md`) maps each priority to a milestone.
+**P0 → P3 from the threat-model taxonomy in `discussion.md`:** direct injection, exfiltration, encoding/obfuscation, jailbreak templates, tool/API abuse, context attacks, multi-turn / session attacks. The priority → milestone mapping is operator-private; the in-tree taxonomy lives in `docs/architecture/threat-model.md`.
 
 ## Supersession trail
 
@@ -80,7 +80,7 @@ The specific model and binding library were left open at bootstrap: candidates l
 - `discussion.md` — original design conversation (gitignored, kept locally)
 - `docs/architecture/overview.md` — high-level narrative
 - `docs/architecture/tech-stack.md` — table form of these choices
-- `docs/plans/roadmap.md` — P0 → P3 milestone mapping
+- `docs/architecture/threat-model.md` — P0 → P3 detection-category taxonomy
 - ADR-008 — daemon concurrency model (deferred from this ADR)
 - ADR-018 — validator/honeypot model choice (supersedes the model row)
 - ADR-019 — `llama-cpp-python` integration (supersedes the binding-library row)

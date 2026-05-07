@@ -13,6 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.0.0] — 2026-05-07
+
+First public release. Adds the operator-facing release surface (CLI export, security disclosure procedure, contributor docs), reconciles configuration with the post-FSM data model, and removes pre-rebrand and pre-rotation literals from the public tree.
+
+### Added
+
+- **`armor incidents export`** CLI subcommand for exporting forensic records to JSONL with operator-supplied filters (session, time window, verdict).
+- **SECURITY.md** disclosure policy with a structured reporting procedure, numeric SLA, public-issue guard, and private-channel anchor (Security Advisory + email).
+- **Contributor scaffolding**: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/dependabot.yml`, and the `.github/workflows/release.yml` release workflow.
+- **Honeypot P95 latency fitness check** at the post-ADR-023 16,000 ms budget (ADR-023 supersedes the v0.4 12,000 ms placeholder).
+- **`scripts/fitness.sh`** wired into CI so the fitness suite runs on every PR.
+
+### Changed
+
+- **Canonical contact emails** moved to `taylorguard.me`: general / security / Code-of-Conduct contact is `tools@taylorguard.me`; commercial-license inquiries go to `licensing@taylorguard.me`.
+- **`armor.toml` schema** rewritten for the post-FSM model: session thresholds, cooldown decay, signal weights, validator/honeypot budgets, and rolling-buffer / topic-coherence keys are now first-class.
+- **Architecture component table** added to `docs/architecture/overview.md` enumerating every runtime module the daemon ships with.
+- **Architecture diagrams** refreshed for v1.0: HoneypotGate, pipeline orchestrator, logging sink, and rolling buffer added to the runtime-flow diagram.
+- **Roadmap and per-task planning are operator-private** and no longer part of the public repo. The build-process workflow itself (TDD spec-first, atomic commits, ADR + test-spec + task-completion as separate commits) remains documented in `CONTRIBUTING.md` and `CLAUDE.md`.
+- **Public git history** rewritten and squashed to seven milestone commits with a single canonical author identity (the GitHub noreply). Pre-rewrite history preserved on the operator's local disk via a `--mirror` clone; not part of the public repo.
+
+### Fixed
+
+- **Pre-rotation AWS-shape canary literals** removed from the tracked tree. The synthetic shapes that remain inside honeypot bait have a defensive purpose; the AWS-published example `AKIAIOSFODNN7EXAMPLE` is on scanner allowlists by design.
+- **Pre-rebrand contact-email literals** purged from every tracked file outside the historical exclusion list.
+- **Honeypot p95 latency regression** above the v0.4 placeholder budget — fixed and a new fitness gate set at the ADR-023 budget.
+- **Spec drift cluster** across `docs/spec/configuration.md`, `data-model.md`, `behaviors.md`, and `interfaces.md` reconciled in one pass.
+- **Fitness pytest discovery** — modules renamed so pytest collects them by default; `structured_logs` test renamed to follow the same convention.
+
 ## [0.4.0] — 2026-05-06
 
 Initial v0.4 release: multi-turn session attacks, LLM validator in container.

@@ -12,7 +12,7 @@ The project is **source-available, not OSI open source.** Please use the wording
 
 armor is built using an agent-driven workflow documented in [`CLAUDE.md`](CLAUDE.md). You don't need to use the same tooling, but the conventions still apply:
 
-1. **Test spec first.** Every change that touches behavior, an interface, or the data model needs a paired test spec under `docs/tasks/test-specs/`. The spec defines done before implementation starts. See an existing spec (e.g. `docs/tasks/test-specs/004-p0-regex-detectors-test-spec.md`) for the format.
+1. **Test spec first.** Every change that touches behavior, an interface, or the data model needs a paired test spec — a short markdown describing the test cases (TC-NNN-XX) the change must satisfy, written before the implementation. The maintainer keeps these specs in an operator-private directory, but for an external PR a `tests/<feature>-test-spec.md` alongside the new tests is sufficient. The format mirrors the spec markers already cited in [`docs/spec/fitness-functions.md`](docs/spec/fitness-functions.md).
 2. **One task, one commit.** Don't batch unrelated changes. If a fix and a refactor are both warranted, two commits, please.
 3. **Spec moves with code.** If your change alters externally-visible behavior, the data model, an interface, or configuration, the matching `docs/spec/` file is updated **in the same commit** as the source change. Stale spec entries are rewritten in place — never appended to. The ADR carries the history; the spec carries the current truth.
 4. **ADR for non-obvious decisions.** Significant design decisions (model choice, IPC protocol changes, detector-trait additions) get an ADR under `docs/architecture/decisions/`. Number sequentially.
@@ -35,15 +35,24 @@ uv sync
 uv run pre-commit install
 
 # Standard development loop
-make check    # lint + typecheck + unit tests + eval corpus
-make demo     # end-to-end smoke
+make check          # lint + typecheck + unit tests + eval corpus
+make demo           # end-to-end smoke
+make release-check  # full pre-tag verification (check + fitness + demo + offline-smoke examples)
 ```
+
+Maintainers run `make release-check` before tagging any release. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for the full process.
 
 Running the daemon locally:
 
 ```bash
 uv run armor daemon --socket /tmp/armor.sock --db /tmp/armor.db --model /path/to/model.gguf
 ```
+
+## Continuous integration
+
+Every PR runs the [`ci.yml`](.github/workflows/ci.yml) workflow (lint, format, mypy, unit, eval, fitness — each as a separate check row). **CI must pass before a PR is merged.** A failing job is a blocking comment, not a suggestion.
+
+The heavier [`release-check.yml`](.github/workflows/release-check.yml) workflow runs `make release-check` on every push to `main`; its badge in the README shows whether the branch is currently shippable. Both workflows pin their dependency tree via `uv sync --frozen`.
 
 ## Filing issues
 

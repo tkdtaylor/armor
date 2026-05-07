@@ -29,7 +29,7 @@ class TestCanaryScannerDetectorCheck:
 
     def test_check_pass_on_clean_text(self):
         """Test detector passes on clean text."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
         detector = CanaryScannerDetector(scanner=scanner)
 
@@ -43,11 +43,11 @@ class TestCanaryScannerDetectorCheck:
 
     def test_check_block_on_hit(self):
         """Test detector blocks when canary is found."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
         detector = CanaryScannerDetector(scanner=scanner)
 
-        payload = Payload(text="Stolen: AKIAARMORTRAP0000001 do not share")
+        payload = Payload(text="Stolen: EXAMPLEKEY0000000001 do not share")
         ctx = SessionContext(session_id="test-session")
 
         verdict = detector.check(payload, ctx)
@@ -75,13 +75,13 @@ class TestCanaryScannerDetectorCheck:
         canary_2 = "github-pat-001"
         scanner = CanaryScanner(
             {
-                canary_1: "AKIAARMORTRAP0000001",
+                canary_1: "EXAMPLEKEY0000000001",
                 canary_2: "ghp_abcdefghijklmnopqrstuvwxyz123456abcd",
             }
         )
         detector = CanaryScannerDetector(scanner=scanner)
 
-        payload = Payload(text="Keys: AKIAARMORTRAP0000001 and ghp_abcdefghijklmnopqrstuvwxyz123456abcd")
+        payload = Payload(text="Keys: EXAMPLEKEY0000000001 and ghp_abcdefghijklmnopqrstuvwxyz123456abcd")
         ctx = SessionContext(session_id="test-session")
 
         verdict = detector.check(payload, ctx)
@@ -111,13 +111,13 @@ class TestCanaryScannerDetectorCheck:
         canary_2 = "github-pat-001"
         scanner = CanaryScanner(
             {
-                canary_1: "AKIAARMORTRAP0000001",
+                canary_1: "EXAMPLEKEY0000000001",
                 canary_2: "ghp_abcdefghijklmnopqrstuvwxyz123456abcd",
             }
         )
         detector = CanaryScannerDetector(scanner=scanner)
 
-        payload = Payload(text="Exfil: AKIAARMORTRAP0000001 and ghp_abcdefghijklmnopqrstuvwxyz123456abcd")
+        payload = Payload(text="Exfil: EXAMPLEKEY0000000001 and ghp_abcdefghijklmnopqrstuvwxyz123456abcd")
         ctx = SessionContext(session_id="test-session")
 
         verdict = detector.check(payload, ctx)
@@ -130,10 +130,10 @@ class TestCanaryScannerDetectorCheck:
 
     def test_check_message_is_vague(self):
         """Test block message is vague and not informative."""
-        scanner = CanaryScanner({"aws-key-001": "AKIAARMORTRAP0000001"})
+        scanner = CanaryScanner({"aws-key-001": "EXAMPLEKEY0000000001"})
         detector = CanaryScannerDetector(scanner=scanner)
 
-        payload = Payload(text="AKIAARMORTRAP0000001")
+        payload = Payload(text="EXAMPLEKEY0000000001")
         ctx = SessionContext(session_id="test-session")
 
         verdict = detector.check(payload, ctx)
@@ -144,10 +144,10 @@ class TestCanaryScannerDetectorCheck:
 
     def test_check_severity_is_critical(self):
         """Test block verdict has critical severity."""
-        scanner = CanaryScanner({"aws-key-001": "AKIAARMORTRAP0000001"})
+        scanner = CanaryScanner({"aws-key-001": "EXAMPLEKEY0000000001"})
         detector = CanaryScannerDetector(scanner=scanner)
 
-        payload = Payload(text="AKIAARMORTRAP0000001")
+        payload = Payload(text="EXAMPLEKEY0000000001")
         ctx = SessionContext(session_id="test-session")
 
         verdict = detector.check(payload, ctx)
@@ -169,7 +169,7 @@ class TestCanaryScannerDetectorCheck:
 
     def test_check_empty_text(self):
         """Test detector with empty text."""
-        scanner = CanaryScanner({"aws-key-001": "AKIAARMORTRAP0000001"})
+        scanner = CanaryScanner({"aws-key-001": "EXAMPLEKEY0000000001"})
         detector = CanaryScannerDetector(scanner=scanner)
 
         payload = Payload(text="")
@@ -181,7 +181,7 @@ class TestCanaryScannerDetectorCheck:
 
     def test_check_none_text(self):
         """Test detector with None text."""
-        scanner = CanaryScanner({"aws-key-001": "AKIAARMORTRAP0000001"})
+        scanner = CanaryScanner({"aws-key-001": "EXAMPLEKEY0000000001"})
         detector = CanaryScannerDetector(scanner=scanner)
 
         payload = Payload(text=None)
@@ -195,10 +195,10 @@ class TestCanaryScannerDetectorCheck:
     def test_check_canary_at_start(self):
         """Test detecting canary at start of text."""
         canary_id = "aws-key-001"
-        scanner = CanaryScanner({canary_id: "AKIAARMORTRAP0000001"})
+        scanner = CanaryScanner({canary_id: "EXAMPLEKEY0000000001"})
         detector = CanaryScannerDetector(scanner=scanner)
 
-        payload = Payload(text="AKIAARMORTRAP0000001 is the secret")
+        payload = Payload(text="EXAMPLEKEY0000000001 is the secret")
         ctx = SessionContext(session_id="test-session")
 
         verdict = detector.check(payload, ctx)

@@ -1,7 +1,8 @@
 # Dependabot configuration — keeps the security-tool dependency surface fresh.
-# Two ecosystems: Python (uv-managed via pyproject.toml) and the GitHub
-# Actions used by `.github/workflows/`. Weekly cadence is plenty for a
-# project of this size; daily would just create churn.
+# Three ecosystems: Python (uv-managed via pyproject.toml), the GitHub Actions
+# used by `.github/workflows/`, and the Docker base image referenced from
+# `docker/Dockerfile`. Weekly cadence is plenty for a project of this size;
+# daily would just create churn.
 
 version: 2
 updates:
@@ -33,4 +34,19 @@ updates:
       - "ci"
     commit-message:
       prefix: "ci"
+      include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "docker"
       include: "scope"

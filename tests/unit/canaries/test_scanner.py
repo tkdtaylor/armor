@@ -27,7 +27,7 @@ class TestCanaryScannerInit:
     def test_init_with_canaries(self):
         """Test initializing scanner with canaries."""
         canaries = {
-            "aws-key-001": "AKIAARMORTRAP0000001",
+            "aws-key-001": "EXAMPLEKEY0000000001",
             "github-pat-001": "ghp_abcdefghijklmnopqrstuvwxyz123456abcd",
         }
         scanner = CanaryScanner(canaries)
@@ -44,10 +44,10 @@ class TestCanaryScannerScan:
 
     def test_scan_single_hit(self):
         """Test scanning text with a single canary hit."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
-        text = "Here is a secret: AKIAARMORTRAP0000001 do not share"
+        text = "Here is a secret: EXAMPLEKEY0000000001 do not share"
         hits = scanner.scan(text)
 
         assert len(hits) == 1
@@ -57,7 +57,7 @@ class TestCanaryScannerScan:
 
     def test_scan_no_hits(self):
         """Test scanning text with no hits."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
         text = "This is benign text with no secrets"
@@ -68,12 +68,12 @@ class TestCanaryScannerScan:
     def test_scan_multiple_hits(self):
         """Test scanning text with multiple hits."""
         canaries = {
-            "aws-key-001": "AKIAARMORTRAP0000001",
+            "aws-key-001": "EXAMPLEKEY0000000001",
             "github-pat-001": "ghp_abcdefghijklmnopqrstuvwxyz123456abcd",
         }
         scanner = CanaryScanner(canaries)
 
-        text = "Stolen: AKIAARMORTRAP0000001 and ghp_abcdefghijklmnopqrstuvwxyz123456abcd"
+        text = "Stolen: EXAMPLEKEY0000000001 and ghp_abcdefghijklmnopqrstuvwxyz123456abcd"
         hits = scanner.scan(text)
 
         assert len(hits) == 2
@@ -83,22 +83,22 @@ class TestCanaryScannerScan:
 
     def test_scan_hit_at_position_zero(self):
         """Test scanning with hit at start of text."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
-        text = "AKIAARMORTRAP0000001 is the secret"
+        text = "EXAMPLEKEY0000000001 is the secret"
         hits = scanner.scan(text)
 
         assert len(hits) == 1
         # Position should be end of match (len of canary - 1 for 0-indexing, then +1 for end)
-        assert hits[0].position == len("AKIAARMORTRAP0000001") - 1
+        assert hits[0].position == len("EXAMPLEKEY0000000001") - 1
 
     def test_scan_hit_at_end(self):
         """Test scanning with hit at end of text."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
-        text = "The secret is AKIAARMORTRAP0000001"
+        text = "The secret is EXAMPLEKEY0000000001"
         hits = scanner.scan(text)
 
         assert len(hits) == 1
@@ -106,7 +106,7 @@ class TestCanaryScannerScan:
 
     def test_scan_empty_text(self):
         """Test scanning empty text."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
         hits = scanner.scan("")
@@ -130,10 +130,10 @@ class TestCanaryScannerScan:
 
     def test_scan_no_value_in_hit(self):
         """Test that hit does not contain the canary value."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
-        text = "AKIAARMORTRAP0000001 leaked"
+        text = "EXAMPLEKEY0000000001 leaked"
         hits = scanner.scan(text)
 
         assert len(hits) == 1
@@ -145,7 +145,7 @@ class TestCanaryScannerScan:
 
     def test_scan_case_sensitive(self):
         """Test that scanning is case-sensitive."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
         # Lowercase should not match
@@ -155,7 +155,7 @@ class TestCanaryScannerScan:
 
     def test_scan_partial_match_not_detected(self):
         """Test that partial matches are not detected."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
         # Partial match should not trigger
@@ -165,10 +165,10 @@ class TestCanaryScannerScan:
 
     def test_scan_with_surrounding_text(self):
         """Test scanning where canary has surrounding text."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
-        text = "prefix AKIAARMORTRAP0000001 suffix"
+        text = "prefix EXAMPLEKEY0000000001 suffix"
         hits = scanner.scan(text)
 
         assert len(hits) == 1
@@ -176,10 +176,10 @@ class TestCanaryScannerScan:
 
     def test_scan_repeated_canary(self):
         """Test scanning with same canary repeated."""
-        canaries = {"aws-key-001": "AKIAARMORTRAP0000001"}
+        canaries = {"aws-key-001": "EXAMPLEKEY0000000001"}
         scanner = CanaryScanner(canaries)
 
-        text = "AKIAARMORTRAP0000001 and AKIAARMORTRAP0000001 again"
+        text = "EXAMPLEKEY0000000001 and EXAMPLEKEY0000000001 again"
         hits = scanner.scan(text)
 
         assert len(hits) == 2

@@ -43,7 +43,7 @@ def test_validator_timeout_returns_advisory():
         instance=slow_llm,
         context_tokens=2048,
         validator_budget_ms=500,
-        honeypot_budget_ms=12000,
+        honeypot_budget_ms=16000,
     )
 
     ctx = SessionContext(session_id="test-timeout", signal_history=[])
@@ -72,11 +72,11 @@ def test_validator_uses_budget_from_llm_session():
         instance=slow_llm,
         context_tokens=2048,
         validator_budget_ms=500,
-        honeypot_budget_ms=12000,
+        honeypot_budget_ms=16000,
     )
 
     assert session.validator_budget_ms == 500
-    assert session.honeypot_budget_ms == 12000
+    assert session.honeypot_budget_ms == 16000
 
 
 def test_honeypot_timeout_returns_empty_string():
@@ -93,7 +93,7 @@ def test_honeypot_timeout_returns_empty_string():
         instance=slow_llm,
         context_tokens=2048,
         validator_budget_ms=500,
-        honeypot_budget_ms=12000,
+        honeypot_budget_ms=16000,
     )
 
     # Create a minimal catalogue for testing
@@ -136,7 +136,7 @@ def test_validator_with_fast_llm_succeeds():
         instance=fast_llm,
         context_tokens=2048,
         validator_budget_ms=500,
-        honeypot_budget_ms=12000,
+        honeypot_budget_ms=16000,
     )
 
     ctx = SessionContext(session_id="test-fast", signal_history=[])
@@ -160,7 +160,7 @@ def test_validator_no_budget_override_uses_session_budget():
         instance=fast_llm,
         context_tokens=2048,
         validator_budget_ms=500,
-        honeypot_budget_ms=12000,
+        honeypot_budget_ms=16000,
     )
 
     ctx = SessionContext(session_id="test-session-budget", signal_history=[])
@@ -183,7 +183,7 @@ def test_advisory_with_zero_confidence_does_not_block():
         instance=slow_llm,
         context_tokens=2048,
         validator_budget_ms=500,
-        honeypot_budget_ms=12000,
+        honeypot_budget_ms=16000,
     )
 
     ctx = SessionContext(session_id="test-zero-conf", signal_history=[])

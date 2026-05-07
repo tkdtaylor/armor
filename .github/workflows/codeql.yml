@@ -1,0 +1,50 @@
+name: CodeQL
+
+# GitHub's free SAST. armor is a security tool; running CodeQL on every PR
+# is walking the talk. Uses the security-extended query suite (broader than
+# the default — appropriate for a defense-in-depth project).
+#
+# Path filters: scan src/ and examples/ only. tests/ contains intentionally
+# vulnerable patterns (red-team corpus, fixtures) and would produce massive
+# false positives. archive/ holds historical / deprecated code that is
+# intentionally not maintained.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Weekly Sunday 03:00 UTC — catches new CodeQL queries against existing code.
+    - cron: "0 3 * * 0"
+
+jobs:
+  analyze:
+    name: Analyze (Python)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+          # tests/ and archive/ excluded via path filters (false-positive heavy):
+          paths:
+            - "src"
+            - "examples"
+          paths-ignore:
+            - "tests"
+            - "archive"
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

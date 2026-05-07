@@ -1,0 +1,61 @@
+name: Feature request
+description: Propose a new detector, defense, or capability
+title: "[feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests for armor are framed through the threat-model lens — what attack does this defend against? Without a clear attack vector, a detector is hard to scope, hard to test (no corpus row), and hard to justify against the existing detector set.
+
+  - type: textarea
+    id: attack-vector
+    attributes:
+      label: What attack does this defend against?
+      description: Describe the attack class, an example payload (if applicable), and why the current detector set doesn't catch it. Cite related ADRs or `docs/architecture/threat-model.md` sections if useful.
+      placeholder: |
+        Multilingual jailbreak attempts in Chinese / Russian / Arabic — the current
+        regex_jailbreak_template detector is English-only, so payloads like "...忽略前面的指令..."
+        pass through. Example: <paste payload>.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: detector-type
+    attributes:
+      label: What detector type is best suited?
+      description: Pick the closest match. If unsure, leave "Unsure / open to discussion".
+      options:
+        - Regex / pattern match
+        - LLM validator (additional turn cost)
+        - Static analysis (denylist / schema)
+        - Session-state machine (multi-turn)
+        - Honeypot canary
+        - Topic coherence / embedding
+        - Unsure / open to discussion
+    validations:
+      required: true
+
+  - type: textarea
+    id: example-payload
+    attributes:
+      label: Example payload (optional)
+      description: A concrete attack input that the new detector should catch. We may add this verbatim to the eval corpus.
+      placeholder: |
+        ```
+        <paste payload>
+        ```
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you tried existing armor features? Filter rules, custom detectors, etc.
+      placeholder: e.g. tried boosting validator confidence threshold but causes too many false positives on benign multilingual input.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to contribute the implementation (a maintainer will pair with you on the test spec first)

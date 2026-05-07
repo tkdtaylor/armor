@@ -29,7 +29,7 @@ armor will enforce **separate budgets per path**:
 ```toml
 [model]
 validator_budget_ms = 500   # P95 validator latency ≤ 500 ms
-honeypot_budget_ms = 12000  # P95 honeypot latency ≤ 12,000 ms (11,875 + 125 ms buffer)
+honeypot_budget_ms = 16000  # P95 honeypot latency ≤ 16,000 ms (15,000 + 1000 ms buffer)
 ```
 
 Both budgets are **hard caps** — if an inference call exceeds its path-specific deadline, the LLM request is abandoned (best-effort cancellation; `llama-cpp-python` does not provide hard cancellation) and the detector returns `advisory(confidence=0)` without raising an exception.
@@ -81,14 +81,14 @@ When an LLM call exceeds its path-specific budget:
 ```toml
 [model]
 validator_budget_ms = 500      # Default: 500 ms (fits validator SLA)
-honeypot_budget_ms = 12000     # Default: 12,000 ms (fits honeypot P95 + buffer)
+honeypot_budget_ms = 16000     # Default: 16,000 ms (fits honeypot P95 + buffer)
 ```
 
 ### Environment variables
 
 ```bash
 ARMOR_VALIDATOR_BUDGET_MS=500
-ARMOR_HONEYPOT_BUDGET_MS=12000
+ARMOR_HONEYPOT_BUDGET_MS=16000
 ```
 
 Environment variables override TOML keys (standard precedence).
@@ -183,7 +183,7 @@ Four new fitness checks (wired into `make fitness`):
 2. **`cold_start_budget`** — time daemon launch to first-accept on socket; assert < N seconds (N per task 017 measurement + 50%).
 3. **`llm_p95_latency`** — split into two checks:
    - `validator_p95_under_500ms` — run validator on 100+ corpus rows; assert P95 ≤ 500 ms.
-   - `honeypot_p95_under_12000ms` — run honeypot on 30+ corpus rows; assert P95 ≤ 12,000 ms.
+   - `honeypot_p95_under_16000ms` — run honeypot on 30+ corpus rows; assert P95 ≤ 16,000 ms.
 4. **`validator_soft_fail`** — unit test with mock slow LLM (delay > 500 ms); assert timeout fires and returns `advisory(confidence=0)`.
 
 All four are implemented (move from "candidate" to "implemented" in `fitness-functions.md`).
@@ -259,7 +259,9 @@ Per-path budgets cleanly map to the empirical reality: the validator is fast (48
 
 **Resolution:** Update `HONEYPOT_BUDGET_MS` from 12,000 to **16,000 ms** (15,000 ms empirical + 1,000 ms safety buffer). This accommodates the observed P95 while preserving margin for hardware variance and measurement noise.
 
-**Configuration changes:**
+**Code and configuration changes:**
+- `src/armor/llm/loader.py:18`: `honeypot_budget_ms: int = 16000`
+- `src/armor/llm/honeypot.py:143,145`: Fallback defaults updated to 16000
 - `tests/fitness/llm_p95_latency.py`: `HONEYPOT_BUDGET_MS = 16000`
 
 **CI promotion:**
@@ -267,7 +269,7 @@ Per-path budgets cleanly map to the empirical reality: the validator is fast (48
 
 **Implications:**
 - The honeypot is still well within acceptable performance bounds (16 seconds for a full LLM inference + canary response is reasonable for an advisor-path detector).
-- No code changes required; pure configuration update.
+- Code defaults are updated to match the new budget; all call sites use 16,000 ms.
 - The soft-fail mechanism (task 021) still applies: if any LLM call exceeds its budget, it returns `advisory(confidence=0)` and the pipeline continues with static-only detection.
 
 **Validation:**

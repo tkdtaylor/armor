@@ -310,7 +310,7 @@ class TestCatalogueLoadWithValues:
                 "canary_id": "aws-key-000",
                 "kind": "credential",
                 "service": "aws",
-                "marker_rule": r"^AKIA[A-Z0-9]{16}$",
+                "marker_rule": r"^EXAMPLEKEY\d+$",
                 "active": True,
                 "created_at": "2026-05-05T00:00:00Z",
             },
@@ -318,7 +318,7 @@ class TestCatalogueLoadWithValues:
         values = [
             {
                 "canary_id": "aws-key-000",
-                "value": "AKIAAAAAAAAAAAAA1234",
+                "value": "EXAMPLEKEY0000000003",
             },
         ]
 
@@ -333,7 +333,7 @@ class TestCatalogueLoadWithValues:
         catalogue = Catalogue.load(schema_file, values_file)
         assert len(catalogue.entries) == 1
         assert catalogue.entries[0].canary_id == "aws-key-000"
-        assert catalogue.entries[0].value == "AKIAAAAAAAAAAAAA1234"
+        assert catalogue.entries[0].value == "EXAMPLEKEY0000000003"
 
     def test_load_merged_file_backward_compat(self, tmp_path):
         """Test loading a file with both schema and values (backward compat)."""
@@ -342,8 +342,8 @@ class TestCatalogueLoadWithValues:
                 "canary_id": "aws-key-000",
                 "kind": "credential",
                 "service": "aws",
-                "value": "AKIAAAAAAAAAAAAA1234",
-                "marker_rule": r"^AKIA[A-Z0-9]{16}$",
+                "value": "EXAMPLEKEY0000000003",
+                "marker_rule": r"^EXAMPLEKEY\d+$",
                 "active": True,
                 "created_at": "2026-05-05T00:00:00Z",
             },
@@ -355,7 +355,7 @@ class TestCatalogueLoadWithValues:
 
         catalogue = Catalogue.load(merged_file)
         assert len(catalogue.entries) == 1
-        assert catalogue.entries[0].value == "AKIAAAAAAAAAAAAA1234"
+        assert catalogue.entries[0].value == "EXAMPLEKEY0000000003"
 
     def test_missing_values_file_raises(self, tmp_path):
         """Test that missing values file raises FileNotFoundError. TC-015-06"""

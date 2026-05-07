@@ -14,7 +14,7 @@ from armor.types import Payload, SessionContext
 def test_no_canary_value_in_verdict_message(caplog):
     """Assert: Canary value never appears in Verdict.message."""
     canary_id = "aws-key-001"
-    canary_value = "AKIAARMORTRAP0000001"
+    canary_value = "EXAMPLEKEY0000000001"
 
     scanner = CanaryScanner({canary_id: canary_value})
     detector = CanaryScannerDetector(scanner=scanner)
@@ -113,7 +113,7 @@ def test_no_canary_value_in_details_recursive(caplog):
 def test_canary_id_appears_in_details(caplog):
     """Assert: Canary IDs DO appear in Verdict.details (this is expected)."""
     canary_id = "aws-key-001"
-    canary_value = "AKIAARMORTRAP0000001"
+    canary_value = "EXAMPLEKEY0000000001"
 
     scanner = CanaryScanner({canary_id: canary_value})
     detector = CanaryScannerDetector(scanner=scanner)
@@ -135,7 +135,7 @@ def test_canary_id_appears_in_details(caplog):
 def test_multiple_canaries_no_value_leak(caplog):
     """Assert: No value leak with multiple canaries hit."""
     canary_1_id = "aws-key-001"
-    canary_1_value = "AKIAARMORTRAP0000001"
+    canary_1_value = "EXAMPLEKEY0000000001"
     canary_2_id = "github-pat-001"
     canary_2_value = "ghp_abcdefghijklmnopqrstuvwxyz123456abcd"
 

@@ -109,23 +109,36 @@ class TestREADME:
         assert "## Getting started" in content, "Getting started section not found"
 
     def test_readme_container_path(self):
-        """TC-029-06: Container path with docker run and 3-line demo."""
+        """TC-029-06: Container path documents the build/run command and points to the GHCR plan.
+
+        Per the public-release docs refresh (2026-05-07), the README
+        no longer claims `docker run ghcr.io/tkdtaylor/armor:latest` works today
+        because the multi-arch image has not been published yet. Instead it shows
+        the local `docker compose` build path and references the release workflow
+        that will publish the image with the first tag. Assertions updated to
+        match: any docker invocation + the release workflow reference.
+        """
         readme_path = Path("README.md")
         with open(readme_path) as f:
             content = f.read()
 
-        # Check for docker run command
-        assert "docker run" in content, "docker run command not found"
-        assert "ghcr.io" in content, "GHCR registry not referenced"
-        assert "armor:latest" in content, "armor:latest tag not referenced"
+        assert "docker compose" in content, "docker compose command not found"
+        assert ".github/workflows/release.yml" in content, "release workflow reference not found"
 
     def test_readme_pypi_path(self):
-        """TC-029-07: PyPI path with pip install and examples cross-link."""
+        """TC-029-07: PyPI path acknowledges the name-collision and points to examples/.
+
+        Per the public-release docs refresh (2026-05-07), the README
+        no longer shows `pip install armor` because the bare `armor` name on PyPI
+        is taken by an unrelated project; the README explicitly states a final
+        non-colliding name will land with the first tagged release. Assertions
+        updated to: PyPI is mentioned + the examples/ cross-link is present.
+        """
         readme_path = Path("README.md")
         with open(readme_path) as f:
             content = f.read()
 
-        assert "pip install armor" in content, "pip install command not found"
+        assert "PyPI" in content, "PyPI is not mentioned in README"
         assert "examples/" in content, "examples/ cross-link not found"
 
     def test_readme_mentions_demo(self):

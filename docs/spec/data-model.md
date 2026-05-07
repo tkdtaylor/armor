@@ -13,7 +13,7 @@ What data exists, how it's structured, where it lives, and what relationships ho
 
 **Purpose:** Session state, forensic incident log, quarantined raw payloads, canary catalogue snapshot.
 **Owner:** Daemon (single writer). Held open with WAL mode for concurrent readers.
-**Backup / retention:** Forensic records: indefinite by default. Quarantined raw payloads: TTL governed by `quarantine_ttl_hours` (default 168 = 7 days). Session state: deleted 24h after `Stop` hook fires for the session.
+**Backup / retention:** Forensic records: indefinite by default. Quarantined raw payloads: TTL governed by `quarantine.ttl_hours` (default 168 = 7 days). Session state: deleted 24h after `Stop` hook fires for the session.
 
 #### Entity: `Session`
 
@@ -53,7 +53,7 @@ destinations      blob (json) extracted URLs/IPs/emails (sanitized: hostnames on
 encoding_flag     boolean     true if the block was triggered by the `entropy.decode_rescan` detector (encoded exfiltration)
 risk_score        integer     session risk score at time of block
 action            text        "blocked" | "advisory_only" | "passed_with_warning"
-quarantine_id    integer     FK QuarantinedPayload.id (nullable)
+quarantine_id     integer     FK QuarantinedPayload.id (nullable)
 ```
 
 - **Lifecycle:** Append-only. Never updated. Never deleted.
@@ -87,7 +87,7 @@ session_id     text       session targeted by the action
 reason         text       free-form text from `--reason` flag (required for `unblock`)
 ```
 
-- **Lifecycle:** Append-only. Written by `armor sessions unblock` and any future operator-clear actions.
+- **Lifecycle:** Append-only. Written by `armor sessions unblock`.
 - **Invariant:** Never deleted; this is the audit trail for manual state changes.
 
 #### Entity: `SessionRollingBuffer` (rolling multi-turn output aggregation)

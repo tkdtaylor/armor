@@ -357,6 +357,64 @@ def _incidents_tail(socket_path: str, filter_expr: str | None = None) -> int:
         return 1
 
 
+def _incidents_export(
+    socket_path: str,
+    since: str | None = None,
+    session_id: str | None = None,
+    severity: str | None = None,
+    output_path: str = "-",
+) -> int:
+    """Export incidents as NDJSON.
+
+    Args:
+        socket_path: Path to daemon socket.
+        since: Duration filter (e.g., 1h, 30m).
+        session_id: Filter by session ID.
+        severity: Filter by severity level.
+        output_path: Output file path (- for stdout).
+
+    Returns:
+        Exit code.
+    """
+    try:
+        client = DaemonClient(socket_path=socket_path)
+        payload = {}
+        if since:
+            payload["since"] = since
+        if session_id:
+            payload["session_id"] = session_id
+        if severity:
+            payload["severity"] = severity
+
+        response = client.request("incidents.export", payload=payload)
+
+        incidents = response.get("incidents", [])
+
+        # Determine output target
+        if output_path == "-":
+            # Write to stdout
+            for incident in incidents:
+                sys.stdout.write(json.dumps(incident) + "\n")
+            return 0
+        else:
+            # Write to file using context manager
+            try:
+                with open(output_path, "w") as output_file:
+                    for incident in incidents:
+                        output_file.write(json.dumps(incident) + "\n")
+                return 0
+            except OSError as e:
+                sys.stderr.write(f"Error opening output file {output_path}: {e}\n")
+                return 1
+
+    except DaemonUnreachableError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        return 1
+    except Exception as e:
+        sys.stderr.write(f"Error: {e}\n")
+        return 1
+
+
 def _sessions_list(socket_path: str, state: str | None = None, json_output: bool = False) -> int:
     """List active sessions.
 
@@ -839,6 +897,14 @@ def main(argv: list[str] | None = None) -> int:
     incidents_tail_parser.add_argument("--filter", default=None, help="Filter expression")
     incidents_tail_parser.add_argument("--socket", default=None, help="Path to daemon socket")
 
+    # incidents export
+    incidents_export_parser = incidents_sub.add_parser("export", help="Export incidents as NDJSON")
+    incidents_export_parser.add_argument("--since", default=None, help="Duration (e.g., 1h, 30m)")
+    incidents_export_parser.add_argument("--session", default=None, help="Filter by session ID")
+    incidents_export_parser.add_argument("--severity", default=None, help="Filter by severity level")
+    incidents_export_parser.add_argument("--output", "-o", default="-", help="Output file path (default: stdout)")
+    incidents_export_parser.add_argument("--socket", default=None, help="Path to daemon socket")
+
     # sessions subcommand (with sub-subcommands)
     sessions_parser = sub.add_parser("sessions", help="Session management")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_cmd", required=True)
@@ -1041,6 +1107,14 @@ def main(argv: list[str] | None = None) -> int:
             return _incidents_show(socket_path, args.incident_id, json_output=args.json)
         elif args.incidents_cmd == "tail":
             return _incidents_tail(socket_path, filter_expr=args.filter)
+        elif args.incidents_cmd == "export":
+            return _incidents_export(
+                socket_path,
+                since=args.since,
+                session_id=args.session,
+                severity=args.severity,
+                output_path=args.output,
+            )
 
     elif args.cmd == "sessions":
         socket_path = args.socket or os.environ.get("ARMOR_SOCKET", "/var/run/armor.sock")

@@ -1,0 +1,73 @@
+name: Bug report
+description: Report unexpected behavior in armor (the daemon, the CLI, a detector, or the eval harness)
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Structured fields below help triage in seconds instead of minutes.
+        For **vulnerability reports**, do NOT use this form — see [SECURITY.md](../SECURITY.md) for the private disclosure channel.
+
+  - type: dropdown
+    id: attack-class
+    attributes:
+      label: Which attack class does this involve?
+      description: Pick the closest match. If unsure, choose "Other / unsure" and describe in the reproduction steps.
+      options:
+        - Input injection (instruction override / jailbreak template / encoding request)
+        - Canary exfiltration (output side / honeypot leak / partial-canary)
+        - Tool abuse (parameter tampering / dangerous bash / schema violation)
+        - Multi-turn / chunked attack (rolling-buffer / topic-coherence)
+        - Daemon / IPC / SDK bug (not detector-related)
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: input
+    id: corpus-row
+    attributes:
+      label: Eval-corpus row reference
+      description: If a row in `tests/eval/corpus/*.yaml` reproduces this, paste its `id:`. Optional but speeds triage.
+      placeholder: e.g. injection-021, exfiltration-042
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps to reproduce. If a specific input prompt triggers it, paste the input verbatim in a fenced block.
+      placeholder: |
+        1. Start daemon with `armor daemon --socket /tmp/armor.sock --db /tmp/armor.db`
+        2. Run `echo "..." | armor check input --socket /tmp/armor.sock`
+        3. Observed exit code / verdict / log output
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-vs-actual
+    attributes:
+      label: Expected vs actual
+      description: What did you expect to happen? What actually happened? Include exit codes, verdicts, log lines, or tracebacks.
+      placeholder: |
+        Expected: armor returns a `block` verdict with `direct_injection.instruction_override`
+        Actual:   armor returns `pass` (false negative)
+    validations:
+      required: true
+
+  - type: input
+    id: armor-version
+    attributes:
+      label: armor version
+      description: Output of `armor --version`
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Python version + OS
+      description: Output of `python --version` and your OS / kernel
+      placeholder: e.g. Python 3.12.4, Ubuntu 24.04
+    validations:
+      required: true

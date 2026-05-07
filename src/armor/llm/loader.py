@@ -15,7 +15,7 @@ def load_llm(
     model_path: str,
     context_tokens: int = 2048,
     validator_budget_ms: int = 500,
-    honeypot_budget_ms: int = 12000,
+    honeypot_budget_ms: int = 16000,
 ) -> LLMSession:
     """Load a quantized LLM model and validate it.
 
@@ -23,7 +23,7 @@ def load_llm(
         model_path: Path to the GGUF model file
         context_tokens: Context window size (default 2048)
         validator_budget_ms: Hard latency cap per validator inference call in ms (default 500)
-        honeypot_budget_ms: Hard latency cap per honeypot inference call in ms (default 12000)
+        honeypot_budget_ms: Hard latency cap per honeypot inference call in ms (default 16000)
 
     Returns:
         LLMSession with the loaded model instance

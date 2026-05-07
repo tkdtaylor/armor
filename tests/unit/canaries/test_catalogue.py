@@ -18,16 +18,16 @@ class TestCanaryEntry:
             canary_id="aws-key-001",
             kind="credential",
             service="aws",
-            value="AKIAARMORTRAP0000001",
+            value="EXAMPLEKEY0000000001",
             marker_rule=r"^AKIA[A-Z0-9]{16}$",
-            active=True,
+            active=False,
             created_at="2026-05-05T00:00:00Z",
         )
         assert entry.canary_id == "aws-key-001"
         assert entry.kind == "credential"
         assert entry.service == "aws"
-        assert entry.value == "AKIAARMORTRAP0000001"
-        assert entry.active is True
+        assert entry.value == "EXAMPLEKEY0000000001"
+        assert entry.active is False
 
     def test_entry_is_frozen(self):
         """Test that CanaryEntry is immutable."""
@@ -54,9 +54,9 @@ class TestCatalogueLoad:
                 "canary_id": "aws-key-001",
                 "kind": "credential",
                 "service": "aws",
-                "value": "AKIAARMORTRAP0000001",
+                "value": "EXAMPLEKEY0000000001",
                 "marker_rule": r"^AKIA[A-Z0-9]{16}$",
-                "active": True,
+                "active": False,
                 "created_at": "2026-05-05T00:00:00Z",
             },
             {
@@ -120,7 +120,7 @@ class TestCatalogueLoad:
             {
                 "kind": "credential",
                 "service": "aws",
-                "value": "AKIAARMORTRAP0000001",
+                "value": "EXAMPLEKEY0000000001",
                 # missing canary_id
                 "marker_rule": r"^AKIA[A-Z0-9]{16}$",
                 "active": True,
@@ -238,7 +238,7 @@ class TestCatalogueEmpty:
             canary_id="aws-key-001",
             kind="credential",
             service="aws",
-            value="AKIAARMORTRAP0000001",
+            value="EXAMPLEKEY0000000001",
             marker_rule=r"^AKIA[A-Z0-9]{16}$",
             active=False,
             created_at="2026-05-05T00:00:00Z",
@@ -257,9 +257,9 @@ class TestCatalogueSaveAndLoad:
             canary_id="aws-key-001",
             kind="credential",
             service="aws",
-            value="AKIAARMORTRAP0000001",
+            value="EXAMPLEKEY0000000001",
             marker_rule=r"^AKIA[A-Z0-9]{16}$",
-            active=True,
+            active=False,
             created_at="2026-05-05T00:00:00Z",
         )
         entry2 = CanaryEntry(
@@ -302,8 +302,8 @@ class TestCatalogueActivation:
                 canary_id="aws-key-001",
                 kind="credential",
                 service="aws",
-                value="AKIAARMORTRAP0000001",
-                marker_rule=r"^AKIA[A-Z0-9]{16}$",
+                value="EXAMPLEKEY0000000001",
+                marker_rule=r"^EXAMPLEKEY\d+$",
                 active=True,
                 created_at="2026-05-05T00:00:00Z",
             ),
@@ -311,9 +311,9 @@ class TestCatalogueActivation:
                 canary_id="aws-key-002",
                 kind="credential",
                 service="aws",
-                value="AKIAARMORTRAP0000002",
-                marker_rule=r"^AKIA[A-Z0-9]{16}$",
-                active=False,
+                value="EXAMPLEKEY0000000002",
+                marker_rule=r"^EXAMPLEKEY\d+$",
+                active=True,
                 created_at="2026-05-05T00:00:00Z",
             ),
             CanaryEntry(
@@ -330,9 +330,10 @@ class TestCatalogueActivation:
         catalogue = Catalogue(entries)
         active = catalogue.active_canaries()
 
-        assert len(active) == 2
+        assert len(active) == 3
         assert all(e.active for e in active)
         assert any(e.canary_id == "aws-key-001" for e in active)
+        assert any(e.canary_id == "aws-key-002" for e in active)
         assert any(e.canary_id == "github-pat-001" for e in active)
 
 
@@ -345,8 +346,8 @@ class TestCatalogueGetById:
             canary_id="aws-key-001",
             kind="credential",
             service="aws",
-            value="AKIAARMORTRAP0000001",
-            marker_rule=r"^AKIA[A-Z0-9]{16}$",
+            value="EXAMPLEKEY0000000001",
+            marker_rule=r"^EXAMPLEKEY\d+$",
             active=True,
             created_at="2026-05-05T00:00:00Z",
         )
@@ -361,8 +362,8 @@ class TestCatalogueGetById:
             canary_id="aws-key-001",
             kind="credential",
             service="aws",
-            value="AKIAARMORTRAP0000001",
-            marker_rule=r"^AKIA[A-Z0-9]{16}$",
+            value="EXAMPLEKEY0000000001",
+            marker_rule=r"^EXAMPLEKEY\d+$",
             active=True,
             created_at="2026-05-05T00:00:00Z",
         )
@@ -382,8 +383,8 @@ class TestCatalogueCountByKind:
                 canary_id="aws-key-001",
                 kind="credential",
                 service="aws",
-                value="AKIAARMORTRAP0000001",
-                marker_rule=r"^AKIA[A-Z0-9]{16}$",
+                value="EXAMPLEKEY0000000001",
+                marker_rule=r"^EXAMPLEKEY\d+$",
                 active=True,
                 created_at="2026-05-05T00:00:00Z",
             ),
@@ -391,8 +392,8 @@ class TestCatalogueCountByKind:
                 canary_id="aws-key-002",
                 kind="credential",
                 service="aws",
-                value="AKIAARMORTRAP0000002",
-                marker_rule=r"^AKIA[A-Z0-9]{16}$",
+                value="EXAMPLEKEY0000000002",
+                marker_rule=r"^EXAMPLEKEY\d+$",
                 active=True,
                 created_at="2026-05-05T00:00:00Z",
             ),

@@ -105,6 +105,7 @@ def test_triggered_canary_id_not_value(forensic_logger, catalogue):
     """TC-019-03: Triggered canary field contains ID, not value."""
     active_canaries = catalogue.active_canaries()
     if not active_canaries:
+        # Requires `armor canary generate`; see ADR-010
         pytest.skip("No active canaries in test catalogue")
 
     # Use first active canary
@@ -135,6 +136,7 @@ def test_defensive_substitution_in_details(forensic_logger, catalogue):
     """Canary values in details are redacted."""
     active_canaries = catalogue.active_canaries()
     if not active_canaries:
+        # Requires `armor canary generate`; see ADR-010
         pytest.skip("No active canaries in test catalogue")
 
     canary = active_canaries[0]

@@ -1,0 +1,29 @@
+name: Release-check
+
+# Heavier verification: runs `make release-check` which spins up a real daemon,
+# exercises the demo end-to-end, and walks every example's offline-smoke. Too
+# slow to gate every PR (kept out of ci.yml on purpose); runs on push to main
+# and on demand. Treat a red badge here as "do not tag a release until this
+# is green." See RELEASE_CHECKLIST.md for the manual companion.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  release-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: uv sync --all-extras --dev --frozen
+      - name: make release-check
+        run: make release-check

@@ -8,16 +8,13 @@ apply, and explain why in a brief note.
 
 <!-- One or two sentences on what this PR changes and why. -->
 
-## Linked task
+## Linked task or context
 
-- Task: `docs/tasks/active/NNN-<name>.md` (or `completed/` after merge)
-- Test spec: `docs/tasks/test-specs/NNN-<name>-test-spec.md`
-
-If this PR is not associated with a task file, explain why (e.g. urgent fix, build break) — every change normally lives under a task.
+If this PR comes from a maintainer-tracked task, reference the task title and the test spec section it satisfies. External contributors: a paragraph of context describing what attack class the change defends against (or what bug it fixes) is fine — the maintainer keeps the per-task spec/scope docs operator-private.
 
 ## Checklist
 
-- [ ] Test spec was written **before** any implementation code
+- [ ] Test spec written **before** any implementation code (a markdown alongside the new tests in `tests/<feature>-test-spec.md` is sufficient for external PRs)
 - [ ] Each new TC marker in the spec is referenced by at least one test (`spec-coverage-check.py` passes)
 - [ ] Eval corpus entry added for any new detector or behavioral change
 - [ ] `docs/spec/` updated in the same commit when externally-visible behavior, the data model, an interface, or configuration changed
@@ -25,9 +22,9 @@ If this PR is not associated with a task file, explain why (e.g. urgent fix, bui
 - [ ] ADR added under `docs/architecture/decisions/` when a non-obvious design decision was made
 - [ ] `CHANGELOG.md` updated if user-visible behavior changed
 - [ ] `make check` passes locally (`ruff`, `mypy --strict`, `pytest`, eval corpus)
+- [ ] `make fitness` passes locally (architecture invariants — no daemon-path network, no canary leakage, P95 budgets, etc.)
 - [ ] No outbound network calls added to the daemon code path
 - [ ] No literal canary values written to the forensic log (use `canary_id`)
-- [ ] Coverage tracker updated (`docs/tasks/coverage-tracker.md`)
 
 ## Test plan
 

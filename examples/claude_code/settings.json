@@ -1,0 +1,45 @@
+{
+  "_comment": "Drop-in .claude/settings.json for armor + Claude Code. See examples/claude_code/README.md for setup walkthrough. The ${ARMOR_SOCKET} variable lets users override the daemon socket without editing this file; defaults to /var/run/armor.sock if unset.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "armor check input --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "armor check tool --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "armor check output --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "armor session close --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}"
+          }
+        ]
+      }
+    ]
+  }
+}

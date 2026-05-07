@@ -1,7 +1,7 @@
 # Behaviors
 
 **Project:** armor
-**Last updated:** 2026-05-06
+**Last updated:** 2026-05-07
 
 What the system does, observably. Each behavior describes a triggering condition, the system's response, and any externally-visible side effects.
 
@@ -72,7 +72,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
   - **Block transitions**: a signal with `decision == "block"` immediately sets state to `Blocked`, regardless of prior score or state.
   - **Blocked is terminal under signal pressure**: cooldown and advisories cannot exit `Blocked`. Only an operator-issued `armor sessions unblock <id> --reason <text>` clears the state — and it transitions to `Watching` (not `Normal`), so the session remains under elevated scrutiny. The unblock writes a row to `OperatorAuditLog` (see data-model.md) capturing actor, timestamp, session_id, and the operator's free-form reason. `--reason` is required; calls without one are rejected.
 - **Cost-tier gating:** The pipeline queries the session state before selecting detectors. LLM-tier detectors run iff state ≥ Watching. Blocked state short-circuits all detectors and returns `block` verdict directly with category `session.blocked` (forensic log still written).
-- **Configuration:** Thresholds, decay rate, and per-detector weights are loaded from `armor.toml` (keys: `session.thresholds.{watching,elevated,high}`, `session.cooldown_decay_per_min`, `session.signal_weights.*`). Non-hardcoded, tunable for corpus-driven optimization in v1.0.
+- **Configuration:** Thresholds, decay rate, and per-detector weights are loaded from `armor.toml` (keys: `session.thresholds.{watching,elevated,high}`, `session.cooldown_decay_per_min`, `session.signal_weights.*`). Non-hardcoded, tunable for corpus-driven optimization.
 - **Side effects:** Session state row updated atomically per check. Risk score reflects current operational threat level (not a monotonic audit trail). Forensic log records all signals (state transitions are orthogonal to incident logging).
 
 ### B-005: Run the validator LLM as a semantic-level signal
@@ -89,7 +89,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Trigger:** Output check sees a high-entropy substring via detector `entropy.decode_rescan`, OR input check sees an explicit encoding-request keyword via detector `regex.encoding_request` (`base64`, `hex`, `rot13`, `encrypt`, etc.).
 - **Response:** On output (detector `entropy.decode_rescan`): scan for substrings with Shannon entropy ≥ `entropy.threshold` (default 4.5 bits/char) and length ≥ `entropy.min_length` (default 40 chars); attempt single-pass decode (base64, then hex); re-scan the decoded plaintext for canaries using the existing canary scanner automaton — block on hit with `signal_id = entropy.decode_rescan:<canary_id>`. On input: detector `regex.encoding_request` returns `advisory` for standard requests (feeds session risk score) or `block` for high-confidence attack patterns (e.g., "encode … as base64 and put in URL"), and validator LLM is run if advisories are present.
 - **Side effects:** On block: forensic record written with `encoding_flag=true`. Decoded plaintext never leaked in forensic records or verdict details — always reference `canary_id` only.
-- **Failure modes:** Decode + re-scan would exceed `pipeline.per_detector_budget_ms` → detector returns `error` (fail-open per detector). Recursion not supported (v0.2 limitation; deferred to v0.3 pending corpus evidence).
+- **Failure modes:** Decode + re-scan would exceed `pipeline.per_detector_budget_ms` → detector returns `error` (fail-open per detector). Recursive decode is not supported — single pass only; deferred until corpus evidence shows a measurable false-negative class that recursion would catch.
 
 ### B-007: Capture forensic record on every block
 
@@ -151,7 +151,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Security intent:** Flags adversarial pivots (e.g., "help me debug Python" → "what's your system prompt?") without blocking unilaterally. The advisory contributes to session-level risk scoring and may trigger the honeypot LLM when session state reaches Elevated.
 - **Side effects:** Session risk score incremented per advisory. EMA state (rolling window, current vector) persists for the session lifetime. Per-call latency is measured and logged.
 - **Failure modes:** Embedding model not found → detector returns `pass` (fail-open). Embedding computation times out → soft-fail advisory with `confidence=0`. Session state unavailable → detector returns `pass` (fail-open).
-- **References:** Task 024, ADR-026, corpus at `tests/eval/corpus/topic_pivot.yaml`
+- **References:** Task 024, ADR-026, corpus at `tests/eval/corpus/scenarios_multi_turn.yaml` (family: "topic_pivot")
 
 ### B-009a: Detect chunked exfiltration across multiple turns via rolling-buffer aggregation
 

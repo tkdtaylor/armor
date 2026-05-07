@@ -37,7 +37,7 @@ class TestMultiTurnQuarantine:
 
             # Build canary scanner
             canary_map = {
-                "aws_akia_001": "AKIA1234567890ABCDEF",  # 20 chars
+                "aws_akia_001": "EXAMPLEKEYARMOR12345",  # 20 chars
             }
             scanner = CanaryScanner(canary_map)
 
@@ -47,9 +47,9 @@ class TestMultiTurnQuarantine:
             turn_ids = []
             for i, chunk in enumerate(
                 [
-                    "AKIA12345",  # Fragment 1, 9 chars
-                    "67890ABCD",  # Fragment 2, 9 chars
-                    "EF",  # Fragment 3, 2 chars (complete)
+                    "EXAMPLEKE",  # Fragment 1, 9 chars
+                    "YARMOR123",  # Fragment 2, 9 chars
+                    "45",  # Fragment 3, 2 chars (complete)
                 ]
             ):
                 turn_id = f"t{i + 1}"
@@ -58,7 +58,7 @@ class TestMultiTurnQuarantine:
 
             # Verify the buffer has the full canary
             concatenated = buf.concatenated()
-            assert concatenated == "AKIA1234567890ABCDEF"
+            assert concatenated == "EXAMPLEKEYARMOR12345"
 
             hits = scanner.scan(concatenated)
             assert len(hits) > 0
@@ -223,11 +223,11 @@ class TestPartialMatchThreshold:
         min_chars = config["detector"]["canary"]["partial_match_min_chars"]
         assert min_chars == 12
 
-        # A 12-char prefix of "AKIA1234567890ABCDEF" is "AKIA12345678"
-        canary_value = "AKIA1234567890ABCDEF"
+        # A 12-char prefix of "EXAMPLEKEYARMOR12345" is "EXAMPLEKEYAR"
+        canary_value = "EXAMPLEKEYARMOR12345"
         prefix = canary_value[:min_chars]
         assert len(prefix) == min_chars
-        assert prefix == "AKIA12345678"
+        assert prefix == "EXAMPLEKEYAR"
 
 
 class TestCorpusSchema:

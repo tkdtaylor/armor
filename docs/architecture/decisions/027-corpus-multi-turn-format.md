@@ -101,11 +101,10 @@ Example:
     - input: "retry after block"
       expected_input_verdict: "advisory"  # Even benign input treated as advisory when Blocked
       expected_session_state: "Blocked"   # Stays Blocked — no unblock yet
-    # TODO: after task 028, add:
-    # - operator_action: "unblock"
-    #   input: "now benign"
-    #   expected_input_verdict: "pass"
-    #   expected_session_state: "Normal"
+    - operator_action: "unblock"
+      input: "now benign"
+      expected_input_verdict: "pass"
+      expected_session_state: "Normal"
 ```
 
 ### Per-row fresh daemon vs reuse

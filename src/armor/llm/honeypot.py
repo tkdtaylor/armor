@@ -140,9 +140,9 @@ def respond(
         # Try to get from llm_session, fall back to default
         if llm_session and hasattr(llm_session, "honeypot_budget_ms"):
             val = getattr(llm_session, "honeypot_budget_ms", None)
-            budget_ms = val if isinstance(val, int) else 12000
+            budget_ms = val if isinstance(val, int) else 16000
         else:
-            budget_ms = 12000
+            budget_ms = 16000
 
     try:
         # Load the honeypot system prompt template

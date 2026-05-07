@@ -286,6 +286,9 @@ class DaemonServer:
             if operation == "incidents.show":
                 return await self._handle_incidents_show(request)
 
+            if operation == "incidents.export":
+                return await self._handle_incidents_export(request)
+
             if operation == "incident.get":
                 return await self._handle_incident_get(request)
 
@@ -434,6 +437,43 @@ class DaemonServer:
             extra={"event": "incidents.show", "decision": "pass" if row else "miss"},
         )
         return {"v": 1, "verdict": "pass", "incident": row}
+
+    async def _handle_incidents_export(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Export incidents matching filters as NDJSON.
+
+        Payload fields (all optional):
+          - since: str, duration (e.g., 1h, 30m)
+          - session_id: str, restrict to one session
+          - severity: str, filter by severity level
+        """
+        if self.forensic_logger is None:
+            return {"v": 1, "verdict": "error", "message": "forensic store unavailable"}
+
+        payload = request.get("payload") or {}
+        # Note: since and severity filters are accepted in the request but not
+        # yet implemented in the forensic logger. They are reserved for future use.
+        session_id = payload.get("session_id") or None
+
+        # Get all incidents (export is not paginated like list)
+        # We'll use a large limit to get all matching incidents
+        rows = await asyncio.to_thread(
+            self.forensic_logger.list_incidents,
+            limit=100000,  # Large limit for export
+            session_id=session_id,
+            category=None,  # Not filtering by category in export
+            since_id=None,
+        )
+
+        logger.info(
+            "incidents.export served",
+            extra={
+                "event": "incidents.export",
+                "decision": "pass",
+                "session_id": session_id or "",
+                "count": len(rows),
+            },
+        )
+        return {"v": 1, "verdict": "pass", "incidents": rows}
 
     async def _handle_sessions_list(self, request: dict[str, Any]) -> dict[str, Any]:
         if self.session_store is None:

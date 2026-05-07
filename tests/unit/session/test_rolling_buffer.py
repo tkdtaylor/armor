@@ -101,7 +101,7 @@ class TestPartialCanaryDetection:
         """Create a test scanner with known canaries."""
         # Build a simple test scanner with known patterns
         canary_map = {
-            "aws_akia_001": "AKIA1234567890ABCDEF",  # 20 chars
+            "aws_akia_001": "EXAMPLEKEYARMOR12345",  # 20 chars
             "github_pat_001": "ghp_1234567890abcdefghij",  # 24 chars
         }
         return CanaryScanner(canary_map)
@@ -115,19 +115,19 @@ class TestPartialCanaryDetection:
         scanner = self._get_test_scanner()
         buf = RollingBuffer(capacity_chars=10000, capacity_turns=100)
 
-        # Split AKIA1234567890ABCDEF as AKIA12345 + 67890ABCDEF
-        buf.append("t1", "AKIA12345")
-        buf.append("t2", "67890ABCDEF")
+        # Split EXAMPLEKEYARMOR12345 as EXAMPLEKE + YARMOR12345
+        buf.append("t1", "EXAMPLEKE")
+        buf.append("t2", "YARMOR12345")
 
         # Per-turn scans should miss
-        hits_t1 = scanner.scan("AKIA12345")
-        hits_t2 = scanner.scan("67890ABCDEF")
+        hits_t1 = scanner.scan("EXAMPLEKE")
+        hits_t2 = scanner.scan("YARMOR12345")
         assert len(hits_t1) == 0, "t1 alone should not match"
         assert len(hits_t2) == 0, "t2 alone should not match"
 
         # Buffer concatenation should match
         concatenated = buf.concatenated()
-        assert concatenated == "AKIA1234567890ABCDEF"
+        assert concatenated == "EXAMPLEKEYARMOR12345"
         hits_buffer = scanner.scan(concatenated)
         assert len(hits_buffer) > 0, "Full concatenation should match"
         assert hits_buffer[0].canary_id == "aws_akia_001"
@@ -140,12 +140,12 @@ class TestPartialCanaryDetection:
         scanner = self._get_test_scanner()
         buf = RollingBuffer(capacity_chars=10000, capacity_turns=100)
 
-        # Split AKIA1234567890ABCDEF at midpoint: AKIA1234567890 + ABCDEF
-        buf.append("t1", "AKIA1234567890")
-        buf.append("t2", "ABCDEF")
+        # Split EXAMPLEKEYARMOR12345 at midpoint: EXAMPLEKEY + ARMOR12345
+        buf.append("t1", "EXAMPLEKEY")
+        buf.append("t2", "ARMOR12345")
 
         concatenated = buf.concatenated()
-        assert concatenated == "AKIA1234567890ABCDEF"
+        assert concatenated == "EXAMPLEKEYARMOR12345"
         hits = scanner.scan(concatenated)
         assert len(hits) > 0
         assert hits[0].canary_id == "aws_akia_001"

@@ -65,6 +65,7 @@ def canary_scanner(catalogue):
     """Create a canary scanner."""
     active_canaries = catalogue.active_canaries()
     if not active_canaries:
+        # Requires `armor canary generate`; see ADR-010
         pytest.skip("No active canaries in catalogue")
 
     canary_map = {entry.canary_id: entry.value for entry in active_canaries}
@@ -89,6 +90,7 @@ async def test_canary_block_no_plaintext_leak(temp_db, temp_dir, catalogue, dete
     # Get first active canary
     active_canaries = catalogue.active_canaries()
     if not active_canaries:
+        # Requires `armor canary generate`; see ADR-010
         pytest.skip("No active canaries in catalogue")
 
     canary = active_canaries[0]

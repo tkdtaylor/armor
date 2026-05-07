@@ -1,7 +1,7 @@
 # armor — Authoritative Spec
 
 **Project:** armor
-**Last updated:** 2026-05-06
+**Last updated:** 2026-05-07
 
 ## What this directory is
 
@@ -42,7 +42,7 @@ When a later ADR supersedes an earlier one (for example, ADR-018 supersedes the 
 
 1. **Update in the same commit as the code change.** A task that changes behavior is not done until `behaviors.md` reflects it.
 2. **Supersede in place. Never append.** When a decision changes, rewrite the spec entry — don't add a "previously this was X" note. The ADR carries that history.
-3. **No future tense.** The spec describes what *is*, not what *will be*. Roadmap and planned work live in `docs/plans/` and `docs/tasks/`.
+3. **No future tense.** The spec describes what *is*, not what *will be*. Roadmap and per-task planning are operator-private and not part of the public repo.
 4. **No implementation rationale.** "We chose X because Y" belongs in an ADR. The spec just says "uses X."
 
 ## Project summary

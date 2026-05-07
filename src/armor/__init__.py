@@ -21,12 +21,14 @@ Typical usage:
 
 __version__ = "0.0.0"
 
+from armor.client import DaemonUnreachableError
 from armor.sdk import ArmorClient, AsyncArmorClient
 from armor.types import HealthReport, Incident, Verdict
 
 __all__ = [
     "ArmorClient",
     "AsyncArmorClient",
+    "DaemonUnreachableError",
     "HealthReport",
     "Incident",
     "Verdict",

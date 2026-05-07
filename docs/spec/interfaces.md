@@ -106,8 +106,14 @@ The armor library exports a typed, ergonomic client for the daemon IPC transport
 **Public surface:**
 
 ```python
-from armor import ArmorClient, AsyncArmorClient, Verdict, HealthReport, Incident
-from armor.client import DaemonUnreachableError
+from armor import (
+    ArmorClient,
+    AsyncArmorClient,
+    DaemonUnreachableError,
+    HealthReport,
+    Incident,
+    Verdict,
+)
 
 # Synchronous client
 client = ArmorClient(socket_path="/var/run/armor.sock")

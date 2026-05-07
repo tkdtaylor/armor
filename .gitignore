@@ -2,6 +2,15 @@
 # reports, and other one-author artifacts. Kept locally, never committed.
 archive/
 
+# Operator-private build process — task files, test specs, sprint plans, and
+# roadmap drafts. The build-process *workflow* (TDD spec-first, atomic commits,
+# task lifecycle) is documented publicly in CONTRIBUTING.md and CLAUDE.md, but
+# specific task/test-spec contents may include sensitive data, attack-corpus
+# instructions, or vendor-specific details that should not ship in the public
+# repo. Kept locally so the workflow keeps working on the operator's machine.
+docs/plans/
+docs/tasks/
+
 # Secrets
 .env
 

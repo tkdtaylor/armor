@@ -28,7 +28,7 @@ jobs:
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --all-extras --dev --frozen
       - name: ruff check
         run: uv run ruff check src tests
 
@@ -47,7 +47,7 @@ jobs:
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --all-extras --dev --frozen
       - name: ruff format --check
         run: uv run ruff format --check src tests
 
@@ -66,7 +66,7 @@ jobs:
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --all-extras --dev --frozen
       - name: mypy --strict
         run: uv run mypy src
 
@@ -85,7 +85,7 @@ jobs:
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --all-extras --dev --frozen
       - name: pytest tests/unit/
         run: uv run pytest tests/unit/
 
@@ -104,7 +104,7 @@ jobs:
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --all-extras --dev --frozen
       - name: pytest tests/eval/
         run: uv run pytest tests/eval/
 
@@ -127,7 +127,7 @@ jobs:
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --all-extras --dev --frozen
       - name: pytest tests/fitness/
         run: uv run pytest tests/fitness/
 
@@ -150,6 +150,6 @@ jobs:
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --all-extras --dev --frozen
       - name: make fitness
         run: make fitness
