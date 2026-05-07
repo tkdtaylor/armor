@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Vulnerability disclosure
+    url: https://github.com/tkdtaylor/armor/security/advisories/new
+    about: |
+      Do NOT file a public issue for vulnerability reports. Use the private
+      GitHub Security Advisory link, or email the maintainer per SECURITY.md.

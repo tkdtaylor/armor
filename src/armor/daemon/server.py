@@ -280,6 +280,27 @@ class DaemonServer:
                         )
                 return {"v": 1, "verdict": "pass", "canaries": canaries}
 
+            if operation in ("incidents.list", "incidents.tail"):
+                return await self._handle_incidents_list(request)
+
+            if operation == "incidents.show":
+                return await self._handle_incidents_show(request)
+
+            if operation == "incident.get":
+                return await self._handle_incident_get(request)
+
+            if operation == "sessions.list":
+                return await self._handle_sessions_list(request)
+
+            if operation == "sessions.show":
+                return await self._handle_sessions_show(request)
+
+            if operation == "sessions.unblock":
+                return await self._handle_sessions_unblock(request)
+
+            if operation == "health.full":
+                return await self._handle_health_full()
+
             return {
                 "v": 1,
                 "verdict": "error",
@@ -355,6 +376,166 @@ class DaemonServer:
                 "verdict": "error",
                 "message": str(e),
             }
+
+    async def _handle_incidents_list(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Return paginated incidents matching the request's filters.
+
+        Payload fields (all optional except `limit`):
+          - limit: int, page size (default 50)
+          - session_id: str, restrict to one session
+          - category: str glob (e.g. `direct_injection.*`)
+          - since_id: int, return only incidents with `id > since_id`
+        """
+        if self.forensic_logger is None:
+            return {"v": 1, "verdict": "error", "message": "forensic store unavailable"}
+
+        payload = request.get("payload") or {}
+        limit = payload.get("limit") or 50
+        try:
+            limit_int = max(1, min(int(limit), 1000))
+        except (TypeError, ValueError):
+            limit_int = 50
+
+        session_id = payload.get("session_id") or None
+        category = payload.get("category") or None
+        since_id = payload.get("since_id")
+
+        rows = await asyncio.to_thread(
+            self.forensic_logger.list_incidents,
+            limit_int,
+            session_id,
+            category,
+            since_id if isinstance(since_id, int) else None,
+        )
+        logger.info(
+            "incidents.list served",
+            extra={"event": "incidents.list", "decision": "pass", "session_id": session_id or ""},
+        )
+        return {"v": 1, "verdict": "pass", "incidents": rows}
+
+    async def _handle_incidents_show(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Return one incident by `incident_id` (CLI form)."""
+        payload = request.get("payload") or {}
+        incident_id = payload.get("incident_id") or payload.get("id")
+        return await self._fetch_incident(incident_id)
+
+    async def _handle_incident_get(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Return one incident by `id` (SDK form)."""
+        payload = request.get("payload") or {}
+        incident_id = payload.get("id") or payload.get("incident_id")
+        return await self._fetch_incident(incident_id)
+
+    async def _fetch_incident(self, incident_id: object) -> dict[str, Any]:
+        if self.forensic_logger is None:
+            return {"v": 1, "verdict": "error", "message": "forensic store unavailable"}
+        row = await asyncio.to_thread(self.forensic_logger.get_incident, incident_id)
+        logger.info(
+            "incidents.show served",
+            extra={"event": "incidents.show", "decision": "pass" if row else "miss"},
+        )
+        return {"v": 1, "verdict": "pass", "incident": row}
+
+    async def _handle_sessions_list(self, request: dict[str, Any]) -> dict[str, Any]:
+        if self.session_store is None:
+            return {"v": 1, "verdict": "error", "message": "session store unavailable"}
+        payload = request.get("payload") or {}
+        state = payload.get("state") or None
+        rows = await asyncio.to_thread(self.session_store.list_sessions, state)
+        logger.info(
+            "sessions.list served",
+            extra={"event": "sessions.list", "decision": "pass"},
+        )
+        return {"v": 1, "verdict": "pass", "sessions": rows}
+
+    async def _handle_sessions_show(self, request: dict[str, Any]) -> dict[str, Any]:
+        if self.session_store is None:
+            return {"v": 1, "verdict": "error", "message": "session store unavailable"}
+        payload = request.get("payload") or {}
+        session_id = payload.get("session_id")
+        if not session_id:
+            return {"v": 1, "verdict": "error", "message": "session_id required"}
+        row = await asyncio.to_thread(self.session_store.get_session_view, session_id)
+        logger.info(
+            "sessions.show served",
+            extra={"event": "sessions.show", "session_id": session_id, "decision": "pass" if row else "miss"},
+        )
+        return {"v": 1, "verdict": "pass", "session": row}
+
+    async def _handle_sessions_unblock(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Atomically clear `Blocked` and write an `OperatorAuditLog` row."""
+        from armor.session.state_machine import InvalidStateTransition, clear_blocked
+
+        if self.session_store is None:
+            return {"v": 1, "verdict": "error", "message": "session store unavailable"}
+
+        payload = request.get("payload") or {}
+        session_id = payload.get("session_id")
+        reason = payload.get("reason") or ""
+        actor = payload.get("actor") or os.environ.get("USER") or "operator"
+
+        if not session_id:
+            return {"v": 1, "verdict": "error", "message": "session_id required"}
+        if not reason or not str(reason).strip():
+            return {"v": 1, "verdict": "error", "message": "reason required"}
+
+        try:
+            new_state = await asyncio.to_thread(clear_blocked, session_id, actor, str(reason), db_path=self.db_path)
+        except InvalidStateTransition as e:
+            logger.warning(
+                "sessions.unblock rejected",
+                extra={"event": "sessions.unblock", "session_id": session_id, "decision": "error"},
+            )
+            return {"v": 1, "verdict": "error", "message": str(e)}
+        except ValueError as e:
+            return {"v": 1, "verdict": "error", "message": str(e)}
+
+        # Invalidate any cached session row so subsequent reads see the new state.
+        self.session_store._cache.pop(session_id, None)
+        if session_id in self.session_store._cache_access_order:
+            self.session_store._cache_access_order.remove(session_id)
+
+        logger.info(
+            "sessions.unblock served",
+            extra={
+                "event": "sessions.unblock",
+                "session_id": session_id,
+                "decision": "pass",
+            },
+        )
+        return {"v": 1, "verdict": "pass", "new_state": new_state.value}
+
+    async def _handle_health_full(self) -> dict[str, Any]:
+        """Return the expanded health report consumed by `armor health`."""
+        socket_reachable = self._server is not None
+        db_reachable = False
+        if self.db_path:
+            try:
+                import sqlite3 as _sql
+
+                conn = _sql.connect(self.db_path)
+                conn.execute("SELECT 1").fetchone()
+                conn.close()
+                db_reachable = True
+            except Exception:
+                db_reachable = False
+
+        uptime = max(0, int(time.time() - self._start_time))
+        return {
+            "v": 1,
+            "verdict": "pass",
+            "health": {
+                "socket_reachable": socket_reachable,
+                "db_reachable": db_reachable,
+                "model_loaded": self.llm_session is not None,
+                "uptime_seconds": uptime,
+                "active_connections": self.active_connections,
+                "max_concurrent": self.max_concurrent,
+                "db_capacity_percent": 0.0,
+                "total_checks": 0,
+                "p95_input_latency_ms": 0.0,
+                "p95_output_latency_ms": 0.0,
+            },
+        }
 
     async def start(self) -> None:
         """Start the daemon server.

@@ -6,13 +6,24 @@ gates expensive detectors on that level, and decays back toward Normal over time
 
 The core function apply_signal() is pure: given inputs, it deterministically produces
 outputs without side effects or implicit time calls.
+
+`clear_blocked()` is the only sanctioned exit from `Blocked`. It is invoked by
+the `armor sessions unblock` operator command and writes a row to
+`OperatorAuditLog` in the same transaction as the state mutation.
 """
 
-from datetime import datetime
+import os
+import sqlite3
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+from armor.db import operator_audit
 from armor.types import Verdict
+
+
+class InvalidStateTransition(Exception):  # noqa: N818  — spec-mandated name (TC-036-08)
+    """Raised when an operator-clear action is requested for a non-Blocked session."""
 
 
 class SessionState(StrEnum):
@@ -148,7 +159,10 @@ def apply_signal(
         Tuple of (new_state, new_score).
 
     Design notes:
-    - Blocked is terminal: no transitions out of Blocked except via explicit reset (task 028).
+    - Blocked is terminal under signal pressure. The only exit is the operator
+      action `clear_blocked()` (called by `armor sessions unblock`), which
+      atomically transitions Blocked → Watching and writes an
+      `OperatorAuditLog` row.
     - Score floor: clamped at 0.0; decay cannot drive negative.
     - Step-back is one rung per call: prevents "falling off the ladder" in a single call.
     - Multi-rung step-forward is allowed: a single large advisory can jump multiple rungs.
@@ -216,3 +230,66 @@ def apply_signal(
 
     # Step 6: Return new state and score
     return (new_state, new_score)
+
+
+def _default_actor() -> str:
+    return os.environ.get("USER", "operator") or "operator"
+
+
+def clear_blocked(
+    session_id: str,
+    actor: str | None = None,
+    reason: str = "",
+    *,
+    db_path: str,
+) -> SessionState:
+    """Atomically clear a Blocked session and write an audit-log row.
+
+    Pre-conditions:
+      - The session exists.
+      - The session's `current_state` is `Blocked`.
+      - `reason` is a non-empty string.
+
+    Post-conditions on success:
+      - `Session.current_state == "Watching"`.
+      - Exactly one new row in `OperatorAuditLog` with
+        `(actor, action="session.unblock", session_id, reason)`.
+
+    The state mutation and the audit-log insert run in a single SQLite
+    transaction. If either fails, both are rolled back and the session
+    remains `Blocked` with no audit row written.
+    """
+    if not reason or not reason.strip():
+        raise ValueError("clear_blocked requires a non-empty reason")
+
+    effective_actor = actor or _default_actor()
+    ts = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT current_state FROM Session WHERE session_id = ?",
+            (session_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise InvalidStateTransition(f"unknown session {session_id!r}")
+        if row[0] != SessionState.BLOCKED.value:
+            raise InvalidStateTransition(f"session {session_id!r} is in state {row[0]!r}, not Blocked")
+
+        try:
+            cur.execute("BEGIN")
+            cur.execute(
+                "UPDATE Session SET current_state = ? WHERE session_id = ?",
+                (SessionState.WATCHING.value, session_id),
+            )
+            operator_audit._insert_unblock_row(cur, session_id, effective_actor, reason, ts)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    finally:
+        conn.close()
+
+    return SessionState.WATCHING

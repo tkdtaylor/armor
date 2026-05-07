@@ -14,9 +14,9 @@ class TestHealthCommand:
         """Test health check when daemon is not running."""
         output = StringIO()
         with patch("sys.stdout", output):
-            exit_code = main(["health"])
+            exit_code = main(["health", "--json"])
 
-        assert exit_code == 1
+        assert exit_code == 2  # Critical when daemon unreachable
         data = json.loads(output.getvalue().strip())
         assert data["status"] == "unreachable"
 
@@ -24,8 +24,8 @@ class TestHealthCommand:
         """Test health check with custom socket path."""
         output = StringIO()
         with patch("sys.stdout", output):
-            exit_code = main(["--socket", "/tmp/nonexistent.sock", "health"])
+            exit_code = main(["--socket", "/tmp/nonexistent.sock", "health", "--json"])
 
-        assert exit_code == 1
+        assert exit_code == 2  # Critical when daemon unreachable
         data = json.loads(output.getvalue().strip())
         assert data["status"] == "unreachable"

@@ -94,14 +94,14 @@ Exponential decay (e.g., `score *= exp(-decay_rate * elapsed_seconds)`) would be
 After decay, if the post-decay score falls below the **lower threshold for the current state**, the state moves back **exactly one rung**:
 
 ```
-if current_state == Watching and new_score < session.thresholds.normal:
-    # No "normal" threshold; any score below watching moves to Normal
+# There is no "normal" threshold; any score below the watching threshold steps back to Normal.
+if current_state == Watching and new_score < session.thresholds.watching:
     new_state = Normal
 
-if current_state == Elevated and new_score < session.thresholds.watching:
+if current_state == Elevated and new_score < session.thresholds.elevated:
     new_state = Watching
 
-if current_state == High and new_score < session.thresholds.elevated:
+if current_state == High and new_score < session.thresholds.high:
     new_state = Elevated
 ```
 
@@ -288,9 +288,10 @@ The five-state machine maps intuitive risk levels (Normal → Watching → Eleva
 ## References
 
 - **Task 022** — Implementation and test spec
+- **ADR-001** — SQLite session store (the FSM persists `current_state`, `risk_score`, `last_signal_at` on the existing `Session` row)
 - **Task 018** — Validator LLM model choice
 - **Task 021** — Soft-fail policy for LLM budgets (confidence scoring)
 - **Task 028** — Operator-clear UX for unblocking sessions
-- **behaviors.md** — Will be updated with B-004 clarification and Blocked short-circuit behavior
-- **data-model.md** — Will be updated with new Session fields
-- **configuration.md** — Will be updated with new config keys
+- **behaviors.md** — Updated with B-004 clarification and Blocked short-circuit behavior
+- **data-model.md** — Updated with new Session fields
+- **configuration.md** — Updated with new config keys

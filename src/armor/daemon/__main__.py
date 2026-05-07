@@ -8,9 +8,26 @@ import asyncio
 import logging
 import os
 import sys
+import tomllib
+from pathlib import Path
 
-from armor.daemon.logging import setup_logging
 from armor.daemon.server import DaemonServer
+from armor.logging import setup_logging
+
+
+def _load_log_format(config_path: str | None) -> str:
+    """Read `logging.format` from `armor.toml` (default 'json')."""
+    if not config_path:
+        return "json"
+    path = Path(config_path)
+    if not path.exists():
+        return "json"
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return "json"
+    fmt = data.get("logging", {}).get("format", "json")
+    return str(fmt) if isinstance(fmt, str) else "json"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,8 +90,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    # Set up logging
-    setup_logging(args.log_level)
+    log_format = _load_log_format(args.config)
+    setup_logging(args.log_level, log_format=log_format)
     logger = logging.getLogger(__name__)
 
     # Determine canary values path: env var > CLI arg > default

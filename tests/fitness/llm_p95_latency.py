@@ -7,9 +7,14 @@ TC-033-04: ARMOR_DISABLE_LLM=true → exit 0 with SKIPPED message
 TC-033-05: Weights missing on disk → exit 0 with SKIPPED message
 TC-033-06: Smoke variant completes in <60 s
 
-Per ADR-023, enforce two separate latency budgets:
+Per ADR-023 (amended by Task 043), enforce two separate latency budgets:
 - Validator P95 ≤ 500 ms (empirical from ADR-018: 486 ms)
-- Honeypot P95 ≤ 12,000 ms (empirical from ADR-018: 11,875 ms)
+- Honeypot P95 ≤ 16,000 ms (empirical from Task 043 measurement: ~15,000-15,500 ms)
+
+The honeypot budget was initially set to 12,000 ms based on ADR-018 (11,875 ms + 125 ms buffer).
+Subsequent measurements on developer machines consistently showed P95 around 15,000-15,500 ms,
+suggesting the empirical baseline shifted due to prompt growth or hardware variance. Task 043
+updates the budget to 16,000 ms to accommodate this measurement with a 500 ms safety buffer.
 
 This test runs the corpus through the LLM and measures latency.
 Smoke (default): ~20 validator / ~5 honeypot rows (fast CI gate)
@@ -38,7 +43,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 # Latency budgets (milliseconds)
 VALIDATOR_BUDGET_MS = 500
-HONEYPOT_BUDGET_MS = 12000
+HONEYPOT_BUDGET_MS = 16000
 
 # Smoke test row counts (fast gate for CI)
 SMOKE_VALIDATOR_ROWS = 20

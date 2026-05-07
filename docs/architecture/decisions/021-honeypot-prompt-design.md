@@ -109,7 +109,7 @@ This deterministic detection converts a semantic uncertainty into a binary fact.
 
 ### 7. Forensic Safety
 
-Forensic records written after honeypot invocation contain `canary_id` (the placeholder name), never the canary value. This is enforced by the existing forensic-log contract (see ADR-002 and `behaviors.md` B-007).
+Forensic records written after honeypot invocation contain `canary_id` (the placeholder name), never the canary value. This is enforced by the existing forensic-log contract (see `docs/spec/SPEC.md` top-level invariants and `behaviors.md` B-007).
 
 ## Rationale
 

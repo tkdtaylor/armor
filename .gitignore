@@ -1,5 +1,6 @@
-# Local design notes — kept locally, not part of the repo
-discussion.md
+# Local-only archive — original design discussion, draft feedback / bug
+# reports, and other one-author artifacts. Kept locally, never committed.
+archive/
 
 # Secrets
 .env
@@ -46,3 +47,11 @@ models/
 # emitted by candidate models, so they must stay local. Aggregate numbers
 # are documented in docs/architecture/decisions/018-validator-model-choice.md.
 artifacts/bench-results/
+
+# Claude Code local state — not part of the reproducible environment
+.claude/settings.local.json
+.claude/.last-checkpoint
+
+# Design discussion artifacts — local reference, not part of public release
+discussion.md
+discussion-*.md

@@ -1,7 +1,7 @@
 # Architecture Overview
 
 **Project:** armor
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 
 ## What this is
 
@@ -24,7 +24,7 @@ The full design discussion that motivated this architecture is in [discussion.md
 │                      │       │  │  ┌──────────────────────┐  │  │
 │   ┌──────────────┐   │       │  │  │ Static detectors     │  │  │
 │   │ python lib   │───┼──────►│  │  │ (regex, A-C, entropy)│  │  │
-│   │ (Guard SDK)  │   │ HTTP  │  │  └──────────────────────┘  │  │
+│   │ (ArmorClient)│   │ HTTP  │  │  └──────────────────────┘  │  │
 │   └──────────────┘   │ /unix │  │  ┌──────────────────────┐  │  │
 └──────────────────────┘       │  │  │ Validator LLM        │  │  │
                                │  │  │ (small quantized)    │  │  │
@@ -53,13 +53,16 @@ The validator LLM and the **honeypot** are the same model — one weight set, tw
 |----------|--------|-----|
 | Primary integration point | Claude Code hooks (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`) | ADR-001 |
 | Secondary integration | Importable Python library wrapping SDK calls | ADR-001 |
-| Implementation language | Python 3.12, daemon architecture for sub-millisecond per-hook latency | ADR-002 |
+| Implementation language | Python 3.12, daemon architecture for sub-millisecond per-hook latency | ADR-001 |
 | Validator + honeypot model | `lmstudio-community/Qwen3-0.6B-GGUF` (Qwen3-0.6B-Q4_K_M, Apache 2.0) — same weights, two system prompts | ADR-018 |
-| Inference runtime | `llama.cpp` via `llama-cpp-python` | ADR-003 |
-| Session state store | SQLite, file-backed | ADR-004 |
-| Pattern matcher | `pyahocorasick` for multi-pattern canary scanning | ADR-005 |
-| Container base | Debian slim multi-stage; target image <2 GB with model baked in | ADR-006 |
-| Detection categories in v1 | P0–P3 from the discussion taxonomy (direct injection, exfiltration, encoding, jailbreak, tool abuse, context attacks, multi-turn) | ADR-007 |
+| Inference runtime | `llama.cpp` via `llama-cpp-python` | ADR-019 |
+| Session state store | SQLite, file-backed | ADR-001 |
+| Pattern matcher | `pyahocorasick` for multi-pattern canary scanning | ADR-001 |
+| Container base | Debian slim multi-stage; target image <2 GB with validator weights and embedding model baked in | ADR-001 |
+| Detection categories in v1 | P0–P3 from the discussion taxonomy (direct injection, exfiltration, encoding, jailbreak, tool abuse, context attacks, multi-turn) | ADR-001 |
+| Session-level risk model | Five-state finite state machine (Normal → Watching → Elevated → High → Blocked) with linear-decay cooldown; gates the LLM cost tier and feeds rolling-buffer + topic-coherence escalation | ADR-024 |
+| Multi-turn exfiltration | Per-session rolling output buffer (8 KB / 20 turns, persisted in SQLite); canary scanner + entropy analyzer re-run against the concatenation; partial-canary prefix ≥ 12 chars escalates session state | ADR-025 |
+| Topic-coherence advisory | `all-MiniLM-L6-v2` ONNX embedding (~23 MB baked in image), per-session EMA, cosine-distance threshold; advisory only — feeds the FSM, never blocks unilaterally | ADR-026 |
 
 ## Data flow
 
@@ -72,9 +75,10 @@ The validator LLM and the **honeypot** are the same model — one weight set, tw
 
 | Dependency | Purpose | Notes |
 |------------|---------|-------|
-| `llama-cpp-python` | Local quantized LLM inference | Pinned; bundled with model weights in the image |
+| `llama-cpp-python` | Local quantized LLM inference (validator + honeypot, Qwen3-0.6B-Q4_K_M) | Pinned; bundled with model weights in the image |
+| `onnxruntime` + `transformers` (tokenizer only) | Local sentence-transformer inference for topic-coherence embeddings | `all-MiniLM-L6-v2` ONNX (~23 MB) baked into the image at build time; no runtime download |
 | `pyahocorasick` | Multi-pattern string matching (canaries, keywords) | Pure-Python fallback acceptable for tests |
-| SQLite (stdlib) | Session state, forensic log | No external service |
+| SQLite (stdlib) | Session state, FSM fields, rolling output buffer, forensic log | No external service |
 | Anthropic SDK / OpenAI SDK / LangChain | (Optional) library-side adapters when used as a wrap | Not needed for hook-only deployments |
 
 ## Design principles

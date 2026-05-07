@@ -18,13 +18,18 @@ COPY . .
 # Install the armor package and its dependencies (including llama-cpp-python)
 RUN pip install --no-cache-dir --user .
 
+# Download the embedding model for topic-coherence detection
+RUN python3 -c "from huggingface_hub import hf_hub_download; import os; os.makedirs('/build/models', exist_ok=True); \
+    model_path = hf_hub_download(repo_id='sentence-transformers/all-MiniLM-L6-v2', filename='model.onnx', cache_dir='/build/models', repo_type='model'); \
+    import shutil; shutil.copy(model_path, '/build/models/all-MiniLM-L6-v2.onnx')"
+
 # Stage 2: Runtime — minimal image with only the installed Python packages and model
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Create directory for model
-RUN mkdir -p /models
+# Create directories for models
+RUN mkdir -p /models /opt/armor/models
 
 # Copy only the Python user install from builder (not source code or build tools)
 COPY --from=builder /root/.local/ /root/.local/
@@ -35,6 +40,9 @@ ENV PATH=/root/.local/bin:$PATH
 # Copy model file from docker/model.gguf (should be present at build time)
 # The model file is ~462 MB for Qwen3-0.6B-Q4_K_M.gguf
 COPY docker/model.gguf /models/active.gguf
+
+# Copy embedding model from builder (all-MiniLM-L6-v2 ONNX, ~23 MB)
+COPY --from=builder /build/models/all-MiniLM-L6-v2.onnx /opt/armor/models/all-MiniLM-L6-v2.onnx
 
 # Create armor group and user for principle of least privilege
 RUN groupadd -r armor && useradd -r -g armor -u 999 armor

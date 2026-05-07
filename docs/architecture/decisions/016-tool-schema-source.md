@@ -128,6 +128,6 @@ If a tool name appears in an incoming request but not in `tool_schemas.json`, th
 
 ## Related ADRs
 
-- **ADR-001**: Detector-based architecture; each detector is independent and composable.
-- **ADR-002**: Daemon-based configuration loading; schemas are frozen at boot, not re-read.
+- **ADR-009**: Detector discovery — each detector is independent and composable; the registry loads the tool-param-schema detector at boot.
+- **ADR-001**: Foundational stack — daemon architecture; configuration (and now schemas) are frozen at boot, not re-read.
 - **ADR-010**: Canary invariants; data invariants matter. This ADR is about parameter validation, but the principle is similar — be explicit about what's immutable and when it's frozen.

@@ -60,3 +60,16 @@ CREATE TABLE IF NOT EXISTS SessionRollingBuffer (
 
 -- Index on SessionRollingBuffer for fast lookups by session_id
 CREATE INDEX IF NOT EXISTS idx_rolling_buffer_session_ts ON SessionRollingBuffer(session_id, created_at);
+
+-- OperatorAuditLog table: audit trail for operator actions (task 028)
+CREATE TABLE IF NOT EXISTS OperatorAuditLog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL DEFAULT (datetime('now')),
+    actor TEXT NOT NULL DEFAULT 'operator',  -- Who performed the action (e.g., "operator", username if available)
+    action TEXT NOT NULL,                     -- Action type (e.g., "unblock", "clear", "review_passed")
+    session_id TEXT NOT NULL REFERENCES Session(session_id),
+    reason TEXT                               -- Optional reason provided by operator
+);
+
+-- Index on OperatorAuditLog for session lookups
+CREATE INDEX IF NOT EXISTS idx_operator_audit_session_ts ON OperatorAuditLog(session_id, ts);

@@ -1,7 +1,7 @@
 # armor — Authoritative Spec
 
 **Project:** armor
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 
 ## What this directory is
 
@@ -25,7 +25,7 @@ The code is one *realization* of this spec. If the spec and code disagree, one o
 | [`docs/architecture/overview.md`](../architecture/overview.md) | Narrative tour of the system | Snapshot, but optimized for human reading |
 | [`docs/architecture/diagrams.md`](../architecture/diagrams.md) | Visual structure and flows | Snapshot, part of the spec |
 
-When ADR-005 supersedes ADR-001, the spec just reflects the new choice. The ADRs preserve the reasoning trail; the spec preserves the current truth.
+When a later ADR supersedes an earlier one (for example, ADR-018 supersedes the model row of ADR-001), the spec just reflects the new choice. The ADRs preserve the reasoning trail; the spec preserves the current truth.
 
 ## The spec files
 

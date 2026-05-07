@@ -195,3 +195,45 @@ class SessionContext:
     session_id: str
     signal_history: list[Signal] = field(default_factory=list)
     state: str | None = None
+
+
+@dataclass
+class HealthReport:
+    """Health status report from the armor daemon.
+
+    Attributes:
+        daemon_reachable: Whether the daemon is responding.
+        db_reachable: Whether the SQLite database is accessible.
+        model_loaded: Whether the validator LLM is loaded and ready.
+        version: Version of the armor daemon.
+        uptime_seconds: Daemon uptime in seconds (if available).
+    """
+
+    daemon_reachable: bool
+    db_reachable: bool
+    model_loaded: bool
+    version: str
+    uptime_seconds: float | None = None
+
+
+@dataclass
+class Incident:
+    """A security incident recorded in the forensic log.
+
+    Attributes:
+        id: Unique incident identifier.
+        timestamp: When the incident was recorded.
+        session_id: Associated session ID.
+        payload_hash: Hash of the quarantined payload (for integrity).
+        verdict_decision: The verdict decision (block, advisory, etc.).
+        signal_id: The triggered signal ID (if any).
+        details: Structured incident details from the detector.
+    """
+
+    id: str
+    timestamp: float
+    session_id: str
+    payload_hash: str
+    verdict_decision: str
+    signal_id: str | None
+    details: dict[str, object] = field(default_factory=dict)

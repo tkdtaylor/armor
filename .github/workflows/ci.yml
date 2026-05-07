@@ -6,19 +6,150 @@ on:
   pull_request:
     branches: [main]
 
+# Each gate runs in its own job so failures land on distinct rows in the PR
+# checks list — much easier to read than one giant `make check` log.
+#
+# `release.yml` (task 029) and `fuzz-nightly.yml` (task 027) are intentionally
+# unchanged by this workflow.
+
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4
-
       - name: Install uv
         uses: astral-sh/setup-uv@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: ruff check
+        run: uv run ruff check src tests
 
-      - name: Run checks
-        run: make check
+  format-check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: ruff format --check
+        run: uv run ruff format --check src tests
+
+  typecheck:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: mypy --strict
+        run: uv run mypy src
+
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: pytest tests/unit/
+        run: uv run pytest tests/unit/
+
+  eval:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: pytest tests/eval/
+        run: uv run pytest tests/eval/
+
+  fitness:
+    runs-on: ubuntu-latest
+    # Fitness functions are advisory while the full suite is being filled in
+    # (task 021 et al.). Surface failures in the PR check list, but don't
+    # block a merge on them yet.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: pytest tests/fitness/
+        run: uv run pytest tests/fitness/
+
+  make-fitness:
+    runs-on: ubuntu-latest
+    # Runs scripts/fitness.sh — the canonical fitness entry point per
+    # docs/spec/fitness-functions.md, complementary to the pytest fitness job
+    # above (the two cover different invariants). Blocking per task 043
+    # (honeypot P95 latency regression resolved via budget update).
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+      - name: make fitness
+        run: make fitness

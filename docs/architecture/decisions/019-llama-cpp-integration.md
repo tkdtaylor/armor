@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-05
 **Status:** Accepted
-**Relates to:** ADR-003, ADR-018, Task 017
+**Relates to:** ADR-001, ADR-018, Task 017
 
 ## Context
 
@@ -167,8 +167,7 @@ docker images armor:latest --format "{{.Size}}"
 
 ## Related Decisions
 
-- **ADR-003** — Tech stack: Python 3.12, llama.cpp (this ADR refines the
-  implementation details).
+- **ADR-001** — Foundational stack: Python 3.12, daemon architecture, placeholder for the inference runtime (this ADR locks in `llama-cpp-python` as the binding library and supersedes the placeholder for that row).
 - **ADR-018** — Model choice: Qwen3-0.6B-Q4_K_M (this ADR integrates the
   chosen model).
 - **Task 017** — Implementation task (this ADR documents the outcome).

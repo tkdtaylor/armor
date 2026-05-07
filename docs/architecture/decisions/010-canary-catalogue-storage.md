@@ -56,7 +56,7 @@ Tests must not depend on the bundled file having values. Each test that needs ca
 
 5. **Fitness function:** "No `value` field present in any committed catalogue file" — replaces the v0.1-era "no canary value in committed files outside `default_catalogue.json`" rule. Once the bundled file is values-free, the rule simplifies to "`grep '"value":' src/armor/canaries/*.json` returns no rows."
 
-6. **Forensic log unchanged:** Forensic records still reference `canary_id`, never the value. The leak channel that motivated ADR-010's "value never in forensic log" rule is unrelated to where values live; that rule stands.
+6. **Forensic log unchanged:** Forensic records still reference `canary_id`, never the value. The "value never in forensic log" rule (codified in `docs/spec/SPEC.md` top-level invariants and behaviors.md B-007) is unrelated to where values live; that rule stands.
 
 7. **Aho-Corasick automaton lifecycle unchanged:** Built once at boot, frozen for daemon lifetime, rebuilt on restart. Only the *source* of the input strings changes.
 
@@ -72,7 +72,7 @@ Tests must not depend on the bundled file having values. Each test that needs ca
 
 ## Related decisions
 
-- **ADR-005:** `pyahocorasick` for pattern matching — unchanged; only the input set's source changes.
+- **ADR-001:** `pyahocorasick` for pattern matching — unchanged; only the input set's source changes.
 - **ADR-011:** Quarantine encryption (separate runtime key, separate concern).
 - **Task 015:** Implements this decision. Until that task lands, the bundled file is in the v0.1 (with-values) shape and tests load values from it. This is acknowledged drift; do not extend the v0.1 model in the meantime.
 

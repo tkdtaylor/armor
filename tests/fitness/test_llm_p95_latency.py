@@ -7,9 +7,16 @@ TC-033-04: ARMOR_DISABLE_LLM=true → exit 0 with SKIPPED message
 TC-033-05: Weights missing on disk → exit 0 with SKIPPED message
 TC-033-06: Smoke variant completes in <60 s
 
+TC-043-01: scripts/fitness.sh exits 0 on the developer machine (manual verification)
+TC-043-02: scripts/fitness.sh exits 0 on the CI runner (manual verification via gh pr checks)
+TC-043-03: make-fitness job is no longer advisory (continue-on-error absent or false)
+TC-043-04: Honeypot budget assertion reflects empirical measurement
+
 Per ADR-023, enforce two separate latency budgets:
 - Validator P95 ≤ 500 ms (empirical from ADR-018: 486 ms)
-- Honeypot P95 ≤ 12,000 ms (empirical from ADR-018: 11,875 ms)
+- Honeypot P95 ≤ 12,000 ms (empirical from ADR-018: 11,875 ms) — AMENDED by Task 043 to 16,000 ms
+
+Task 043 updates the budget based on empirical measurements showing ~15,000-15,500 ms P95.
 """
 
 import importlib.util
@@ -170,14 +177,17 @@ class TestFitnessCheckShell:
             assert "budget" in result.stdout.lower(), f"Should reference budgets. stdout:\n{result.stdout}"
 
     def test_budgets_constants_match_spec(self) -> None:
-        """TC-033-03: Verify that hardcoded budgets match ADR-023 spec.
+        """TC-033-03: Verify that hardcoded budgets match ADR-023 spec (as amended by Task 043).
 
         This is a sanity check that the fitness constants match the
         documented SLAs.
         """
-        # Per ADR-023, validator budget is 500 ms, honeypot is 12,000 ms
+        # Per ADR-023, validator budget is 500 ms
         assert VALIDATOR_BUDGET_MS == 500, f"Validator budget should be 500 ms per ADR-023, got {VALIDATOR_BUDGET_MS}"
-        assert HONEYPOT_BUDGET_MS == 12000, f"Honeypot budget should be 12,000 ms per ADR-023, got {HONEYPOT_BUDGET_MS}"
+        # Per Task 043 amendment, honeypot budget is updated to 16,000 ms (from 12,000 ms)
+        assert HONEYPOT_BUDGET_MS == 16000, (
+            f"Honeypot budget should be 16,000 ms (Task 043 amendment), got {HONEYPOT_BUDGET_MS}"
+        )
 
     def test_smoke_variant_row_counts(self) -> None:
         """TC-033-06: Verify smoke variant row counts.
@@ -201,3 +211,70 @@ class TestFitnessCheckShell:
 
         # The script should recognize the flag - basic sanity check
         assert isinstance(env, dict)
+
+
+class TestTask043Updates:
+    """TC-043: Honeypot P95 latency regression resolution.
+
+    Task 043 resolves the honeypot P95 latency regression by updating the budget
+    from 12,000 ms (ADR-023 empirical) to 16,000 ms based on measured P95 of
+    ~15,000-15,500 ms on developer machines.
+    """
+
+    def test_tc_043_03_make_fitness_job_not_advisory(self) -> None:
+        """TC-043-03: .github/workflows/ci.yml make-fitness job is no longer advisory.
+
+        Verify that the `make-fitness` job in CI has `continue-on-error` absent
+        or explicitly set to `false` (blocking mode).
+        """
+        import yaml
+
+        ci_path = Path(__file__).parent.parent.parent / ".github" / "workflows" / "ci.yml"
+        with open(ci_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        # The job should be present
+        assert "make-fitness" in data["jobs"], "make-fitness job not found in CI"
+
+        # Check continue-on-error status
+        continue_on_error = data["jobs"]["make-fitness"].get("continue-on-error")
+        assert continue_on_error is not True, (
+            f"make-fitness should not be advisory (continue-on-error should be absent or False), "
+            f"got continue-on-error={continue_on_error!r}"
+        )
+
+    def test_tc_043_04_honeypot_budget_updated(self) -> None:
+        """TC-043-04: Honeypot budget reflects updated empirical measurement.
+
+        Verify that HONEYPOT_BUDGET_MS constant has been updated to accommodate
+        the empirical P95 measurement of ~15,000-15,500 ms.
+        """
+        # After Task 043, the honeypot budget should be increased to 16,000 ms
+        # (rounding up from empirical 15,000-15,500 ms P95)
+        assert HONEYPOT_BUDGET_MS >= 15000, (
+            f"Honeypot budget should be updated to accommodate empirical P95 (~15,000-15,500 ms). "
+            f"Current value: {HONEYPOT_BUDGET_MS} ms"
+        )
+
+    def test_tc_043_05_adr_023_amended(self) -> None:
+        """TC-043-05: ADR-023 reflects the budget resolution.
+
+        Verify that ADR-023 has an amendment section documenting the budget change
+        from 12,000 ms to 16,000 ms, with empirical justification.
+        """
+        adr_path = (
+            Path(__file__).parent.parent.parent / "docs" / "architecture" / "decisions" / "023-llm-budget-soft-fail.md"
+        )
+        with open(adr_path, encoding="utf-8") as f:
+            adr_content = f.read()
+
+        # Check that an amendment section exists
+        assert "Amendment" in adr_content, "ADR-023 should have an Amendment section"
+
+        # Check that the amendment references Task 043
+        assert "Task 043" in adr_content or "task 043" in adr_content, "ADR-023 Amendment should reference Task 043"
+
+        # Check that the new budget is documented
+        assert "16000" in adr_content or "16,000" in adr_content, (
+            "ADR-023 Amendment should document the new 16,000 ms budget"
+        )

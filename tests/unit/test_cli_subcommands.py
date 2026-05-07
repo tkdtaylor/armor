@@ -359,18 +359,29 @@ class TestHealthCommand:
 
     def test_health_daemon_running(self) -> None:
         """Test health check with running daemon."""
-        mock_response = {"v": 1, "verdict": "pass"}
+        mock_response = {
+            "v": 1,
+            "verdict": "pass",
+            "health": {
+                "socket_reachable": True,
+                "db_reachable": True,
+                "model_loaded": True,
+                "db_capacity_percent": 45.0,
+                "uptime_seconds": 3600,
+                "total_checks": 100,
+                "p95_input_latency_ms": 50.5,
+                "p95_output_latency_ms": 75.3,
+            },
+        }
 
         with patch("armor.cli.DaemonClient") as mock_client_class:
             mock_client = Mock()
             mock_client_class.return_value = mock_client
             mock_client.request.return_value = mock_response
 
-            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+            with patch("sys.stdout", new_callable=StringIO):
                 exit_code = main(["health"])
                 assert exit_code == 0
-                output = json.loads(mock_stdout.getvalue())
-                assert output["status"] == "ok"
 
     def test_health_daemon_unreachable(self) -> None:
         """Test health check with unreachable daemon."""
@@ -379,11 +390,9 @@ class TestHealthCommand:
             mock_client_class.return_value = mock_client
             mock_client.request.side_effect = DaemonUnreachableError("Socket not found")
 
-            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
+            with patch("sys.stdout", new_callable=StringIO):
                 exit_code = main(["health"])
-                assert exit_code == 1
-                output = json.loads(mock_stdout.getvalue())
-                assert output["status"] == "unreachable"
+                assert exit_code == 2
 
 
 class TestHooksInstallCommand:

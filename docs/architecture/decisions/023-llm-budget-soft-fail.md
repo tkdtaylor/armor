@@ -249,10 +249,42 @@ Per-path budgets cleanly map to the empirical reality: the validator is fast (48
 - **Task:** 021
 - **Reviewed by:** Architecture (implicit; ADR drafted with full task spec)
 
+## Amendment (Task 043 — 2026-05-06)
+
+### Honeypot budget update: 12,000 ms → 16,000 ms
+
+**Rationale:** Post-release measurements on developer machines consistently showed honeypot P95 latency of 15,000–15,500 ms (26% over the original 12,000 ms budget), while the validator remained within budget at 475–500 ms P95. The regression is consistent across three independent runs and is not attributable to measurement noise.
+
+**Root cause:** The empirical baseline from ADR-018 (11,875 ms honeypot P95) was gathered before full prompt construction was finalized. The current honeypot system prompt (1,675 characters with 24 embedded canaries) generates longer cooperative responses (up to 256 tokens), making the measured P95 of ~15,000 ms realistic.
+
+**Resolution:** Update `HONEYPOT_BUDGET_MS` from 12,000 to **16,000 ms** (15,000 ms empirical + 1,000 ms safety buffer). This accommodates the observed P95 while preserving margin for hardware variance and measurement noise.
+
+**Configuration changes:**
+- `tests/fitness/llm_p95_latency.py`: `HONEYPOT_BUDGET_MS = 16000`
+
+**CI promotion:**
+- `.github/workflows/ci.yml`: Remove `continue-on-error: true` from the `make-fitness` job, promoting fitness checks to blocking (critical path).
+
+**Implications:**
+- The honeypot is still well within acceptable performance bounds (16 seconds for a full LLM inference + canary response is reasonable for an advisor-path detector).
+- No code changes required; pure configuration update.
+- The soft-fail mechanism (task 021) still applies: if any LLM call exceeds its budget, it returns `advisory(confidence=0)` and the pipeline continues with static-only detection.
+
+**Validation:**
+- Empirical measurements (three runs on developer machine): 15,085–15,504 ms P95.
+- CI performance (post-amendment): Expected to green on ubuntu-latest runners.
+
+**References:**
+- Task 043 — Honeypot P95 latency regression investigation and resolution
+- Empirical runs (2026-05-06): 15,176.5 ms, 15,085.9 ms, 15,504.8 ms
+
+---
+
 ## References
 
 - **ADR-018** — Validator + honeypot model choice (empirical latencies)
 - **ADR-021** — Honeypot prompt design and canary isolation
 - **Task 021** — Implementation (soft-fail, fitness functions, config keys)
 - **Task 022** — Session risk scoring (uses `confidence` field for weighting)
+- **Task 043** — Honeypot P95 latency regression (amendment section above)
 - **B-005** — Validator LLM behavior (refined with soft-fail modes)

@@ -252,16 +252,28 @@ def _resolve_and_validate_input(input_text: str, row_id: str, catalogue: Catalog
                 f"Detected value: {canary_value[:20]}... (length {len(canary_value)})"
             )
 
-    # Resolve all {canary:<id>} references
+    # Resolve all {canary:<id>} or {canary:<id>|<start>:<end>} references.
+    # Slice form lets multi-turn corpus rows simulate chunked exfiltration without
+    # exposing literal canary substrings — start/end follow Python slice semantics.
     def replace_canary_ref(match: re.Match[str]) -> str:
         canary_id = match.group(1)
+        slice_expr = match.group(2)
         entry = catalogue.get_by_id(canary_id)
         if entry is None:
             raise ValueError(f"Corpus row '{row_id}': referenced canary ID '{canary_id}' not found in catalogue")
-        return entry.value
+        if slice_expr is None:
+            return entry.value
+        parts = slice_expr.split(":")
+        if len(parts) != 2:
+            raise ValueError(
+                f"Corpus row '{row_id}': malformed canary slice '{slice_expr}' "
+                f"for canary '{canary_id}'. Expected '<start>:<end>' (either may be empty)."
+            )
+        start = int(parts[0]) if parts[0] else None
+        end = int(parts[1]) if parts[1] else None
+        return entry.value[start:end]
 
-    # Pattern matches {canary:<any-string>}
-    result = re.sub(r"\{canary:([^}]+)\}", replace_canary_ref, input_text)
+    result = re.sub(r"\{canary:([^|}]+)(?:\|([^}]+))?\}", replace_canary_ref, input_text)
     return result
 
 

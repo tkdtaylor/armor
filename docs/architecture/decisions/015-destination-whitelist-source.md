@@ -63,5 +63,5 @@ The detector will read this config value at daemon boot and store it in an insta
 
 ## Related ADRs
 
-- **ADR-002**: Daemon-based architecture for config loading and consistency.
+- **ADR-001**: Foundational stack — daemon architecture; config is loaded once at boot for consistency.
 - **ADR-010**: Canary invariants (never leak canary values in logs; log canary_id instead). This ADR is about destinations, but the principle is similar — never leak sensitive data in logs.

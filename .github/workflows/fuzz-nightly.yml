@@ -1,0 +1,84 @@
+name: Fuzz Nightly
+
+on:
+  schedule:
+    # Run every day at 2 AM UTC
+    - cron: "0 2 * * *"
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    name: IPC Fuzz Harness (1+ hour)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v2
+        with:
+          enable-cache: true
+
+      - name: Run IPC fuzz harness for ≥1 hour
+        run: |
+          # Run hypothesis-based fuzz harness with extended examples
+          # TC-027-04, TC-027-05, TC-027-06
+          uv run pytest \
+            tests/fuzz/test_ipc_fuzz.py \
+            -v \
+            --tb=short \
+            --hypothesis-seed=random \
+            -x \
+            --hypothesis-profiles=default \
+            --hypothesis-derandomize
+        env:
+          # Set hypothesis to run more examples for longer fuzzing
+          HYPOTHESIS_PROFILE: default
+        timeout-minutes: 90
+
+      - name: Upload fuzz results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuzz-results
+          path: .hypothesis/
+          retention-days: 30
+
+  fitness:
+    runs-on: ubuntu-latest
+    name: Quarantine Fitness Check
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v2
+        with:
+          enable-cache: true
+
+      - name: Run quarantine-at-rest fitness check
+        run: |
+          # Verify encrypted payloads are not greppable for canary values
+          # TC-027-07
+          uv run python tests/fitness/quarantine_at_rest.py
+        timeout-minutes: 10
+
+  network-isolation:
+    runs-on: ubuntu-latest
+    name: Network Isolation Verification
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v2
+        with:
+          enable-cache: true
+
+      - name: Run network-namespace integration tests
+        run: |
+          # Verify daemon completes check pipeline without network access
+          # TC-027-08
+          uv run pytest \
+            tests/integration/test_no_network_runtime.py \
+            -v \
+            --tb=short
+        timeout-minutes: 30

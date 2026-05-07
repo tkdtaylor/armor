@@ -8,24 +8,50 @@ version = "0.0.0"
 description = "A defense-in-depth security layer for LLM agents"
 readme = "README.md"
 requires-python = ">=3.12"
-license = {file = "LICENSE"}
+license = {text = "PolyForm Noncommercial License 1.0.0"}
 authors = [{name = "Kevin Taylor", email = "tools@taylorguard.me"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+]
 
 dependencies = [
     "cryptography>=48.0.0",
     "pyahocorasick>=2.3.1",
     "pyyaml>=6.0.3",
     "llama-cpp-python>=0.2.45",
+    "onnxruntime>=1.20.0",
+    "transformers>=4.40.0",
+    "rich>=15.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/armor-ai/armor"
+Source = "https://github.com/armor-ai/armor"
+Documentation = "https://github.com/armor-ai/armor#readme"
+Issues = "https://github.com/armor-ai/armor/issues"
+
 [project.optional-dependencies]
+# Mirrors [dependency-groups] dev so `pip install .[dev]` works for non-uv consumers.
+# The uv-native group below is the source of truth; keep these in sync.
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=9.0.3",
     "pytest-asyncio>=0.23.0",
-    "pytest-cov>=5.0.0",
-    "ruff>=0.8.0",
-    "mypy>=1.13.0",
-    "pre-commit>=4.0.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.12",
+    "mypy>=1.20.2",
+    "pre-commit>=4.6.0",
+    "psutil>=6.0.0",
+    "huggingface-hub>=0.24.0",
+    "onnxruntime>=1.20.0",
+    "transformers>=4.40.0",
+    "hypothesis>=6.152.4",
 ]
 
 [project.scripts]
@@ -43,6 +69,7 @@ regex_roleplay_hijack = "armor.detectors.regex_roleplay_hijack:RegexRoleplayHija
 regex_system_prompt_extraction = "armor.detectors.regex_system_prompt_extraction:RegexSystemPromptExtraction"
 regex_encoding_request = "armor.detectors.regex_encoding_request:RegexEncodingRequest"
 tool_param_schema = "armor.detectors.tool_param_schema:ToolParamSchema"
+topic_coherence = "armor.detectors.topic_coherence:TopicCoherence"
 
 [tool.pytest.ini_options]
 addopts = "--cov=armor --cov-report=term-missing --cov-fail-under=0"
@@ -58,7 +85,7 @@ warn_unused_ignores = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["ahocorasick", "llama_cpp", "yaml", "psutil"]
+module = ["ahocorasick", "llama_cpp", "yaml", "psutil", "rich"]
 ignore_missing_imports = true
 
 [dependency-groups]
@@ -72,4 +99,7 @@ dev = [
     "llama-cpp-python>=0.2.45",
     "psutil>=6.0.0",
     "huggingface-hub>=0.24.0",
+    "onnxruntime>=1.20.0",
+    "transformers>=4.40.0",
+    "hypothesis>=6.152.4",
 ]

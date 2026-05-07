@@ -67,7 +67,7 @@ Eviction is FIFO from the front; whichever limit is hit first triggers eviction.
    - `session.rolling_buffer.capacity_chars: 8192` (default)
    - `session.rolling_buffer.capacity_turns: 20` (default)
    - `detector.entropy.rolling_threshold: 4.5` (bits/char, distinct from per-turn threshold)
-   - `detector.canary.partial_match_min_chars: 12` (bytes)
+   - `detector.canary.partial_match_min_chars: 12` (characters)
 
 ## Implementation notes
 
@@ -99,5 +99,7 @@ Eviction is FIFO from the front; whichever limit is hit first triggers eviction.
 ## References
 
 - Task 023 — Implementation and test spec (rolling buffer)
+- ADR-024 — Session state machine (the rolling buffer feeds `apply_signal` for partial-match escalation; FSM gates which detectors run)
 - Task 022 — Session state machine (defines escalation via `apply_signal`)
+- ADR-001 — SQLite session store (the rolling buffer is persisted in a new `session_rolling_buffer` table on the same database)
 - ADR-027 — Multi-turn eval corpus format (corpus rows reference task 023)

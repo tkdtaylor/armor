@@ -1,7 +1,7 @@
 # Data Model
 
 **Project:** armor
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 
 What data exists, how it's structured, where it lives, and what relationships hold between entities.
 
@@ -74,6 +74,22 @@ expires_at     timestamp  UTC; row purged when now > expires_at
 
 - **Lifecycle:** Written on `block`. Auto-deleted by background sweeper after `expires_at`.
 
+#### Entity: `OperatorAuditLog`
+
+```
+field          type       notes
+──────────────────────────────────────────────────────
+id             integer    PK autoinc
+ts             timestamp  UTC; when the operator action occurred
+actor          text       operator identifier (host user or auth principal)
+action         text       e.g. "session.unblock", "session.clear"
+session_id     text       session targeted by the action
+reason         text       free-form text from `--reason` flag (required for `unblock`)
+```
+
+- **Lifecycle:** Append-only. Written by `armor sessions unblock` and any future operator-clear actions.
+- **Invariant:** Never deleted; this is the audit trail for manual state changes.
+
 #### Entity: `SessionRollingBuffer` (rolling multi-turn output aggregation)
 
 ```
@@ -87,10 +103,10 @@ created_at     timestamp  UTC; used for ordering
 ```
 
 - **Purpose:** Append-only log of output texts per session. Used to reconstruct the rolling-buffer state for multi-turn exfiltration detection (behavior B-009a). On every output check, the current output is appended; the rolling buffer (in-memory, bounded by both chars and turns) loads all historical entries and evicts oldest entries as needed.
-- **Lifecycle:** Appended on every output check. Cleared (deleted) when the session ends (task 028). For intermediate states, all rows for a session are read and re-appended to a fresh `RollingBuffer` object to reconstruct the bounded state (oldest entries are naturally evicted if the session's total output exceeds the buffer capacity).
+- **Lifecycle:** Appended on every output check. Rows are not deleted by the current daemon; per-session bounding is enforced at read time (the loader rehydrates the buffer with `capacity_chars` / `capacity_turns` limits, evicting oldest entries beyond the bound). A periodic sweeper to purge rows for ended sessions is tracked separately as a deferred hygiene task.
 - **Indexes:** `(session_id, created_at)` for fast lookups of a session's rolling buffer.
 - **Data invariants:** Text is never encrypted or hashed (raw output stored). Text is never logged verbatim to forensic records — chunked-canary blocks reference `turn_ids` and `canary_id` only.
-- **Cleanup:** Rows deleted on session end or by the background sweeper (24h TTL, task 028).
+- **Cleanup:** No automatic deletion in the current daemon. Operators can reclaim space by deleting rows for ended sessions out of band; a periodic sweeper is tracked as a deferred hygiene task.
 
 #### Entity: `CanaryCatalogue` (in-memory snapshot)
 
@@ -206,13 +222,17 @@ risk_rules     array     List of rule objects; each has id, description, type, p
 ```json
 {
   "v": 1,
-  "op": "check.input" | "check.output" | "check.tool" | "session.close",
+  "op": "check.input" | "check.output" | "check.tool" | "session.close" |
+        "canary.list" |
+        "incidents.list" | "incidents.show" | "incidents.tail" | "incident.get" |
+        "sessions.list" | "sessions.show" | "sessions.unblock" |
+        "health.full",
   "session_id": "claude-code-12345-abc",
-  "payload": { "text": "...", "tool": "...", "params": {} }
+  "payload": { ... }
 }
 ```
 
-**Response:**
+**Response (check / session.close):**
 ```json
 {
   "v": 1,
@@ -222,6 +242,19 @@ risk_rules     array     List of rule objects; each has id, description, type, p
   "incident_id": 42
 }
 ```
+
+**Operator-UX op payloads and response shapes:**
+
+| Op | Request payload | Response (success) |
+|----|----------------|-------------------|
+| `canary.list` | `{}` | `{ "verdict": "pass", "canaries": [{canary_id, kind, service, active}, ...] }` |
+| `incidents.list` / `incidents.tail` | `{ "limit"?: 50, "session_id"?: str, "category"?: glob, "since_id"?: int }` | `{ "verdict": "pass", "incidents": [<incident row>...] }` |
+| `incidents.show` | `{ "incident_id": int|str }` | `{ "verdict": "pass", "incident": <row>|null }` |
+| `incident.get` | `{ "id": int|str }` | `{ "verdict": "pass", "incident": <row>|null }` (SDK form) |
+| `sessions.list` | `{ "state"?: str }` | `{ "verdict": "pass", "sessions": [<session row>...] }` |
+| `sessions.show` | `{ "session_id": str }` | `{ "verdict": "pass", "session": <row>|null }` |
+| `sessions.unblock` | `{ "session_id": str, "reason": str (non-empty), "actor"?: str }` | `{ "verdict": "pass", "new_state": "Watching" }` or `{ "verdict": "error", "message": "..." }` if not Blocked or `reason` missing |
+| `health.full` | `{}` | `{ "verdict": "pass", "health": {socket_reachable, db_reachable, model_loaded, uptime_seconds, ...} }` |
 
 - **Versioning:** Top-level `v` integer. Daemon supports the current version + the previous one.
 
@@ -253,7 +286,7 @@ Verdict {
 }
 ```
 
-The confidence score is used in session risk scoring (task 022). Parse failures (malformed JSON) return `confidence: 0.0`.
+The confidence score is used in session risk scoring (per ADR-024 — fed to `apply_signal` weighted by `pipeline.llm_validator_weight`). Parse failures (malformed JSON) return `confidence: 0.0`.
 
 ---
 
@@ -270,6 +303,6 @@ The confidence score is used in session risk scoring (task 022). Parse failures 
 ## Data invariants
 
 - For every `Incident` row, either `quarantine_id IS NULL` OR `QuarantinedPayload.id = quarantine_id` exists (FK enforced).
-- `Session.risk_score` is monotonically non-decreasing within a session (enforced by the daemon, not the DB).
+- `Session.risk_score` is the session's current operational risk: non-negative, increased by advisory signals (weighted by detector and confidence), and decayed linearly over wall-clock time at `session.cooldown_decay_per_min` (per ADR-024). It is **not** monotonic.
 - No `Incident.triggered_canary` value ever equals an actual canary string — it is always the `canary_id`. Enforced by the canary scanner code path; spot-checked in tests.
 - Active `CanaryCatalogue` rows are immutable for the daemon's lifetime. (Inactive rows can be added/removed; the active set is snapshotted at boot.)

@@ -19,9 +19,9 @@ def test_cli_health() -> None:
     """Test that armor health command returns the correct JSON."""
     output = StringIO()
     with patch("sys.stdout", output):
-        exit_code = main(["health"])
+        exit_code = main(["health", "--json"])
 
-    # Daemon is not running, so health check should return unreachable
-    assert exit_code == 1
+    # Daemon is not running, so health check should return critical
+    assert exit_code == 2
     data = json.loads(output.getvalue().strip())
     assert data["status"] == "unreachable"

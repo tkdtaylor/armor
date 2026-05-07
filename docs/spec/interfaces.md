@@ -1,7 +1,7 @@
 # Interfaces
 
 **Project:** armor
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-06
 
 The system's contact surface — everything that calls into the system, everything the system calls out to, and the public boundaries within the system. Each interface is a stable contract.
 
@@ -41,9 +41,14 @@ Subcommands:
   session close       Mark a session ended; flush state
   canary list         List the active canary catalogue (IDs + kinds, never values)
   canary generate     Generate a new canary values file at install time
-  incidents tail      Stream recent incidents from the forensic log
+  incidents list      Paginated table of incidents (filterable by session, category, age)
+  incidents show      Full record for a single incident (canary_id only — never values)
+  incidents tail      Live-updating Rich table of new incidents (polls; survives daemon restart)
   incidents export    Export incidents as NDJSON
-  health              Daemon liveness check; exits 0 if responsive, 1 otherwise
+  sessions list       Active sessions with state name + risk score
+  sessions show       Full session state, signal count, rolling-buffer hash (no raw content)
+  sessions unblock    Operator-cleared transition out of `Blocked` (→ `Watching`); writes audit row
+  health              Expanded health report; exits 0 healthy / 1 degraded / 2 critical
 
 Global flags:
   --socket <path>    Daemon socket path (default: /var/run/armor.sock)
@@ -62,9 +67,18 @@ Global flags:
 | `check tool --name <n> --params <json>` | strings | — | Tool name + params blob |
 | `canary generate --out <path>` | path | — | Output path for generated values file (required) |
 | `canary generate --seed <hex>` | int | `<RNG>` | Optional seed for deterministic generation (e.g., `0xCAFEBABE`); if unset, uses OS RNG |
+| `incidents list --since <duration>` | duration string | — | e.g. `1h`, `30m` |
+| `incidents list --session <id>` | string | — | Filter to one session |
+| `incidents list --category <pat>` | glob | — | Filter on detector category |
+| `incidents list --limit <N>` | int | `50` | Page size |
+| `incidents show <incident_id>` | string | — | Full record for one incident |
+| `incidents tail --filter <expr>` | string | — | Live tail; same filter shape as `list` |
+| `sessions list --state <name>` | string | — | Filter on state (`Normal`, `Watching`, `Elevated`, `High`, `Blocked`) |
+| `sessions show <session_id>` | string | — | Full session state |
+| `sessions unblock <session_id> --reason <text>` | string | — | Clear `Blocked` → `Watching`; required for audit row |
 | `--session-id <id>` | string | `$ARMOR_SESSION_ID` | Cross-call session correlation |
 
-**Exit codes:**
+**Exit codes (`check` family):**
 - `0` — pass (allowed)
 - `1` — internal error (daemon unreachable, IPC failed)
 - `2` — usage error (bad flags)
@@ -74,28 +88,78 @@ Global flags:
 
 The split between exit codes 0 and 100 is intentional — Claude Code hooks use exit code 2 to signal "block and show stderr to the model" (per the hook contract). The `armor check` wrapper translates verdicts to that convention via the `--hook-mode` flag.
 
+**Exit codes (`health`):**
+- `0` — healthy (daemon responsive, db reachable, model loaded, recent traffic normal)
+- `1` — degraded (e.g. db near full, p95 latency elevated, model load slow)
+- `2` — critical (e.g. daemon unresponsive, db unreachable, model not loaded)
+
+**Output rendering:** `incidents list`, `incidents tail`, `sessions list`, and `health` use [Rich](https://rich.readthedocs.io/) tables on a TTY and degrade to plain text (no ANSI escapes) when stdout is not a TTY.
+
 ### Daemon IPC (Unix socket)
 
 See `data-model.md` § *Wire / interchange formats* for the request/response schema. Newline-delimited JSON. One request, one response, then the connection may be reused or closed.
 
 ### Python SDK
 
+The armor library exports a typed, ergonomic client for the daemon IPC transport. It does not run detectors locally.
+
+**Public surface:**
+
 ```python
-from armor import Guard, Verdict
+from armor import ArmorClient, AsyncArmorClient, Verdict, HealthReport, Incident
+from armor.client import DaemonUnreachableError
 
-guard = Guard(socket="/var/run/armor.sock", session_id="my-app-session")
-
-v: Verdict = guard.check_input("user said this")
+# Synchronous client
+client = ArmorClient(socket_path="/var/run/armor.sock")
+v: Verdict = client.check_input("user input", session_id="sess-1")
 if v.blocked:
     return safe_response()
 
-response = anthropic_client.messages.create(...)
-v = guard.check_output(response.content[0].text)
+response = llm_client.messages.create(...)
+v = client.check_output(response.content[0].text, session_id="sess-1")
 if v.blocked:
     return safe_response()
+
+# Asynchronous client
+async_client = AsyncArmorClient(socket_path="/var/run/armor.sock")
+v = await async_client.check_input("user input", session_id="sess-1")
+
+# Session-bound context manager (sync)
+with client.session("user-123") as s:
+    v1 = s.check_input("message 1")  # Implicitly uses session_id="user-123"
+    v2 = s.check_input("message 2")
+
+# Session-bound context manager (async)
+async with async_client.session("user-123") as s:
+    v1 = await s.check_input("message 1")
+    v2 = await s.check_input("message 2")
+
+# Health check
+report: HealthReport = client.health()
+if not report.daemon_reachable:
+    raise RuntimeError("Daemon unreachable")
+
+# Retrieve a forensic incident
+incident: Incident | None = client.incident("inc-abc123")
 ```
 
-The SDK is a thin client over the IPC. It does not run detectors locally.
+**Classes:**
+
+| Class | Purpose |
+|-------|---------|
+| `ArmorClient(socket_path)` | Synchronous client for daemon communication. Methods: `check_input`, `check_output`, `check_tool_call`, `health`, `incident`, `session`. |
+| `AsyncArmorClient(socket_path)` | Asynchronous client (same interface, returns awaitables). |
+| `Verdict` | Security verdict with `decision` (pass/block/advisory/error), `signal_id`, `severity`, `message`, `details`. Properties: `blocked`, `passed`, `is_error`. |
+| `HealthReport` | Daemon health status: `daemon_reachable`, `db_reachable`, `model_loaded`, `version`, `uptime_seconds`. |
+| `Incident` | Forensic incident: `id`, `timestamp`, `session_id`, `payload_hash`, `verdict_decision`, `signal_id`, `details`. |
+
+**Exceptions:**
+
+| Exception | Raised when |
+|-----------|-------------|
+| `DaemonUnreachableError` | Daemon socket does not exist or connection fails. Signals a hard dependency failure; SDK calls do not degrade gracefully. |
+
+**Stability:** The re-exported classes (`ArmorClient`, `AsyncArmorClient`, `Verdict`, `HealthReport`, `Incident`) are stable across minor versions. See ADR-028 for the semver contract.
 
 ---
 
@@ -119,7 +183,7 @@ from typing import Protocol
 
 class Detector(Protocol):
     id: str                # e.g. "regex.instruction_override" or "llm.validator"
-    category: str          # taxonomy bucket from ADR-007 (e.g. "direct_injection", "meta")
+    category: str          # taxonomy bucket from ADR-001 (e.g. "direct_injection", "meta")
     cost_tier: str         # "static" (≤100ms) | "llm" (≤500ms)  — llm = uses LLM inference
 
     def check(self, payload: Payload, ctx: SessionContext) -> Verdict: ...

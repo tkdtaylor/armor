@@ -201,6 +201,74 @@ class ForensicLogger:
 
         return destinations
 
+    def list_incidents(
+        self,
+        limit: int = 50,
+        session_id: str | None = None,
+        category: str | None = None,
+        since_id: int | None = None,
+    ) -> list[dict[str, object]]:
+        """Return a list of incident rows for the operator UX.
+
+        Filters apply additively. `category` is a glob — matched with SQL LIKE
+        after substituting `*` → `%`. `since_id` returns rows with `id > since_id`
+        (used by the long-poll tail).
+        """
+        clauses: list[str] = []
+        params: list[object] = []
+        if session_id:
+            clauses.append("session_id = ?")
+            params.append(session_id)
+        if category:
+            clauses.append("attack_category LIKE ?")
+            params.append(category.replace("*", "%"))
+        if since_id is not None:
+            clauses.append("id > ?")
+            params.append(since_id)
+
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        sql = (
+            "SELECT id, ts, session_id, attack_category, signal_id, action, "
+            "risk_score, triggered_canary, quarantine_id "
+            f"FROM Incident {where} ORDER BY id ASC LIMIT ?"
+        )
+        params.append(limit)
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(sql, params).fetchall()
+        finally:
+            conn.close()
+
+        return [dict(row) for row in rows]
+
+    def get_incident(self, incident_id: object) -> dict[str, object] | None:
+        """Return one incident by ID or None.
+
+        Accepts a string (e.g. the SDK's `incident.get` payload) or int.
+        """
+        if isinstance(incident_id, bool) or not isinstance(incident_id, (int, str)):
+            return None
+        try:
+            normalized = int(incident_id)
+        except (TypeError, ValueError):
+            return None
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT id, ts, session_id, attack_category, signal_id, action, "
+                "risk_score, triggered_canary, quarantine_id, input_hash, "
+                "output_hash, encoding_flag, destinations "
+                "FROM Incident WHERE id = ?",
+                (normalized,),
+            ).fetchone()
+        finally:
+            conn.close()
+        return dict(row) if row else None
+
     def _infer_category(self, verdict: Verdict) -> str:
         """Infer attack category from signal_id.
 

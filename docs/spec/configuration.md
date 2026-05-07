@@ -27,23 +27,23 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `model.path` | path | `/models/active.gguf` | no | Validator LLM weights |
 | `model.context_tokens` | integer | `2048` | no | LLM context window |
 | `model.validator_budget_ms` | integer | `500` | no | Hard latency cap per validator LLM call (milliseconds). Empirical P95: 486 ms. |
-| `model.honeypot_budget_ms` | integer | `12000` | no | Hard latency cap per honeypot LLM call (milliseconds). Empirical P95: 11,875 ms. On timeout: returns empty string (soft-fail). |
+| `model.honeypot_budget_ms` | integer | `16000` | no | Hard latency cap per honeypot LLM call (milliseconds). Empirical P95: 15,000–15,500 ms (Task 043 amendment; was 12,000 ms / 11,875 ms empirical per ADR-023). On timeout: returns empty string (soft-fail). |
 | `pipeline.input_detectors` | array of strings | `["*"]` | no | Detector IDs to run on input checks (`*` = all) |
 | `pipeline.output_detectors` | array of strings | `["*"]` | no | Detector IDs to run on output checks |
 | `pipeline.tool_detectors` | array of strings | `["cmd_injection.*"]` | no | Detector IDs to run on tool checks (matches `cmd_injection.bash` and future variants like `cmd_injection.powershell`) |
 | `pipeline.per_detector_budget_ms` | integer | `100` | no | Static-detector latency cap |
-| `pipeline.llm_validator_weight` | float | `0.3` | no | Weight for validator confidence → session risk score (task 022 risk scoring) |
+| `pipeline.llm_validator_weight` | float | `0.3` | no | Weight for validator confidence → session risk score (per ADR-024) |
 | `destination_whitelist` | array of strings | `[]` | no | List of hostnames to whitelist for destination extraction (exact-match, case-insensitive) |
 | `entropy.min_length` | integer | `40` | no | Min substring length to entropy-check (consumed by `entropy.decode_rescan` detector) |
 | `entropy.threshold` | float | `4.5` | no | Shannon entropy bits/char above which to flag (consumed by `entropy.decode_rescan` detector); used for single-turn output checks |
-| `entropy.rolling_threshold` | float | `4.5` | no | Shannon entropy bits/char threshold for rolling-buffer multi-turn aggregation (task 023). Separate from per-turn threshold; applied to `buffer.concatenated()` |
-| `detector.canary.partial_match_min_chars` | integer | `12` | no | Minimum prefix length (chars) of a canary value to trigger a partial-match advisory signal (task 023) |
-| `detector.topic_coherence.distance_threshold` | float | `0.5` | no | Cosine distance threshold above which to emit advisory (task 024) |
-| `detector.topic_coherence.margin` | float | `0.2` | no | Confidence scaling margin: `confidence = min(1.0, (distance - threshold) / margin)` (task 024) |
-| `detector.topic_coherence.window_turns` | integer | `5` | no | EMA window size: number of prior turns to include in rolling average (task 024) |
-| `detector.topic_coherence.budget_ms` | integer | `50` | no | Per-call latency budget for topic-coherence embedding (milliseconds); soft-fail on exceed (task 024) |
+| `entropy.rolling_threshold` | float | `4.5` | no | Shannon entropy bits/char threshold for rolling-buffer multi-turn aggregation. Separate from per-turn threshold; applied to `buffer.concatenated()` |
+| `detector.canary.partial_match_min_chars` | integer | `12` | no | Minimum prefix length (chars) of a canary value to trigger a partial-match advisory signal (per ADR-025) |
+| `detector.topic_coherence.distance_threshold` | float | `0.5` | no | Cosine distance threshold above which to emit advisory (per ADR-026) |
+| `detector.topic_coherence.margin` | float | `0.2` | no | Confidence scaling margin: `confidence = min(1.0, (distance - threshold) / margin)` (per ADR-026) |
+| `detector.topic_coherence.window_turns` | integer | `5` | no | EMA window size: number of prior turns to include in rolling average (per ADR-026) |
+| `detector.topic_coherence.budget_ms` | integer | `50` | no | Per-call latency budget for topic-coherence embedding (milliseconds); soft-fail on exceed (per ADR-026) |
 | `session.rolling_buffer.capacity_chars` | integer | `8192` | no | Rolling buffer max character count (8 KB default; see ADR-025) |
-| `session.rolling_buffer.capacity_turns` | integer | `20` | no | Rolling buffer max turn count (task 023; see ADR-025) |
+| `session.rolling_buffer.capacity_turns` | integer | `20` | no | Rolling buffer max turn count (per ADR-025) |
 | `session.cache_size` | integer | `1024` | no | LRU cap for in-memory session rows |
 | `session.thresholds.watching` | float | `0.4` | no | Risk score threshold: Normal → Watching |
 | `session.thresholds.elevated` | float | `0.9` | no | Risk score threshold: Watching → Elevated |
@@ -53,6 +53,7 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `quarantine.ttl_hours` | integer | `168` | no | TTL on raw payload retention (7 days) |
 | `safe_message.input_block` | string | `"Input blocked by armor."` | no | User-facing message on input block |
 | `safe_message.output_block` | string | `"Output suppressed by armor."` | no | User-facing message on output block |
+| `logging.format` | string | `"json"` | no | Daemon log format: `json` (one JSON object per line; required schema per ADR-029 — fields: `ts`, `level`, `event`, `session_id?`, `request_id?`, `detector_id?`, `decision?`, `latency_ms?`) or `text` (legacy human-readable). Operator UX features (`incidents tail`, `sessions list`) require `json`. |
 
 #### Example
 
@@ -62,8 +63,9 @@ socket = "/var/run/armor.sock"
 max_concurrent = 64
 
 [model]
-path = "/models/qwen2.5-1.5b-q4.gguf"
-budget_ms = 500
+path = "/models/active.gguf"
+validator_budget_ms = 500
+honeypot_budget_ms = 16000
 
 [pipeline]
 input_detectors = ["*"]
@@ -91,8 +93,8 @@ capacity_turns = 20
 [detector.canary]
 partial_match_min_chars = 12
 
-[detector.entropy]
-per_turn_threshold = 4.5
+[entropy]
+threshold = 4.5
 rolling_threshold = 4.5
 min_length = 40
 
@@ -124,7 +126,7 @@ output_block = "The model's response was suppressed because it appeared to leak 
 | `ARMOR_CANARY_VALUES_PATH` | path | `<unset>` | no | Path to canary values file (overrides `daemon.canary_values_path` in TOML); daemon refuses to start if unset and no `--canary-values` flag |
 | `ARMOR_LOG_LEVEL` | string | `info` | no | `debug` / `info` / `warn` / `error` |
 | `ARMOR_DISABLE_LLM` | bool | `false` | no | Skip the validator LLM entirely (static-only mode). When `false` (default), daemon loads the model from `model.path` if available or provided via `--model`. When `true`, daemon runs in static-detector-only mode. |
-| `ARMOR_ENABLE_TELEMETRY` | bool | `false` | no | Off by default; opting in would enable outbound telemetry (not implemented in v1) |
+| `ARMOR_ENABLE_TELEMETRY` | bool | `false` | no | Off by default; ignored by the current daemon (no telemetry endpoint exists) and reserved for a future opt-in module that would live outside the daemon code path |
 | `ARMOR_QUARANTINE_KEY` | string | autogenerated | no | Local symmetric key for quarantined payload encryption |
 
 **Hook profile env vars** (consumed by `.claude/scripts/`, not the application itself):

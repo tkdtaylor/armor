@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-05
 **Status:** Accepted
-**Supersedes:** ADR-003 (placeholder model-selection language)
+**Supersedes:** the model row of ADR-001 (the bootstrap placeholder for inference runtime / model choice)
 
 ## Context
 
@@ -199,8 +199,7 @@ To re-evaluate any other candidate, swap the repo+filename. The
 
 ## Related Decisions
 
-- **ADR-003** — Tech stack baseline; this ADR supersedes the
-  placeholder model-selection language there.
+- **ADR-001** — Foundational stack: includes the placeholder model-selection language (Qwen / Phi / Llama / Gemma candidates). This ADR supersedes the model row.
 - **ADR-010** — Canary catalogue ephemeral resolution; the benchmark
   reuses the same `_get_catalogue()` pattern with a fixed seed for
   reproducibility.

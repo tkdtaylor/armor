@@ -217,15 +217,17 @@ class SessionStore:
             await asyncio.to_thread(self._persist_to_db, row)
 
     async def close_session(self, session_id: str) -> None:
-        """Mark a session as closed (for future cleanup).
+        """Mark a session as closed.
 
-        In v0.1, this is a no-op. In v0.4+, this will schedule deletion after 24h.
+        Currently a no-op: row deletion is out of scope for the in-process
+        daemon. A periodic sweeper for ended sessions and their rolling-buffer
+        rows is tracked separately as a deferred hygiene task (see
+        data-model.md → SessionRollingBuffer "Cleanup").
 
         Args:
             session_id: The session ID.
         """
-        # TODO: Implement 24h deletion in task 022
-        pass
+        return
 
     def _update_lru(self, session_id: str) -> None:
         """Update LRU access order for a session."""
@@ -391,6 +393,55 @@ class SessionStore:
 
         finally:
             conn.close()
+
+    def list_sessions(self, state: str | None = None) -> list[dict[str, object]]:
+        """Return all sessions (optionally filtered by state) for the operator UX."""
+        sql = "SELECT session_id, created_at, last_seen_at, current_state, risk_score, turn_count FROM Session"
+        params: list[object] = []
+        if state:
+            sql += " WHERE current_state = ?"
+            params.append(state)
+        sql += " ORDER BY last_seen_at DESC"
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(sql, params).fetchall()
+        finally:
+            conn.close()
+        return [dict(r) for r in rows]
+
+    def get_session_view(self, session_id: str) -> dict[str, object] | None:
+        """Return one session's full view (state, risk, signal-history summary).
+
+        Never includes raw rolling-buffer text — only a hash and signal counts.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                "SELECT session_id, created_at, last_seen_at, current_state, "
+                "risk_score, turn_count, signal_history, last_signal_at "
+                "FROM Session WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+
+        if row is None:
+            return None
+
+        signal_history = json.loads(row["signal_history"] or "[]")
+        return {
+            "session_id": row["session_id"],
+            "created_at": row["created_at"],
+            "last_seen_at": row["last_seen_at"],
+            "current_state": row["current_state"],
+            "risk_score": float(row["risk_score"]),
+            "turn_count": row["turn_count"],
+            "signal_count": len(signal_history),
+            "signal_history": signal_history,
+        }
 
     def clear_rolling_buffer(self, session_id: str) -> None:
         """Clear all rolling buffer entries for a session.

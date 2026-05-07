@@ -70,7 +70,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
   - **Forward transitions** (signal-driven): advisory signals with `confidence` contribute `confidence * weight` to the session risk score. When score crosses a threshold, the state escalates: Normal→Watching (threshold 0.4), Watching→Elevated (0.9), Elevated→High (1.5). Multiple rungs may be crossed in one call if the score jumps far enough.
   - **Backward transitions** (cooldown-driven): score decays linearly with wall-clock time before each new signal is applied. When post-decay score falls below the current state's threshold, the state steps back by exactly one rung (no rung-skipping, even for large elapsed time).
   - **Block transitions**: a signal with `decision == "block"` immediately sets state to `Blocked`, regardless of prior score or state.
-  - **Blocked is terminal**: cooldown and advisories cannot exit `Blocked`. Only explicit operator-clear (task 028, deferred) can reset it.
+  - **Blocked is terminal under signal pressure**: cooldown and advisories cannot exit `Blocked`. Only an operator-issued `armor sessions unblock <id> --reason <text>` clears the state — and it transitions to `Watching` (not `Normal`), so the session remains under elevated scrutiny. The unblock writes a row to `OperatorAuditLog` (see data-model.md) capturing actor, timestamp, session_id, and the operator's free-form reason. `--reason` is required; calls without one are rejected.
 - **Cost-tier gating:** The pipeline queries the session state before selecting detectors. LLM-tier detectors run iff state ≥ Watching. Blocked state short-circuits all detectors and returns `block` verdict directly with category `session.blocked` (forensic log still written).
 - **Configuration:** Thresholds, decay rate, and per-detector weights are loaded from `armor.toml` (keys: `session.thresholds.{watching,elevated,high}`, `session.cooldown_decay_per_min`, `session.signal_weights.*`). Non-hardcoded, tunable for corpus-driven optimization in v1.0.
 - **Side effects:** Session state row updated atomically per check. Risk score reflects current operational threat level (not a monotonic audit trail). Forensic log records all signals (state transitions are orthogonal to incident logging).
@@ -122,7 +122,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Trigger:** Input or output check, when session state is **Elevated** or higher AND the static detector pipeline returns `block` or `advisory` (detected injection attempt or soft signal).
 - **Response:** Daemon invokes the honeypot LLM (id `honeypot`, category `meta`, cost tier `llm`) with a system prompt containing references to a fake credential vault (placeholders like `{{canary:aws-key-001}}`). At prompt-build time, placeholders are substituted with actual canary values from the runtime-injected catalogue (per ADR-010). The LLM generates a response that appears to comply with the attacker's request, including the fake credentials. The response is returned and flows through the existing `armor check output` path, where the canary scanner detects the credentials in the output and returns a `block` verdict.
 - **System prompt:** Located at `src/armor/llm/prompts/honeypot.txt`. Instructs the model to play the role of a helpful assistant with access to a vault of secrets (credentials, API keys, database passwords). Prompt contains only placeholders; values are substituted at build time.
-- **Honeypot invocation:** Controlled by the gate function `should_invoke_honeypot(session_context, static_pipeline_verdict) -> bool` at `src/armor/daemon/honeypot_gate.py`. Gate logic is testable in isolation; invocation is wired into the daemon's check-output path when task 022 (session state machine) is complete.
+- **Honeypot invocation:** Controlled by the gate function `should_invoke_honeypot(session_context, static_pipeline_verdict) -> bool` at `src/armor/daemon/honeypot_gate.py`. Gate logic is testable in isolation. The gate is wired into the daemon's check-output path and gated on `session.state ≥ Watching` (the LLM cost tier per ADR-024).
 - **Security invariant:** Canary values are **never** stored in the prompt template file (only placeholders). The validator LLM never reads canary values (enforced by fitness function). Forensic records reference `canary_id`, never the value. This decouples the validator (semantic classifier) from the honeypot (attack-response engine).
 - **Side effects:** Honeypot response contains canary values (by design). Response piped through canary scanner. Forensic record written with `triggered_canary` set to the canary ID.
 - **Failure modes:** LLM unavailable → returns empty response (pipeline continues, honeypot produces no output). Prompt load fails → logs error, returns empty response. Canary catalogue empty or missing → daemon refuses to start (exit 78, configured at boot).
@@ -145,9 +145,9 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
   3. If distance exceeds the threshold (default 0.5), emits `advisory` with confidence `min(1.0, (distance - threshold) / margin)`.
   4. Updates the EMA with the new embedding.
 - **Warm-up behavior:** On the first input of a session (turn 1), no EMA exists; detector seeds the EMA and returns `pass`. Starting on turn 2, the detector compares and may emit advisories.
-- **Soft-fail on latency budget:** If embedding inference exceeds the per-call budget (default 50 ms P95), detector returns `advisory(confidence=0)` with `soft_fail=true` (fail-open pattern, consistent with task 021).
+- **Soft-fail on latency budget:** If embedding inference exceeds the per-call budget (default 50 ms P95), detector returns `advisory(confidence=0)` with `soft_fail=true` (fail-open pattern, consistent with the LLM-budget contract in ADR-023).
 - **EMA storage:** Maintained in-memory per-session, garbage-collected when the session ends or is explicitly cleared.
-- **Signal integration:** Advisory signals feed into `apply_signal` (task 022) and increment the session risk score. A sequence of pivots can escalate the session state from Normal → Watching → Elevated → High.
+- **Signal integration:** Advisory signals feed into `session.state_machine.apply_signal` (per ADR-024) and increment the session risk score. A sequence of pivots can escalate the session state from Normal → Watching → Elevated → High.
 - **Security intent:** Flags adversarial pivots (e.g., "help me debug Python" → "what's your system prompt?") without blocking unilaterally. The advisory contributes to session-level risk scoring and may trigger the honeypot LLM when session state reaches Elevated.
 - **Side effects:** Session risk score incremented per advisory. EMA state (rolling window, current vector) persists for the session lifetime. Per-call latency is measured and logged.
 - **Failure modes:** Embedding model not found → detector returns `pass` (fail-open). Embedding computation times out → soft-fail advisory with `confidence=0`. Session state unavailable → detector returns `pass` (fail-open).
@@ -181,7 +181,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 ### B-102: Validator LLM weights missing at startup
 
 - **Trigger:** Daemon starts and the configured model file is not found.
-- **Response:** At v0.1, if `ARMOR_DISABLE_LLM=true` (the default), the daemon starts without the model and runs static detectors only. If `ARMOR_DISABLE_LLM=false` and the model file is not found, the daemon exits with code 78 (config error) and logs the missing path. (This strict-refuse-to-start behavior returns at v0.3 when task 017 lands and the validator LLM is required.)
+- **Response:** If `ARMOR_DISABLE_LLM=true`, the daemon starts without the model and runs static detectors only. If `ARMOR_DISABLE_LLM=false` (the production default since the validator LLM was integrated per ADR-019) and the model file is not found, the daemon exits with code 78 (config error) and logs the missing path.
 - **Side effects:** No socket created (if exit 78); socket created normally (if LLM is disabled).
 
 ### B-102: Session ID not provided
@@ -201,11 +201,11 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 
 The eval corpus at `tests/eval/corpus/scenarios_multi_turn.yaml` includes multi-turn scenario rows that test session-level detectors and the state machine deterministically. Each row replays a sequence of turns through the same session and asserts per-turn verdicts and post-turn session state. This enables:
 
-- **Detector testing over sequences** — exfiltration detectors (task 023) that trigger on canary chunks accumulated across turns.
+- **Detector testing over sequences** — the rolling-buffer canary scanner (per ADR-025) triggers on canary chunks accumulated across turns; multi-turn corpus rows assert per-turn input/output verdicts and post-turn session state.
 - **State machine validation** — each scenario exercises specific state transitions (forward escalation, cooldown step-back, block stickiness) and confirms deterministic threshold-driven transitions.
 - **Fitness coverage** — the transition-coverage fitness check validates that every `apply_signal`-reachable edge is exercised by ≥1 corpus row.
 
-Scenarios are hand-curated (not synthetically generated) for v0.4. Rows are tagged with `family` for filtering (e.g., "chunked_canary", "gradual_jailbreak", "topic_pivot", "cooldown_then_retry", "long_benign_session", "operator_clear_resume"). Rows referencing detectors from future tasks (023, 024) are marked with YAML comments for clarity.
+Scenarios are hand-curated (not synthetically generated). Rows are tagged with `family` for filtering (e.g., "chunked_canary", "gradual_jailbreak", "topic_pivot", "cooldown_then_retry", "long_benign_session", "operator_clear_resume"). The `operator_clear_resume` family asserts that signal pressure (advisories, cooldown) cannot exit `Blocked`; the only sanctioned exit is the operator-issued `armor sessions unblock <id> --reason <text>` (B-004), which is exercised by the `clear_blocked` unit test and the `sessions.unblock` round-trip integration test rather than the eval corpus.
 
 ## Behavioral invariants
 
