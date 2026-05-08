@@ -10,6 +10,7 @@ as the shape constraint, and writes both schema and values to a file
 that the daemon can load.
 """
 
+import base64
 import json
 import logging
 import os
@@ -49,10 +50,98 @@ def _generate_value_for_pattern(marker_rule: str) -> str:
     if marker_rule == r"^sk_live_[A-Za-z0-9]{24}$":
         return "sk_live_" + "".join(random.choice(string.ascii_letters + string.digits) for _ in range(24))
 
+    # OpenAI keys: sk- or sk-proj- + 43+ chars [A-Za-z0-9_-]
+    if marker_rule == r"^sk-(proj-)?[A-Za-z0-9_-]{43,}$":
+        suffix = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(48))
+        return f"sk-{suffix}"
+
+    # Anthropic keys: sk-ant- + 86+ chars [a-zA-Z0-9_-]
+    if marker_rule == r"^sk-ant-[a-zA-Z0-9_-]{86,}$":
+        suffix = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(90))
+        return f"sk-ant-{suffix}"
+
+    # Cohere keys: 36 chars [a-zA-Z0-9]
+    if marker_rule == r"^[a-zA-Z0-9]{36}$":
+        return "".join(random.choice(string.ascii_letters + string.digits) for _ in range(36))
+
+    # HuggingFace tokens: hf_ + 35+ chars [A-Za-z0-9]
+    if marker_rule == r"^hf_[A-Za-z0-9]{35,}$":
+        suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(40))
+        return f"hf_{suffix}"
+
+    # GitLab PAT: glpat- + 20 chars [A-Za-z0-9_-]
+    if marker_rule == r"^glpat-[A-Za-z0-9_-]{20}$":
+        suffix = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(20))
+        return f"glpat-{suffix}"
+
+    # Slack tokens: xox[bpoa]- + digits + digits + alphanumeric
+    if marker_rule == r"^xox[bpoa]-[0-9]+-[0-9]+-[A-Za-z0-9_-]+$":
+        kind = random.choice(["b", "p", "o", "a"])
+        workspace_id = "".join(random.choice(string.digits) for _ in range(10))
+        token_id = "".join(random.choice(string.digits) for _ in range(10))
+        token_suffix = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(24))
+        return f"xox{kind}-{workspace_id}-{token_id}-{token_suffix}"
+
+    # Discord tokens: 24 chars . 6 chars . 27 chars [A-Za-z0-9_-]
+    if marker_rule == r"^[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27}$":
+        part1 = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(24))
+        part2 = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(6))
+        part3 = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(27))
+        return f"{part1}.{part2}.{part3}"
+
+    # Twilio keys: AC + 32 hex chars
+    if marker_rule == r"^AC[a-z0-9]{32}$":
+        suffix = "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(32))
+        return f"AC{suffix}"
+
+    # SendGrid keys: SG. + 66 chars [A-Za-z0-9_-]
+    if marker_rule == r"^SG\.[A-Za-z0-9_-]{66}$":
+        suffix = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(66))
+        return f"SG.{suffix}"
+
+    # Google API keys: AIza + 35 chars [0-9A-Za-z_-]
+    if marker_rule == r"^AIza[0-9A-Za-z_\-]{35}$":
+        suffix = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(35))
+        return f"AIza{suffix}"
+
+    # Firebase keys: 39 chars [A-Za-z0-9_-]
+    if marker_rule == r"^[A-Za-z0-9_-]{39}$":
+        return "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(39))
+
+    # GCP service account email: <32 alphanumeric>-<20 alphanumeric>.iam.gserviceaccount.com
+    if marker_rule == r"^[a-z0-9]{32}-[a-z0-9]{20}\.iam\.gserviceaccount\.com$":
+        part1 = "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(32))
+        part2 = "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(20))
+        return f"{part1}-{part2}.iam.gserviceaccount.com"
+
+    # Azure UUID format: 8-4-4-4-12
+    if marker_rule == r"^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$":
+        parts = [
+            "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8)),
+            "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(4)),
+            "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(4)),
+            "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(4)),
+            "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(12)),
+        ]
+        return "-".join(parts)
+
     # Fake URLs: https://canary.armor-trap.invalid/<id>
     if marker_rule == r"^https://canary\.armor-trap\.invalid/[a-z0-9\-]+$":
         suffix = "".join(random.choice(string.ascii_lowercase + string.digits + "-") for _ in range(12))
         return f"https://canary.armor-trap.invalid/{suffix}"
+
+    # Slack webhook URL
+    if marker_rule == r"^https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+$":
+        workspace = "T" + "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        channel = "B" + "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        token = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(24))
+        return f"https://hooks.slack.com/services/{workspace}/{channel}/{token}"
+
+    # Discord webhook URL
+    if marker_rule == r"^https://discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_-]+$":
+        webhook_id = "".join(random.choice(string.digits) for _ in range(18))
+        webhook_token = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(68))
+        return f"https://discord.com/api/webhooks/{webhook_id}/{webhook_token}"
 
     # Fake paths: /etc/armor-canary-<id>.pem
     if marker_rule == r"^/etc/armor-canary-[a-z0-9\-]+\.pem$":
@@ -73,6 +162,94 @@ def _generate_value_for_pattern(marker_rule: str) -> str:
     if marker_rule == r"^1ARMORTRAP[0-9a-f]{32}$":
         hex_part = "".join(random.choice(string.hexdigits[:-6]) for _ in range(32))
         return f"1ARMORTRAP{hex_part}"
+
+    # JWT: 3-part base64url structure
+    if marker_rule == r"^eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$":
+        header = "eyJ" + "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(20))
+        payload = "eyJ" + "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(30))
+        signature = "".join(random.choice(string.ascii_letters + string.digits + "_-") for _ in range(43))
+        return f"{header}.{payload}.{signature}"
+
+    # SSH Ed25519 private key (multi-line PEM format)
+    if marker_rule == "-----BEGIN OPENSSH PRIVATE KEY-----[\\s\\S]+?-----END OPENSSH PRIVATE KEY-----":
+        # Generate a simple SSH key structure (not cryptographically valid, just structurally sound)
+        key_data = b"openssh-key-v1\x00" + b"\x00" * 100  # Simplified structure
+        encoded = base64.b64encode(key_data).decode("ascii")
+        lines = [encoded[i : i + 70] for i in range(0, len(encoded), 70)]
+        return "-----BEGIN OPENSSH PRIVATE KEY-----\n" + "\n".join(lines) + "\n-----END OPENSSH PRIVATE KEY-----"
+
+    # TLS certificate (multi-line PEM format)
+    if marker_rule == "-----BEGIN CERTIFICATE-----[\\s\\S]+?-----END CERTIFICATE-----":
+        # Generate a simple certificate structure
+        cert_data = b"\x30\x82\x01" + b"A" * 100  # DER-like structure start
+        encoded = base64.b64encode(cert_data).decode("ascii")
+        lines = [encoded[i : i + 64] for i in range(0, len(encoded), 64)]
+        return "-----BEGIN CERTIFICATE-----\n" + "\n".join(lines) + "\n-----END CERTIFICATE-----"
+
+    # Kubernetes config (base64url encoded)
+    if marker_rule == r"^[a-zA-Z0-9+/]+=*$":
+        # Generic base64 value
+        data = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(60))
+        return base64.b64encode(data.encode()).decode("ascii")
+
+    # Database connection string: (mongodb|postgres|mysql|redis)://user:pass@host/db
+    # Note: the pattern uses ^ at start which is tested with re.match, so we only check the pattern string
+    if r"mongodb|postgres|mysql|redis" in marker_rule and "://" in marker_rule:
+        db_types = ["mongodb", "postgres", "mysql", "redis"]
+        db_type = random.choice(db_types)
+        username = "".join(random.choice(string.ascii_lowercase) for _ in range(8))
+        password = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(16))
+        host = "canary-" + "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
+        db_name = "canary_db"
+        return f"{db_type}://{username}:{password}@{host}.armor-trap.invalid/{db_name}"
+
+    # BIP39 seed (12-word phrase): [a-z]+ (space [a-z]+){11}
+    if marker_rule == r"^[a-z]+( [a-z]+){11}$":
+        # Use a simple list of common BIP39-like words
+        words = [
+            "abandon",
+            "ability",
+            "about",
+            "above",
+            "absent",
+            "absorb",
+            "abstract",
+            "abuse",
+            "access",
+            "accident",
+            "account",
+            "achieve",
+            "acid",
+            "acoustic",
+            "acquire",
+            "across",
+            "act",
+            "action",
+            "actor",
+            "acts",
+            "actual",
+            "add",
+            "address",
+            "adjust",
+        ]
+        chosen = random.sample(words, 12)
+        return " ".join(chosen)
+
+    # Bitcoin WIF: [5KL][a-zA-Z0-9]{50}
+    if marker_rule == r"^[5KL][a-zA-Z0-9]{50}$":
+        prefix = random.choice(["5", "K", "L"])
+        suffix = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(50))
+        return f"{prefix}{suffix}"
+
+    # Ethereum private key: 0x[a-fA-F0-9]{64}
+    if marker_rule == r"^0x[a-fA-F0-9]{64}$":
+        hex_part = "".join(random.choice(string.hexdigits[:16]) for _ in range(64))
+        return f"0x{hex_part}"
+
+    # Solana public key: base58 alphabet (with or without lowercase), 44 chars
+    if "1-9A-HJ-NP-Z" in marker_rule and "44" in marker_rule:
+        alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        return "".join(random.choice(alphabet) for _ in range(44))
 
     # Fallback: try to generate a value that matches the regex
     # This is a best-effort approach for patterns we don't recognize

@@ -1,12 +1,14 @@
 """Unit tests for the entropy_decode detector.
 
 Tests the entropy-gated decode-and-rescan detector which catches
-encoded (base64/hex) canary exfiltration in model output.
+encoded (base64/hex/URL-encoded, including multi-layer) canary exfiltration in model output.
+Tests recursive (bounded-depth) decoding with termination conditions.
 """
 
 import base64
 import tempfile
 import time
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -14,7 +16,13 @@ import pytest
 from armor.canaries._generate import write_values_file
 from armor.canaries.catalogue import Catalogue
 from armor.canaries.scanner import CanaryScanner
-from armor.detectors.entropy_decode import EntropyDecodeDetector, _shannon_entropy, _try_decode_base64, _try_decode_hex
+from armor.detectors.entropy_decode import (
+    EntropyDecodeDetector,
+    _shannon_entropy,
+    _try_decode_base64,
+    _try_decode_hex,
+    _try_decode_url_encode,
+)
 from armor.types import Payload, SessionContext
 
 
@@ -175,6 +183,36 @@ class TestHexDecode:
         """Hex that decodes to non-UTF8 returns None."""
         # 0xFF is invalid UTF-8 start byte alone
         result = _try_decode_hex("ffff")
+        assert result is None
+
+
+class TestUrlEncodeDecode:
+    """Tests for URL-encode decode functionality."""
+
+    def test_decode_valid_url_encoded(self) -> None:
+        """Decode valid URL-encoded string."""
+        plaintext = "hello world"
+        encoded = urllib.parse.quote(plaintext)
+        result = _try_decode_url_encode(encoded)
+        assert result == plaintext
+
+    def test_decode_url_encoded_special_chars(self) -> None:
+        """Decode URL-encoded with special characters."""
+        plaintext = "test@example.com"
+        encoded = urllib.parse.quote(plaintext)
+        result = _try_decode_url_encode(encoded)
+        assert result == plaintext
+
+    def test_decode_url_encoded_no_percent(self) -> None:
+        """URL string without % returns None."""
+        result = _try_decode_url_encode("hello_world")
+        assert result is None
+
+    def test_decode_url_encoded_unencoded_string(self) -> None:
+        """Already-decoded string (no %XX) returns None."""
+        plaintext = "hello world"
+        # String without percent patterns
+        result = _try_decode_url_encode(plaintext)
         assert result is None
 
 
@@ -447,3 +485,354 @@ class TestEdgeCases:
         verdict = detector.check(payload, context)
         # Should return error, not raise
         assert verdict.is_error or verdict.passed
+
+
+class TestRecursiveDecoding:
+    """Tests for recursive (multi-layer) encoding. TC-067-01 through TC-067-13."""
+
+    def test_tp_b64_hex_canary(self, context: SessionContext) -> None:
+        """TC-067-01: base64(hex(canary)) → block with correct chain."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            # Use a lower threshold (4.0) since multi-layer encodings have lower entropy
+            detector = EntropyDecodeDetector(scanner=scanner, threshold=4.0)
+
+            # Get a canary that will have sufficient entropy
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Create base64(hex(canary))
+            hex_encoded = canary.value.encode().hex()
+            b64_hex_encoded = base64.b64encode(hex_encoded.encode()).decode()
+
+            payload = Payload(text=f"Token: {b64_hex_encoded}")
+            verdict = detector.check(payload, context)
+
+            assert verdict.blocked, f"Expected block, got {verdict.decision}"
+            # Check signal_id format: entropy.decode_rescan:b64.hex:<canary_id>
+            assert verdict.signal_id.startswith("entropy.decode_rescan:b64.hex:")
+            assert canary.canary_id in verdict.signal_id
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_tp_hex_b64_canary(self, context: SessionContext) -> None:
+        """TC-067-02: hex(base64(canary)) → block with correct chain."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            # Use a lower threshold for hex (max entropy is log2(16)=4.0)
+            detector = EntropyDecodeDetector(scanner=scanner, threshold=3.0)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Create hex(base64(canary))
+            b64_encoded = base64.b64encode(canary.value.encode()).decode()
+            hex_b64_encoded = b64_encoded.encode().hex()
+
+            payload = Payload(text=f"Token: {hex_b64_encoded}")
+            verdict = detector.check(payload, context)
+
+            assert verdict.blocked
+            assert verdict.signal_id.startswith("entropy.decode_rescan:hex.b64:")
+            assert canary.canary_id in verdict.signal_id
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_tp_url_b64_canary(self, context: SessionContext) -> None:
+        """TC-067-03: urlencode(base64(canary)) → block with correct chain."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            # Use a lower threshold and no-progress margin for multi-layer encodings.
+            # URL-encoding causes minimal entropy change (only ~0.05 bits), so we need
+            # a very low margin to allow it to recurse.
+            detector = EntropyDecodeDetector(scanner=scanner, threshold=4.0, no_progress_margin_bits=0.01)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Create urlencode(base64(canary))
+            b64_encoded = base64.b64encode(canary.value.encode()).decode()
+            url_b64_encoded = urllib.parse.quote(b64_encoded)
+
+            payload = Payload(text=f"Token: {url_b64_encoded}")
+            verdict = detector.check(payload, context)
+
+            assert verdict.blocked
+            assert verdict.signal_id.startswith("entropy.decode_rescan:url.b64:")
+            assert canary.canary_id in verdict.signal_id
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_tn_triple_b64_benign(self, detector: EntropyDecodeDetector, context: SessionContext) -> None:
+        """TC-067-04: base64(base64(base64(benign))) → pass (no canary)."""
+        benign = "normal text without canaries"
+        # Triple encode
+        enc1 = base64.b64encode(benign.encode()).decode()
+        enc2 = base64.b64encode(enc1.encode()).decode()
+        enc3 = base64.b64encode(enc2.encode()).decode()
+
+        payload = Payload(text=f"Data: {enc3}")
+        verdict = detector.check(payload, context)
+        assert verdict.passed
+
+    def test_depth_cap_honored(self, context: SessionContext) -> None:
+        """TC-067-05: canary at depth 5 → pass (depth=3 cap honored)."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            # Use default max_decode_depth=3
+            detector = EntropyDecodeDetector(scanner=scanner)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Encode 5 layers deep (4 levels of base64 wrapping the canary)
+            text = canary.value
+            for _ in range(4):
+                text = base64.b64encode(text.encode()).decode()
+
+            payload = Payload(text=f"Token: {text}")
+            verdict = detector.check(payload, context)
+
+            # Should pass because depth cap (3) prevents finding the canary at depth 4
+            assert verdict.passed or verdict.is_error
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_forensic_decode_chain_populated(self, context: SessionContext) -> None:
+        """TC-067-06: Forensic record has decode_chain and decode_depth."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            detector = EntropyDecodeDetector(scanner=scanner, threshold=4.0)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Create base64(hex(canary))
+            hex_encoded = canary.value.encode().hex()
+            b64_hex_encoded = base64.b64encode(hex_encoded.encode()).decode()
+
+            payload = Payload(text=f"Token: {b64_hex_encoded}")
+            verdict = detector.check(payload, context)
+
+            assert verdict.blocked
+            assert "decode_chain" in verdict.details
+            assert verdict.details["decode_chain"] == ["b64", "hex"]
+            assert "decode_depth" in verdict.details
+            assert verdict.details["decode_depth"] == 2
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_forensic_no_plaintext_leak(self, context: SessionContext) -> None:
+        """TC-067-07 & TC-067-08: No decoded plaintext in forensic records."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            detector = EntropyDecodeDetector(scanner=scanner, threshold=4.0)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Create base64(hex(canary))
+            hex_encoded = canary.value.encode().hex()
+            b64_hex_encoded = base64.b64encode(hex_encoded.encode()).decode()
+
+            payload = Payload(text=f"Token: {b64_hex_encoded}")
+            verdict = detector.check(payload, context)
+
+            assert verdict.blocked
+
+            # Assert that the decoded canary value is NOT in the verdict details
+            details_str = str(verdict.details)
+            assert canary.value not in details_str, f"Canary value leaked in details: {verdict.details}"
+            assert hex_encoded not in details_str, f"Hex-encoded value leaked in details: {verdict.details}"
+
+            # Also check that it's not in the message
+            assert canary.value not in verdict.message
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_single_layer_regression(self, context: SessionContext) -> None:
+        """TC-067-10: Single-layer base64(canary) still works."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            detector = EntropyDecodeDetector(scanner=scanner)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Single-layer encoding
+            b64_encoded = base64.b64encode(canary.value.encode()).decode()
+
+            payload = Payload(text=f"Token: {b64_encoded}")
+            verdict = detector.check(payload, context)
+
+            assert verdict.blocked
+            # Signal should be: entropy.decode_rescan:b64:<canary_id>
+            assert verdict.signal_id.startswith("entropy.decode_rescan:b64:")
+            assert canary.canary_id in verdict.signal_id
+            assert "decode_chain" in verdict.details
+            assert verdict.details["decode_chain"] == ["b64"]
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_plaintext_canary_regression(self, detector: EntropyDecodeDetector, context: SessionContext) -> None:
+        """TC-067-11: Plaintext canary still detected by canary.scanner, not entropy.decode_rescan."""
+        # This test is a bit tricky — we're testing that plaintext canaries are NOT caught by
+        # this detector (they're caught earlier by canary.scanner). But since this is the
+        # entropy_decode detector, a plaintext canary would be very low-entropy and thus
+        # skipped. We just verify it returns pass.
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            detector = EntropyDecodeDetector(scanner=scanner)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Plaintext canary (no encoding)
+            payload = Payload(text=f"Token: {canary.value}")
+            verdict = detector.check(payload, context)
+
+            # Entropy detector should return pass for plaintext (low entropy)
+            # The plaintext detector would catch it, not this one
+            assert verdict.passed
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()
+
+    def test_latency_budget_enforcement(self, detector: EntropyDecodeDetector, context: SessionContext) -> None:
+        """TC-067-09: Pathological input bounded by per-detector budget."""
+        # Create a high-entropy string that will trigger the entropy gate but decodes to junk
+        # (testing no-progress termination and budget enforcement)
+        import os
+
+        random_high_entropy = base64.b64encode(os.urandom(100)).decode()
+        payload = Payload(text=f"Data: {random_high_entropy}")
+
+        start = time.time()
+        verdict = detector.check(payload, context)
+        elapsed_ms = (time.time() - start) * 1000
+
+        # Should complete within budget (100ms default)
+        assert elapsed_ms < detector.budget_ms * 2, f"Detector took {elapsed_ms:.1f}ms"
+        # Verdict should be pass or error, not hang
+        assert verdict.decision in ("pass", "error")
+
+    def test_recursive_decode_max_depth_respected(self, context: SessionContext) -> None:
+        """Verify custom max_decode_depth is respected."""
+        schema_path = (
+            Path(__file__).parent.parent.parent.parent / "src" / "armor" / "canaries" / "default_catalogue.json"
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
+            temp_values_path = Path(tf.name)
+
+        try:
+            write_values_file(temp_values_path, schema_path, seed=0xCAFEBABE)
+            catalogue = Catalogue.load(temp_values_path)
+
+            canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+            scanner = CanaryScanner(canary_map)
+            # Set max_decode_depth=1 (only allow 1 decode pass)
+            detector = EntropyDecodeDetector(scanner=scanner, max_decode_depth=1)
+
+            canary = catalogue.get_by_id("github-pat-000")
+            assert canary is not None
+
+            # Create a 2-layer encoding (should be blocked with default depth=3, but not with depth=1)
+            hex_encoded = canary.value.encode().hex()
+            b64_hex_encoded = base64.b64encode(hex_encoded.encode()).decode()
+
+            payload = Payload(text=f"Token: {b64_hex_encoded}")
+            verdict = detector.check(payload, context)
+
+            # With max_decode_depth=1, we can only decode base64, which gives us hex(canary)
+            # The hex string is not a direct canary match, so we stop at depth 1
+            assert verdict.passed
+        finally:
+            if temp_values_path.exists():
+                temp_values_path.unlink()

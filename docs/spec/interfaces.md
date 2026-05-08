@@ -38,9 +38,11 @@ Subcommands:
   check input         Check a user-input payload for injection signals
   check output        Check a model-output payload for exfiltration signals
   check tool          Check a tool-call (name + params) against the command denylist
+  check fetched       Check a tool-call result (e.g., Read/WebFetch output) for indirect injection
   session close       Mark a session ended; flush state
   canary list         List the active canary catalogue (IDs + kinds, never values)
   canary generate     Generate a new canary values file at install time
+  config show         Show runtime configuration (selected section)
   incidents list      Paginated table of incidents (filterable by session, category, age)
   incidents show      Full record for a single incident (canary_id only — never values)
   incidents tail      Live-updating Rich table of new incidents (polls; survives daemon restart)
@@ -65,8 +67,11 @@ Global flags:
 | `check input <text>` | string (stdin OK) | — | Payload to evaluate |
 | `check output <text>` | string (stdin OK) | — | Payload to evaluate |
 | `check tool --name <n> --params <json>` | strings | — | Tool name + params blob |
+| `check fetched <text> --source-tool <name>` | string | — | Tool-call result + source tool name to evaluate for indirect injection (per ADR-041) |
 | `canary generate --out <path>` | path | — | Output path for generated values file (required) |
 | `canary generate --seed <hex>` | int | `<RNG>` | Optional seed for deterministic generation (e.g., `0xCAFEBABE`); if unset, uses OS RNG |
+| `config show --section <name>` | string | — | Show a config section (e.g., `pipeline.exempt`, `pipeline.source_multipliers`) in TOML format; `--json` outputs JSON |
+| `config show --section <name> --json` | bool | `false` | Render config as JSON instead of TOML |
 | `incidents list --since <duration>` | duration string | — | e.g. `1h`, `30m` |
 | `incidents list --session <id>` | string | — | Filter to one session |
 | `incidents list --category <pat>` | glob | — | Filter on detector category |
@@ -198,6 +203,7 @@ class Detector(Protocol):
 - **Implementors:** Every concrete detector module under `src/armor/detectors/`.
 - **Consumers:** The daemon's `Pipeline` only.
 - **Stability:** The signature is stable across minor versions. Adding fields is a breaking change.
+- **SessionContext access:** `ctx.signal_history` is a public read-only list of `Signal` objects, exposing the session's prior event history. Detectors may read this to contextualize their decisions (e.g., `meta.conversation_hijack` reads signal count to calibrate confidence). Signal history persists for the session lifetime and reflects all detected signals (blocks, advisories, errors) in temporal order.
 - **Required behavior:**
   - Must be deterministic given `(payload, ctx)`.
   - Must not raise — must catch internal errors and return `Verdict.error(reason)`.

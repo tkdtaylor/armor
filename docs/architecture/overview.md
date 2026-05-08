@@ -70,6 +70,21 @@ The validator LLM and the **honeypot** are the same model — one weight set, tw
 2. **Outbound check (output)**: Model returns text → hook fires `armor check output` → daemon runs canary scan, URL/IP/email exfil extraction, output entropy analysis, and (optionally) the validator LLM → returns `pass` or `block + forensic record`.
 3. **Tool-call check**: Agent issues a Bash tool call → hook fires `armor check tool` with the command → daemon checks against the command-injection denylist (rm -rf /, /etc/shadow reads, container escape patterns) → returns `pass` / `block`.
 4. **Session-level**: Every check writes to a per-session SQLite row. A session-tracker reads aggregated stats (rolling output entropy, partial canary matches across turns, exfil-destination accumulation) and can escalate a session's risk score, triggering harder blocks.
+5. **Indirect injection check (check.fetched)**: Tool results from `Read`, `WebFetch`, `Grep`, `Glob`, or MCP `read_*` are submitted to `armor check fetched` via the PostToolUse hook. The hook first checks the path/domain against `pipeline.exempt.read_paths` and `pipeline.exempt.webfetch_domains`; on exemption match, the hook skips the daemon entirely (no incident logged). On non-exemption, the daemon runs the input-side detector pipeline against the fetched content with `Payload.source=TOOL_RESULT_UNTRUSTED` (default multiplier 1.5×). On `block`, the hook replaces the tool result with a stub before the model sees it; on `pass`/`advisory`, the original result flows through unchanged.
+
+## Payload provenance and trust labels
+
+Each `Payload` carries a `source` field indicating its origin (ADR-041): `USER_INPUT`, `MODEL_OUTPUT`, `TOOL_PARAMS`, `TOOL_RESULT_TRUSTED`, or `TOOL_RESULT_UNTRUSTED`. The daemon assigns the source per IPC operation (defaults: input → `USER_INPUT`, output → `MODEL_OUTPUT`, tool → `TOOL_PARAMS`, fetched → `TOOL_RESULT_UNTRUSTED`). Before verdicts materialize, the pipeline applies a per-source **confidence multiplier** to scale detector strictness per provenance:
+
+- `USER_INPUT` (1.0): baseline — direct user input, high fidelity
+- `MODEL_OUTPUT` (1.0): baseline — model output is canary/entropy-calibrated
+- `TOOL_PARAMS` (1.0): baseline — validated by schema before execution
+- `TOOL_RESULT_TRUSTED` (0.5): soft-pedal — operator asserts this tool is safe; lower multiplier surfaces signals but deprioritizes
+- `TOOL_RESULT_UNTRUSTED` (1.5): bump strictness — fetched content from external sources is attack-prone
+
+The multiplier is a **calibration** knob, not a gate — detectors run on every applicable source; strictness scales. This avoids over-engineering per-(detector × source) matrices while still capturing that a regex match in untrusted tool output is higher-confidence than the same match in a trusted parameter.
+
+The **exemption mechanism** (`pipeline.exempt.read_paths`, `pipeline.exempt.webfetch_domains`) allows operators to declare certain paths/domains as research material, bypassing scanning entirely. Bundled defaults cover the eval corpus, architecture docs, and well-known security domains (arxiv.org, OWASP, GitHub Anthropic repos). A fresh install scans safely by default.
 
 ## External dependencies
 

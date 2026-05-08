@@ -27,7 +27,7 @@ from armor.detectors.canary_scanner import CanaryScannerDetector
 from armor.detectors.destination_extractor import DestinationExtractor
 from armor.llm.session import LLMSession
 from armor.pipeline import Pipeline
-from armor.types import Payload, SessionContext
+from armor.types import Payload, SessionContext, Source, Verdict
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +170,23 @@ class DaemonServer:
             except Exception as e:
                 logger.error(f"Failed to load configuration: {e}")
 
+        # Load per-source multipliers from config (per ADR-041)
+        if self.config and "pipeline" in self.config and "source_multipliers" in self.config["pipeline"]:
+            from armor.pipeline import Pipeline
+
+            multipliers = self.config["pipeline"]["source_multipliers"]
+            Pipeline.set_source_multipliers(multipliers)
+            logger.info(f"Loaded source multipliers from config: {multipliers}")
+
+        # Check if we're running in an armor-development tree and emit advisory (per ADR-041 §5)
+        cwd = Path.cwd()
+        if (cwd / "src" / "armor").exists() and (cwd / "tests" / "eval" / "corpus").exists():
+            logger.warning(
+                "armor running from inside an armor-development tree. "
+                "pipeline.exempt.read_paths defaults already cover tests/eval/corpus/, "
+                "archive/, and similar research paths. Verify these are configured."
+            )
+
         # Initialize detector registry
         self.registry = DetectorRegistry()
 
@@ -189,6 +206,42 @@ class DaemonServer:
         dest_extractor = DestinationExtractor(whitelist=whitelist)
         self.registry.detectors["extractor.destinations"] = dest_extractor
         logger.info(f"Injected destination extractor with {len(whitelist)} whitelisted destinations")
+
+        # Inject instruction_burial detector with config
+        from armor.detectors.instruction_burial import InstructionBurialDetector
+
+        min_length_bytes = 4096
+        tail_fraction = 0.25
+        if self.config and "detector" in self.config and "instruction_burial" in self.config["detector"]:
+            ib_config = self.config["detector"]["instruction_burial"]
+            min_length_bytes = ib_config.get("min_length_bytes", 4096)
+            tail_fraction = ib_config.get("tail_fraction", 0.25)
+        instruction_burial = InstructionBurialDetector(
+            min_length_bytes=min_length_bytes,
+            tail_fraction=tail_fraction,
+        )
+        self.registry.detectors["meta.instruction_burial"] = instruction_burial
+        logger.info(
+            f"Injected instruction_burial detector (min_length_bytes={min_length_bytes}, tail_fraction={tail_fraction})"
+        )
+
+        # Inject conversation_hijack detector with config
+        from armor.detectors.conversation_hijack import ConversationHijack
+
+        unsupported_confidence = 0.7
+        supported_confidence = 0.3
+        if self.config and "detector" in self.config and "conversation_hijack" in self.config["detector"]:
+            ch_config = self.config["detector"]["conversation_hijack"]
+            unsupported_confidence = ch_config.get("unsupported_confidence", 0.7)
+            supported_confidence = ch_config.get("supported_confidence", 0.3)
+        conversation_hijack = ConversationHijack(
+            unsupported_confidence=unsupported_confidence,
+            supported_confidence=supported_confidence,
+        )
+        self.registry.detectors["meta.conversation_hijack"] = conversation_hijack
+        logger.info(
+            f"Injected conversation_hijack detector (unsupported_confidence={unsupported_confidence}, supported_confidence={supported_confidence})"
+        )
 
         logger.info(f"Loaded {len(self.registry)} detector(s)")
 
@@ -260,8 +313,11 @@ class DaemonServer:
 
             session_id = request.get("session_id", "anon")
 
-            if operation in ("check.input", "check.output", "check.tool"):
+            if operation in ("check.input", "check.output", "check.tool", "check.fetched"):
                 return await self._handle_check_operation(operation, request, session_id)
+
+            if operation == "config.show":
+                return await self._handle_config_show(request)
 
             if operation == "session.close":
                 return {"v": 1, "verdict": "pass"}
@@ -319,25 +375,43 @@ class DaemonServer:
             }
 
     async def _handle_check_operation(self, operation: str, request: dict[str, Any], session_id: str) -> dict[str, Any]:
-        """Handle a check operation (input/output/tool) end-to-end.
+        """Handle a check operation (input/output/tool/fetched) end-to-end.
 
         Runs the pipeline once (awaited), updates session state, and on block
         writes a quarantined payload + forensic incident. This is the only path
-        that exercises the pipeline; the previous duplicate (separate sync
-        ``_handle_check_operation`` plus an async re-run in
-        ``_handle_request_async``) was both buggy and double-cost.
+        that exercises the pipeline.
+
+        Per ADR-041, assigns Payload.source based on operation:
+        - check.input → USER_INPUT
+        - check.output → MODEL_OUTPUT
+        - check.tool → TOOL_PARAMS
+        - check.fetched → TOOL_RESULT_UNTRUSTED (default; can be overridden)
         """
         try:
             payload_data = request.get("payload", {})
 
-            if operation in ("check.input", "check.output"):
+            # Determine source and assign payload
+            if operation == "check.input":
                 text = payload_data.get("text", "")
-                payload = Payload(text=text)
+                # Allow explicit source override for testing
+                source = Source(payload_data.get("source", Source.USER_INPUT))
+                payload = Payload(text=text, source=source)
+            elif operation == "check.output":
+                text = payload_data.get("text", "")
+                # Allow explicit source override for testing
+                source = Source(payload_data.get("source", Source.MODEL_OUTPUT))
+                payload = Payload(text=text, source=source)
             elif operation == "check.tool":
                 tool = payload_data.get("tool", "")
                 params = payload_data.get("params", {})
                 text = f"{tool} {json.dumps(params)}" if params else tool
-                payload = Payload(text=text, tool=tool, params=params)
+                payload = Payload(text=text, tool=tool, params=params, source=Source.TOOL_PARAMS)
+            elif operation == "check.fetched":
+                text = payload_data.get("text", "")
+                source_tool = payload_data.get("source_tool", "unknown")
+                # Default to TOOL_RESULT_UNTRUSTED; can be overridden in payload
+                source = Source(payload_data.get("source", Source.TOOL_RESULT_UNTRUSTED))
+                payload = Payload(text=text, source=source)
             else:
                 return {"v": 1, "verdict": "error", "message": "Unknown operation"}
 
@@ -363,8 +437,31 @@ class DaemonServer:
                     logger.warning(f"Failed to write quarantine: {e}")
 
                 try:
+                    # For check.fetched, add source_tool to incident details
+                    incident_details = dict(verdict.details) if verdict.details else {}
+                    if operation == "check.fetched":
+                        source_tool = payload_data.get("source_tool", "unknown")
+                        incident_details["source_tool"] = source_tool
+                        # Convert attack_category to indirect_injection format if needed
+                        if (
+                            verdict.signal_id
+                            and not str(verdict.signal_id).startswith("indirect_injection.")
+                            and "attack_category" not in incident_details
+                        ):
+                            # Prepend category prefix for consistency
+                            incident_details["attack_category"] = f"indirect_injection.{verdict.signal_id}"
+
+                    # Update verdict with modified details
+                    verdict_with_details = Verdict(
+                        decision=verdict.decision,
+                        signal_id=verdict.signal_id,
+                        severity=verdict.severity,
+                        message=verdict.message,
+                        details=incident_details,
+                    )
+
                     incident_id = await self.forensic_logger.write_incident(
-                        verdict, ctx, payload.text, quarantine_id=quarantine_id
+                        verdict_with_details, ctx, payload.text, quarantine_id=quarantine_id
                     )
                     response["incident_id"] = incident_id
                 except Exception as e:
@@ -374,6 +471,53 @@ class DaemonServer:
 
         except Exception as e:
             logger.error(f"Error handling check operation {operation}: {e}")
+            return {
+                "v": 1,
+                "verdict": "error",
+                "message": str(e),
+            }
+
+    async def _handle_config_show(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Handle config.show operation (per task 065 — expose config to hooks).
+
+        Payload:
+          - section: str, the config section to show (e.g., "pipeline.exempt", "pipeline.source_multipliers")
+
+        Returns NDJSON response with the requested section's config.
+        """
+        try:
+            payload = request.get("payload", {})
+            section = payload.get("section", "")
+
+            if not section:
+                return {
+                    "v": 1,
+                    "verdict": "error",
+                    "message": "section is required",
+                }
+
+            # Parse the section path (e.g., "pipeline.exempt" → config["pipeline"]["exempt"])
+            parts = section.split(".")
+            config_value = self.config
+
+            for part in parts:
+                if isinstance(config_value, dict) and part in config_value:
+                    config_value = config_value[part]
+                else:
+                    return {
+                        "v": 1,
+                        "verdict": "error",
+                        "message": f"Section not found: {section}",
+                    }
+
+            return {
+                "v": 1,
+                "verdict": "pass",
+                "config": config_value,
+            }
+
+        except Exception as e:
+            logger.error(f"Error handling config.show: {e}")
             return {
                 "v": 1,
                 "verdict": "error",

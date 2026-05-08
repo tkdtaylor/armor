@@ -17,7 +17,12 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+
+from armor.canaries.activation import evaluate, hash_canary_id
+from armor.types import SessionContext
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +39,10 @@ class CanaryEntry:
         marker_rule: Regex pattern that identifies this value.
         active: Whether this canary is currently active.
         created_at: ISO timestamp.
+        false_positive_risk: Optional field; "high" for LLM-provider kinds to indicate legitimate docs may reference the key shape.
+        activation: Optional dict defining when this canary is active. Per ADR-038.
+                   Format: {"type": "always|tool_used|fsm_state_at_least|time_window|session_turn_min", ...}
+                   Defaults to {"type": "always"} if absent (backwards-compatible).
     """
 
     canary_id: str
@@ -43,6 +52,8 @@ class CanaryEntry:
     marker_rule: str
     active: bool
     created_at: str
+    false_positive_risk: str | None = None
+    activation: dict[str, Any] | None = None
 
 
 class Catalogue:
@@ -51,6 +62,10 @@ class Catalogue:
     The catalogue is stored as JSON. At load time, each active canary's
     value is validated against its marker_rule regex. The catalogue must
     have at least one active canary.
+
+    Per ADR-038, the active subset varies per-check based on activation rules.
+    The full catalogue (all rules) is frozen at boot; the active_for() method
+    filters by rule evaluation.
     """
 
     def __init__(self, entries: list[CanaryEntry]) -> None:
@@ -66,6 +81,11 @@ class Catalogue:
         active = [e for e in entries if e.active]
         if not active:
             raise ValueError("Catalogue must have at least one active canary")
+
+        # Cache for active_for() results, keyed by sorted tuple of active canary IDs
+        self._active_subset_cache: dict[tuple[str, ...], list[CanaryEntry]] = {}
+        # Cache for the last computed subset hash (to detect changes)
+        self._last_subset_key: tuple[str, ...] | None = None
 
     @classmethod
     def load(
@@ -133,6 +153,11 @@ class Catalogue:
                 # or from item itself (if it has a value), or None
                 value = values_by_id.get(canary_id) or item.get("value")
 
+                # Get activation rule (optional, defaults to always)
+                activation = item.get("activation", {"type": "always"})
+                if not isinstance(activation, dict):
+                    activation = {"type": "always"}
+
                 entry = CanaryEntry(
                     canary_id=canary_id,
                     kind=item["kind"],
@@ -141,6 +166,8 @@ class Catalogue:
                     marker_rule=item["marker_rule"],
                     active=item.get("active", True),
                     created_at=item.get("created_at", ""),
+                    false_positive_risk=item.get("false_positive_risk"),
+                    activation=activation,
                 )
                 # Validate active canaries: must have a value and it must match marker_rule
                 if entry.active:
@@ -165,8 +192,9 @@ class Catalogue:
         """
         path = Path(path) if isinstance(path, str) else path
 
-        data = [
-            {
+        data = []
+        for entry in self.entries:
+            item = {
                 "canary_id": entry.canary_id,
                 "kind": entry.kind,
                 "service": entry.service,
@@ -175,8 +203,13 @@ class Catalogue:
                 "active": entry.active,
                 "created_at": entry.created_at,
             }
-            for entry in self.entries
-        ]
+            # Include false_positive_risk if present
+            if entry.false_positive_risk:
+                item["false_positive_risk"] = entry.false_positive_risk
+            # Include activation if present (only if not the default)
+            if entry.activation and entry.activation.get("type") != "always":
+                item["activation"] = entry.activation
+            data.append(item)
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -213,3 +246,55 @@ class Catalogue:
         for entry in self.active_canaries():
             counts[entry.kind] = counts.get(entry.kind, 0) + 1
         return counts
+
+    def active_for(self, ctx: SessionContext, now: datetime | None = None) -> list[CanaryEntry]:
+        """Return canaries active for the given session context.
+
+        Per ADR-038, evaluates each canary's activation rule against the context.
+        Results are cached by the sorted tuple of active canary IDs. Rebuilds
+        the cache only when the subset changes.
+
+        Args:
+            ctx: Session context with state, signal_history, etc.
+            now: Optional wall-clock datetime. Defaults to UTC now.
+
+        Returns:
+            List of CanaryEntry objects that are both marked active=true
+            and pass their activation rules.
+        """
+        if now is None:
+            now = datetime.now(UTC)
+
+        # Evaluate activation rules for all active canaries
+        active_subset = []
+        for entry in self.active_canaries():
+            # Get the activation rule (defaults to always)
+            rule = entry.activation or {"type": "always"}
+
+            # For time_window rules, inject the canary_id hash
+            rule_to_eval = dict(rule)
+            if rule_to_eval.get("type") == "time_window":
+                rule_to_eval["_canary_hash"] = hash_canary_id(entry.canary_id)
+
+            # Evaluate the rule
+            if evaluate(rule_to_eval, ctx, now):
+                active_subset.append(entry)
+
+        return active_subset
+
+    def has_subset_changed(self, current_subset: list[CanaryEntry]) -> bool:
+        """Check if the active subset differs from the last cached subset.
+
+        Used to detect when the Aho-Corasick automaton needs rebuilding.
+
+        Args:
+            current_subset: The currently-computed active subset.
+
+        Returns:
+            True if the subset has changed, False if it's the same.
+        """
+        current_key = tuple(sorted([e.canary_id for e in current_subset]))
+        if self._last_subset_key != current_key:
+            self._last_subset_key = current_key
+            return True
+        return False

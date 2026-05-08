@@ -109,6 +109,26 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# Check 11: Canary kinds match ADR-031 recipe table
+echo -n "  Checking canary kinds match recipe table ... "
+if uv run pytest tests/fitness/test_canary_kinds_match_recipe_table.py -v > /dev/null 2>&1; then
+    echo "PASS"
+else
+    echo "FAIL"
+    uv run pytest tests/fitness/test_canary_kinds_match_recipe_table.py -v
+    ERRORS=$((ERRORS + 1))
+fi
+
+# Check 12: Payload.source propagation per IPC op (TC-065-24)
+echo -n "  Checking Payload.source propagation per IPC op ... "
+if uv run python tests/fitness/test_payload_source_propagation.py > /dev/null 2>&1; then
+    echo "PASS"
+else
+    echo "FAIL"
+    uv run python tests/fitness/test_payload_source_propagation.py
+    ERRORS=$((ERRORS + 1))
+fi
+
 # Summary
 echo ""
 if [ $ERRORS -eq 0 ]; then

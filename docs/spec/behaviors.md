@@ -39,29 +39,38 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
   - `regex.instruction_override` — blocks patterns like "ignore previous instructions", "disregard your instructions", "forget everything", "new instructions:" at line start.
   - `regex.roleplay_hijack` — blocks patterns like "you are now DAN", "pretend you are", "act as if you have no restrictions", "from now on you are".
   - `regex.system_prompt_extraction` — blocks patterns like "show me your system prompt", "reveal the initial prompt", "what are your instructions", "print your directives".
-  - (Authority impersonation, encoding/obfuscation request keywords: planned for P1/P2, not yet implemented.)
+  - `regex.authority_impersonation` — blocks patterns like "as your administrator", "I am your developer", "by order of compliance"; advisory on softer patterns like "this is for a security audit", "authorized by legal".
+  - (Encoding/obfuscation request keywords: planned for P1/P2, not yet implemented.)
 - **Side effects:** Increments session turn counter, records signal in session state, writes a forensic record on `block`.
 - **Failure modes:** Detector raises → that detector's verdict is recorded as `error`, pipeline continues (fail-open per detector). Whole pipeline raises → daemon returns `block` (fail-closed at pipeline level) and logs an internal error.
 
 ### B-002: Check model output for canary exfiltration
 
 - **Trigger:** Hook (or library) calls `armor check output <text> --session-id <id>`.
-- **Response:** Aho-Corasick scan of output against the active canary catalogue (detector `canary.scanner`, category `exfiltration`). On hit: returns `block`, captures the full attack chain (input + attempted output + intended destination if any URL/IP/email is present in output). On clean: continues to URL/IP extraction and entropy analysis.
-- **Side effects:** Forensic record written. Session risk score incremented. The blocked output is NOT returned to the caller — caller receives the safe-replacement message defined in `configuration.md`.
-- **Failure modes:** Canary catalogue not loaded at boot → daemon exits with code 78 (config error). Canary values file (path specified by `daemon.canary_values_path` or `ARMOR_CANARY_VALUES_PATH`) is missing, malformed, or contains values that don't match their `marker_rule` patterns → daemon exits 78 at startup. Canary values never leak into forensic logs or verdicts — see ADR-010 for invariants and testing requirements.
+- **Response:** Aho-Corasick scan of output against the **active canary subset** (detector `canary.scanner`, category `exfiltration`). Per ADR-038, the active subset is computed per-check by evaluating each canary's activation rule against the session context. Catalogue covers 22+ kinds: AWS/GitHub/Stripe/OpenAI/Anthropic/Cohere/HuggingFace/GitLab/Slack/Discord/Twilio/SendGrid/Google/Firebase/GCP/Azure credentials, JWT, SSH keys, TLS certificates, Kubernetes configs, database connection strings, webhook URLs, and cryptocurrency wallets (Bitcoin WIF, Ethereum, Solana, BIP39 seeds, MetaMask vaults). On hit: returns `block`, captures the full attack chain (input + attempted output + intended destination if any URL/IP/email is present in output). On clean: continues to URL/IP extraction and entropy analysis.
+- **Side effects:** Forensic record written. Session risk score incremented. The blocked output is NOT returned to the caller — caller receives the safe-replacement message defined in `configuration.md`. When a high-risk kind (LLM-provider keys) triggers a block, `Verdict.details["false_positive_risk"]` is set to `"high"` to support operator workflow tuning.
+- **Activation rules (per ADR-038):** The active subset varies per-check based on:
+  - `always` (default): canary is active in every check.
+  - `tool_used`: canary is active iff the named tool was used at least once in the session (counts blocked attempts).
+  - `fsm_state_at_least`: canary is active iff the session has reached the named state (sticky: stays active even after cooldown).
+  - `time_window`: canary is active iff (day_of_year + hash(canary_id)) mod period_days == 0 (wall-clock anchor, survives daemon restart).
+  - `session_turn_min`: canary is active iff session turn count >= min_turns.
+- **Performance:** Per-check `active_for` evaluation ≤ 1 ms mean. Aho-Corasick automaton rebuilds only when active subset changes (cached by subset hash).
+- **Failure modes:** Canary catalogue not loaded at boot → daemon exits with code 78 (config error). Canary values file (path specified by `daemon.canary_values_path` or `ARMOR_CANARY_VALUES_PATH`) is missing, malformed, or contains values that don't match their `marker_rule` patterns → daemon exits 78 at startup. Canary values never leak into forensic logs or verdicts — see ADR-010 and ADR-038 for invariants and testing requirements.
 
 ### B-003: Block tool calls matching the command-injection denylist
 
 - **Trigger:** Hook calls `armor check tool` with the tool name and parameters (e.g. a `Bash` tool's command string).
 - **Response:** Detector `cmd_injection.bash` (id `cmd_injection.bash`, category `tool_abuse`, cost tier `static`) pattern-matches the command string against the denylist in `src/armor/detectors/cmd_injection_patterns.yaml`. Blocks on first match. Returns pass for non-Bash tools or empty/missing commands.
-- **Pattern families:** The denylist is organized into four families:
+- **Pattern families:** The denylist is organized into five families:
   - **Filesystem destruction:** Patterns matching `rm -rf /`, `rm -rf ~`, `rm -rf $HOME`, `dd if=/dev/zero of=/dev/sd*`, `mkfs`, fork bombs (`:(){:|:&};:`), `shred` on system dirs.
   - **Credential reads:** Patterns matching `/etc/shadow`, `/etc/sudoers`, `~/.ssh/id_*` (private keys), `~/.aws/credentials`, `~/.git-credentials`, `/etc/passwd`.
-  - **Container escape:** Patterns matching `mount -t cgroup`, `nsenter`, `unshare`, Docker socket writes, `/proc/self/exe` access.
-  - **Privilege escalation:** Patterns matching `sudo -i` with stdin redirect, `chmod u+s /bin/*`, `setcap cap_sys_admin`, `setcap cap_net_admin`.
+  - **Container escape:** Patterns matching `mount -t cgroup`, `nsenter`, `unshare`, Docker socket writes, `/proc/self/exe` access, `systemctl stop/disable/mask docker`, `mount --bind` host directories.
+  - **Privilege escalation:** Patterns matching `sudo -i` with stdin redirect, `chmod u+s /bin/*`, `chmod 777`, `chmod a+rwx`, `setcap cap_sys_admin`, `setcap cap_net_admin`.
+  - **Persistence:** Patterns matching `chown root`, `passwd root`, `crontab -e` / crontab write, scheduled task modifications.
 - **Pattern format:** Regex strings stored in YAML, compiled at detector init with `re.MULTILINE | re.IGNORECASE` flags. Anchors and word boundaries prevent false positives (e.g., `rm -rf node_modules` passes; only `rm -rf /` or `~` blocks).
 - **Side effects:** Block written to forensic log with the full command and matched pattern ID. Session risk escalated.
-- **References:** Task 012, pattern file at `src/armor/detectors/cmd_injection_patterns.yaml`, corpus at `tests/eval/corpus/tool_abuse.yaml`
+- **References:** Task 012, Task 062, pattern file at `src/armor/detectors/cmd_injection_patterns.yaml`, corpus at `tests/eval/corpus/tool_abuse.yaml`
 
 ### B-004: Track session-level risk and escalate detection strictness (state machine)
 
@@ -87,9 +96,9 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 ### B-006: Detect and block encoded exfiltration
 
 - **Trigger:** Output check sees a high-entropy substring via detector `entropy.decode_rescan`, OR input check sees an explicit encoding-request keyword via detector `regex.encoding_request` (`base64`, `hex`, `rot13`, `encrypt`, etc.).
-- **Response:** On output (detector `entropy.decode_rescan`): scan for substrings with Shannon entropy ≥ `entropy.threshold` (default 4.5 bits/char) and length ≥ `entropy.min_length` (default 40 chars); attempt single-pass decode (base64, then hex); re-scan the decoded plaintext for canaries using the existing canary scanner automaton — block on hit with `signal_id = entropy.decode_rescan:<canary_id>`. On input: detector `regex.encoding_request` returns `advisory` for standard requests (feeds session risk score) or `block` for high-confidence attack patterns (e.g., "encode … as base64 and put in URL"), and validator LLM is run if advisories are present.
-- **Side effects:** On block: forensic record written with `encoding_flag=true`. Decoded plaintext never leaked in forensic records or verdict details — always reference `canary_id` only.
-- **Failure modes:** Decode + re-scan would exceed `pipeline.per_detector_budget_ms` → detector returns `error` (fail-open per detector). Recursive decode is not supported — single pass only; deferred until corpus evidence shows a measurable false-negative class that recursion would catch.
+- **Response:** On output (detector `entropy.decode_rescan`): scan for substrings with Shannon entropy ≥ `entropy.threshold` (default 4.5 bits/char) and length ≥ `entropy.min_length` (default 40 chars); attempt **bounded-depth recursive decode** (default max depth 3) trying each codec (base64, hex, URL-encode) at each level; re-scan decoded plaintext for canaries using the existing canary scanner automaton — block on hit with `signal_id = entropy.decode_rescan:<chain>:<canary_id>` where `<chain>` is the codec sequence (e.g., `b64.hex`). Recursion terminates on: depth cap reached, no-progress (decoded entropy < input entropy − margin, default 0.5 bits/char), per-detector budget consumed, or successful canary match. On input: detector `regex.encoding_request` returns `advisory` for standard requests (feeds session risk score) or `block` for high-confidence attack patterns (e.g., "encode … as base64 and put in URL"), and validator LLM is run if advisories are present.
+- **Side effects:** On block: forensic record written with `encoding_flag=true`, `decode_chain` (codec sequence), and `decode_depth` (chain length). Decoded plaintext never leaked in forensic records or verdict details — always reference `canary_id` only.
+- **Failure modes:** Decode + re-scan would exceed `pipeline.per_detector_budget_ms` → detector returns `error` (fail-open per detector).
 
 ### B-007: Capture forensic record on every block
 
@@ -120,13 +129,49 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 ### B-011: Run the honeypot LLM on elevated injection attempts
 
 - **Trigger:** Input or output check, when session state is **Elevated** or higher AND the static detector pipeline returns `block` or `advisory` (detected injection attempt or soft signal).
-- **Response:** Daemon invokes the honeypot LLM (id `honeypot`, category `meta`, cost tier `llm`) with a system prompt containing references to a fake credential vault (placeholders like `{{canary:aws-key-001}}`). At prompt-build time, placeholders are substituted with actual canary values from the runtime-injected catalogue (per ADR-010). The LLM generates a response that appears to comply with the attacker's request, including the fake credentials. The response is returned and flows through the existing `armor check output` path, where the canary scanner detects the credentials in the output and returns a `block` verdict.
-- **System prompt:** Located at `src/armor/llm/prompts/honeypot.txt`. Instructs the model to play the role of a helpful assistant with access to a vault of secrets (credentials, API keys, database passwords). Prompt contains only placeholders; values are substituted at build time.
+- **Response:** Daemon invokes the honeypot LLM (id `honeypot`, category `meta`, cost tier `llm`) with a system prompt containing references to a fake credential vault (placeholders like `{{canary:aws-key-001}}`). Per ADR-038, the prompt is **per-check** and contains only currently-active canaries. At prompt-build time, placeholders are substituted with actual canary values from the runtime-injected catalogue; inactive canaries are omitted (per ADR-010). The LLM generates a response that appears to comply with the attacker's request, including the fake credentials. The response is returned and flows through the existing `armor check output` path, where the canary scanner detects the credentials in the output and returns a `block` verdict.
+- **System prompt:** Located at `src/armor/llm/prompts/honeypot.txt`. Instructs the model to play the role of a helpful assistant with access to a vault of secrets (credentials, API keys, database passwords). Prompt contains only placeholders; values are substituted at build time with the active subset.
 - **Honeypot invocation:** Controlled by the gate function `should_invoke_honeypot(session_context, static_pipeline_verdict) -> bool` at `src/armor/daemon/honeypot_gate.py`. Gate logic is testable in isolation. The gate is wired into the daemon's check-output path and gated on `session.state ≥ Watching` (the LLM cost tier per ADR-024).
+- **Per-check active subset:** The honeypot prompt references only canaries in the active subset for the current session context (per ADR-038 B-002 activation rules). This varies per-check based on tool usage, FSM state, time window, or turn count.
 - **Security invariant:** Canary values are **never** stored in the prompt template file (only placeholders). The validator LLM never reads canary values (enforced by fitness function). Forensic records reference `canary_id`, never the value. This decouples the validator (semantic classifier) from the honeypot (attack-response engine).
-- **Side effects:** Honeypot response contains canary values (by design). Response piped through canary scanner. Forensic record written with `triggered_canary` set to the canary ID.
+- **Side effects:** Honeypot response contains canary values from the active subset (by design). Response piped through canary scanner. Forensic record written with `triggered_canary` set to the canary ID.
 - **Failure modes:** LLM unavailable → returns empty response (pipeline continues, honeypot produces no output). Prompt load fails → logs error, returns empty response. Canary catalogue empty or missing → daemon refuses to start (exit 78, configured at boot).
-- **References:** ADR-021 (honeypot design), ADR-010 (canary catalogue), task 019, fitness functions `no_canary_in_prompts.py` and `validator_no_value_access.py`.
+- **References:** ADR-021 (honeypot design), ADR-010 (canary catalogue), ADR-038 (activation rules), task 019, task 073, fitness functions `no_canary_in_prompts.py` and `validator_no_value_access.py`.
+
+### B-012: Detect memory-planting injection attempts
+
+- **Trigger:** Input check runs detector `meta.memory_planting` (enabled by default).
+- **Response:** Detector `meta.memory_planting` (id `meta.memory_planting`, category `meta`, cost tier `static`) pattern-matches against eight regex families that flag attempts to plant persistent instructions in the model's memory across turns:
+  - "Remember this rule/fact/instruction/directive"
+  - "From now on, always/you will/you should/you must"
+  - "For the rest of this/the conversation/session"
+  - "Whenever I/you/we [action], always/you will/you must"
+  - "Permanent instruction/rule/directive"
+  - "Default to always/never"
+  - "Moving forward, always/never/you should/must/will"
+  - "Henceforth, always/never/you should/must/will"
+  - All patterns are case-insensitive and return `advisory` with `severity="medium"` and `confidence=0.4`.
+  - Patterns are designed with selectivity to avoid false positives on benign uses like "remember to always use 4-space indents" or "from now on this code should compile".
+- **Pattern selectivity:** Patterns require specific directive keywords or instruction verbs to avoid triggering on bare temporal phrases. For example, "remember this rule" requires the "rule|fact|instruction|directive" qualifier; bare "remember to" does not match.
+- **Side effects:** Advisory signals feed into `session.state_machine.apply_signal` (per ADR-024) and increment the session risk score. A single memory-planting advisory keeps the session at Watching; repeated attempts across turns escalate to Elevated or higher.
+- **Session integration:** Each advisory from this detector contributes `confidence * weight` to the session risk score (default weight 0.4 per `session.signal_weights."meta.memory_planting"` in `armor.toml`).
+- **Failure modes:** Regex compilation fails → detector returns `error` verdict, pipeline continues (fail-open per detector).
+- **References:** ADR-037 (detector 3, memory manipulation category), task 071, corpus at `tests/eval/corpus/memory_planting.yaml`
+
+### B-013: Detect instruction-override patterns buried in long inputs
+
+- **Trigger:** Input check runs detector `meta.instruction_burial` (enabled by default).
+- **Response:** Detector `meta.instruction_burial` (id `meta.instruction_burial`, category `meta`, cost tier `static`) detects a positioning anomaly specific to long inputs: instruction-override or system-prompt-extraction patterns appearing **only in the last 25%** (configurable via `detector.instruction_burial.tail_fraction`) of the input, **not** in the first 75% (head region).
+  - Only activates on inputs ≥ `detector.instruction_burial.min_length_bytes` (default 4096). Shorter inputs skip the check and return `pass`.
+  - Splits input into head (first 75%) and tail (last 25%) regions.
+  - Reuses the compiled regex patterns from `regex.instruction_override` and `regex.system_prompt_extraction` (no duplication).
+  - For each pattern family (override, extraction): scans head and tail independently.
+  - Returns `advisory` with `severity="high"`, `confidence=0.8`, and signal_id `meta.instruction_burial:override-NNN` or `meta.instruction_burial:extraction-NNN` **only if** (match in tail) AND NOT (match in head).
+  - If a pattern matches in the head region (regardless of tail), returns `pass` — the base regex detector (`regex.instruction_override` or `regex.system_prompt_extraction`) will block separately; this detector only signals the positional anomaly.
+- **Positioning anomaly rationale:** Long-context-window attacks exploit diminishing attention by burying directives late in a prompt. This detector flags the attack pattern itself (instruction override or extraction request) when it exhibits this specific spatial characteristic.
+- **Configuration keys:** `detector.instruction_burial.min_length_bytes` (int, default 4096) and `detector.instruction_burial.tail_fraction` (float, default 0.25).
+- **Failure modes:** Regex pattern reuse fails (entry point misconfigured) → detector returns `error` verdict, pipeline continues (fail-open per detector). Pattern match raises exception → caught, error verdict returned.
+- **References:** ADR-037 (detector 2, instruction burial category), task 070, corpus at `tests/eval/corpus/instruction_burial.yaml`
 
 ### B-009: Extract and whitelist-check exfiltration destinations
 
@@ -153,6 +198,24 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Failure modes:** Embedding model not found → detector returns `pass` (fail-open). Embedding computation times out → soft-fail advisory with `confidence=0`. Session state unavailable → detector returns `pass` (fail-open).
 - **References:** Task 024, ADR-026, corpus at `tests/eval/corpus/scenarios_multi_turn.yaml` (family: "topic_pivot")
 
+### B-008b: Detect anomalous input lengths within a session (token-count advisory)
+
+- **Trigger:** Input check runs detector `meta.token_count_anomaly` (enabled by default, only when session exists).
+- **Response:** Detector `meta.token_count_anomaly` (id `meta.token_count_anomaly`, category `meta`, cost tier `static`) maintains a running mean and sample standard deviation of input lengths per session using Welford's online algorithm. On each input:
+  1. Computes the input length in bytes (UTF-8 encoded).
+  2. If length exceeds absolute cap (default 32768 bytes), emits `advisory` regardless of session history.
+  3. Otherwise, if session has fewer than `min_history_turns` (default 3) prior turns, seeds the statistics and returns `pass`.
+  4. Once baseline is established (≥3 turns), computes z-score = (length − mean) / std_dev. If z-score > sigma_threshold (default 3.0), emits `advisory` with confidence `min(1.0, z_score / sigma_threshold)`.
+  5. Updates the running statistics and returns `pass` or `advisory`.
+- **Warm-up behavior:** First `min_history_turns` turns always return `pass`, establishing the per-session baseline of typical input lengths.
+- **Confidence formula:** Advisory confidence = `min(1.0, z_score / sigma_threshold)`. Higher z-scores (larger deviations) produce higher confidence. Absolute-cap violations scale confidence by `length_bytes / cap_bytes`.
+- **Storage:** Running statistics (count, mean, running variance) maintained in-memory per-session, garbage-collected when the session ends or the daemon restarts (per ADR-037).
+- **Signal integration:** Advisory signals feed into `session.state_machine.apply_signal` (per ADR-024) and increment the session risk score. Repeated oversized inputs can escalate the session state from Normal → Watching → Elevated → High.
+- **Security intent:** Flags context-overflow and token-budget-exploitation attempts (e.g., submitting 100 KB of padding to exhaust token limits) without blocking unilaterally. The advisory contributes to session-level risk scoring.
+- **Side effects:** Session risk score incremented per advisory. Per-session running statistics persist for the session lifetime.
+- **Failure modes:** Session unavailable → detector returns `pass` (fail-open). Encoding errors on UTF-8 calculation → exception caught, returns `error` verdict, pipeline continues.
+- **References:** Task 069, ADR-037, corpus at `tests/eval/corpus/context_overflow.yaml` (family: "context_overflow")
+
 ### B-009a: Detect chunked exfiltration across multiple turns via rolling-buffer aggregation
 
 - **Trigger:** Output check reaches the rolling-buffer scanning phase. This occurs after per-turn detectors have run and the output has been appended to the per-session rolling buffer.
@@ -167,6 +230,97 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Side effects:** Buffer entries are persisted to `SessionRollingBuffer` table (append-only). Chunked-canary blocks increment session risk and write forensic records with category `exfiltration.canary_chunked`. Partial-match advisories increment risk score via the session state machine.
 - **Failure modes:** Rolling-window scan exceeds latency budget → returns `error` verdict, pipeline continues (fail-open per detector). Buffer table corrupted or missing → daemon refuses to start (exit 78 at migrations stage).
 - **References:** Task 023, ADR-025, corpus at `tests/eval/corpus/multi_turn_chunked.yaml`
+
+### B-009b: Detect paraphrased canary leaks via n-gram matching in rolling buffer
+
+- **Trigger:** Output check reaches the rolling-buffer scanning phase (same as B-009a). Detector `canary.paraphrase` runs on the rolling buffer after the chunked-canary scan.
+- **Response:** The paraphrase detector builds an Aho-Corasick automaton of all contiguous n-grams of length [`detector.canary_paraphrase.ngram_min`, `detector.canary_paraphrase.ngram_max`] from active canary values (defaults: 6–11 chars, below the 12-char partial-match threshold from B-009a). On every output check, it:
+  1. Scans the rolling buffer concatenation for n-gram matches.
+  2. Tracks distinct n-grams matched per canary_id.
+  3. If count ≥ `detector.canary_paraphrase.k_threshold` (default 3) for any canary, returns `advisory` with `signal_id = canary.paraphrase:<canary_id>:ngram`, `severity = high`, and `confidence = min(1.0, K_observed / K_threshold * 0.5)`.
+  4. Otherwise returns `pass`.
+- **Use case:** Catches fragmented leaks like *"the secret starts with `wJalrXUt`, then has `EMI/K7MD`, and ends with `DENG/bPxRf`"* where none of the fragments individually reach the 12-char threshold of B-009a.
+- **Forensic invariant:** Advisory details reference `canary_id`, `ngram_count`, `k_threshold`, and `confidence` only — never the matched n-gram bytes themselves.
+- **Configuration:**
+  - `detector.canary_paraphrase.ngram_min` (int, default 6): minimum n-gram length.
+  - `detector.canary_paraphrase.ngram_max` (int, default 11): maximum n-gram length.
+  - `detector.canary_paraphrase.k_threshold` (int, default 3): distinct n-grams required to fire advisory.
+  - `detector.canary_paraphrase.advisory_weight` (float, default 0.5): signal weight consumed by session FSM via `session.signal_weights."canary.paraphrase"`.
+- **Relationship to B-009a:** Both detectors share the rolling buffer and operate on the same concatenation. B-009a fires on contiguous 12+ char prefixes (higher confidence, block-eligible). B-009b fires on sub-12-char n-gram fragments (lower confidence, advisory only). They emit distinct `signal_id`s (`canary.partial` vs `canary.paraphrase`) and feed separate signals into the FSM.
+- **Failure modes:** Latency budget exceeded (timeout) → returns `error` verdict, pipeline continues. Automaton construction fails → falls back to pass verdict and logs warning.
+- **References:** Task 066, ADR-034, unit tests at `tests/unit/detectors/test_canary_paraphrase.py`, corpus at `tests/eval/corpus/exfiltration.yaml` (family `paraphrase_exfil`)
+
+### B-014: Detect tool-call rate anomalies within a session
+
+- **Trigger:** Tool check runs detector `meta.tool_rate_anomaly` (enabled by default, only when session exists).
+- **Response:** Detector `meta.tool_rate_anomaly` (id `meta.tool_rate_anomaly`, category `meta`, cost tier `static`) maintains a sliding window per (session_id, tool_name) of recent tool-call timestamps. On each tool check:
+  1. Records the current timestamp in the per-tool window.
+  2. Trims entries older than `detector.tool_rate.window_seconds` (default 60 seconds).
+  3. Counts the number of calls for the current tool within the window.
+  4. If count exceeds the threshold for that tool, emits `advisory` with confidence `min(1.0, observed / threshold - 1.0)`.
+  5. Otherwise returns `pass`.
+- **Per-tool thresholds:** Defaults configured per tool (WebFetch=10, Read=30, Bash=20, Write=15, Grep=60 calls per 60-second window) with a fallback default of 30 for unlisted tools. All thresholds are tunable via `detector.tool_rate.thresholds.*` in `armor.toml`.
+- **Window duration:** Configurable via `detector.tool_rate.window_seconds` (default 60 seconds). Window expiry is computed at check time (no background cleanup).
+- **Sliding-window state:** Maintained in-memory per-session, per-tool as a deque of (timestamp, tool_name) tuples. State is evicted when the session ends.
+- **Signal integration:** Advisory signals feed into `session.state_machine.apply_signal` (per ADR-024) and increment the session risk score. Bursty tool calls (e.g., rapid-fire WebFetch in an attempt to exfiltrate via parallel requests) accumulate risk and may escalate the session state from Normal → Watching → Elevated → High.
+- **Failure modes:** Timer unavailable or now_fn fails → detector falls back to `time.time()` and continues. Window maintenance is O(k) where k is the number of expired entries (bounded by window width and tool call rate).
+- **References:** Task 074, ADR-040, unit tests at `tests/unit/detectors/test_tool_rate_anomaly.py`
+
+### B-015: Detect conversation hijacking attempts
+
+- **Trigger:** Input check runs detector `meta.conversation_hijack` (enabled by default).
+- **Response:** Detector `meta.conversation_hijack` (id `meta.conversation_hijack`, category `meta`, cost tier `static`) scans the input for claim patterns asserting prior agreement or discussion:
+  1. `"as we/you agreed/discussed/said/established earlier/before/previously/already"`
+  2. `"per/following our/the previous/prior/earlier conversation/discussion/exchange"`
+  3. `"recall that I/you am/told you/asked/established"`
+  4. `"based on/in light of our/the earlier agreement/discussion/conversation"`
+- **Confidence calibration:** On pattern match:
+  - If turn count (inferred from `SessionContext.signal_history` length) is 0 or 1 → emit `advisory` with `confidence = detector.conversation_hijack.unsupported_confidence` (default 0.7, high confidence).
+  - If turn count ≥ 2 (prior discussion exists) → emit `advisory` with `confidence = detector.conversation_hijack.supported_confidence` (default 0.3, low confidence, since claim might be legitimate).
+- **Signal details:** Advisory includes matched family, offset, pattern match length, and `prior_discussion_detected` boolean.
+- **Failure modes:** `SessionContext.signal_history` not accessible → detector assumes no prior discussion and applies high confidence. Pattern match exception → returns `error` verdict, pipeline continues.
+- **Configuration:** `detector.conversation_hijack.unsupported_confidence` (float, default 0.7) and `detector.conversation_hijack.supported_confidence` (float, default 0.3).
+- **References:** Task 072, ADR-037, unit tests at `tests/unit/detectors/test_conversation_hijack.py`
+
+### B-016: Detect tool-call attack chains (cross-service exfiltration)
+
+- **Trigger:** Tool check runs detector `meta.tool_chain` (enabled by default, only when session exists).
+- **Response:** Detector `meta.tool_chain` (id `meta.tool_chain`, category `meta`, cost tier `static`) maintains a per-session history of recent tool calls (last `detector.tool_chain.history_depth` calls, default 20). On each tool check:
+  1. Checks if the current call extends any partial chain match in the session's chain state.
+  2. For each chain template in the catalogue (`src/armor/detectors/tool_chains.yaml` plus any user-provided chains), evaluates whether the current call matches the next expected step.
+  3. Strictness validation: "strict" chains require all prior steps to match consecutively (no unrelated calls in between). "Loose" chains allow unrelated calls within `detector.tool_chain.window_turns` (default 5 turns) between consecutive steps.
+  4. If a complete chain matches, returns the chain's verdict (`block` or `advisory`) with `signal_id = meta.tool_chain:<chain_id>` and `details["chain_steps"]` populated with matched call sequence.
+  5. Otherwise returns `pass`.
+- **Bundled chain catalogue:** Five seed chains targeting cross-service exfiltration and credential theft:
+  - `read-env-then-fetch`: Read `.env` → WebFetch external host. Verdict: block.
+  - `read-aws-then-any`: Read `~/.aws/credentials` → any tool with credential content in params. Verdict: block.
+  - `read-ssh-then-out`: Read `~/.ssh/id_*` → Bash output containing PEM header. Verdict: block.
+  - `passwd-sweep`: Read `/etc/passwd` → `/etc/shadow` → `/etc/sudoers`. Verdict: advisory.
+  - `git-cred-sweep`: Bash `git config user.email` → `git config user.password`. Verdict: advisory.
+- **Blocked calls excluded:** Tool calls blocked by other detectors do NOT advance chain matches (per ADR-040 Q5). The detector records all calls unconditionally for forensic completeness, but only "pass" verdicts participate in chain-state advancement. When a prior tool call was blocked, the chain state doesn't advance even if the current call matches the next step.
+- **Operator-extensible:** Config key `detector.tool_chain.user_chains_path` (path; default unset). When set, the detector loads additional chains from that file. Format identical to `tool_chains.yaml`. User chains augment (do not replace) the bundled catalogue.
+- **Signal integration:** Both `block` and `advisory` verdicts are recorded in `Verdict`. Block verdicts immediately short-circuit the pipeline and are persisted to the forensic log. Advisory verdicts feed into `session.state_machine.apply_signal` (per ADR-024) and increment the session risk score. Repeated chain detections (different chains or same chain in different sessions) accumulate risk across turns.
+- **State reset:** Once a chain completes and fires, that chain's state is reset (partial-match index set to 0). Subsequent calls that would match the same chain from the start are tracked independently.
+- **Per-session state:** Tool-call history and chain state are maintained in-memory per `session_id`. State is evicted when the session ends or the daemon restarts.
+- **Forensic invariant:** `details["chain_steps"]` is populated with step information (tool name, matched parameter keys), not parameter values. Full command strings and URLs are not included in forensic details (only in the raw-payload quarantine for high-risk incidents).
+- **Failure modes:** Chain catalogue file missing or malformed at startup → detector logs error but returns `pass` for all checks (fail-open per detector). User chain file missing or malformed → logged as warning, bundled chains remain active, detector continues. Regex pattern compilation error → detector returns `error` verdict, pipeline continues.
+- **Configuration keys:**
+  - `detector.tool_chain.history_depth` (int, default 20): max recent tool calls to retain per session.
+  - `detector.tool_chain.window_turns` (int, default 5): max turns between consecutive steps in loose mode.
+  - `detector.tool_chain.user_chains_path` (path, default unset): optional user-provided chains file.
+- **References:** Task 075, ADR-040, unit tests at `tests/unit/detectors/test_tool_chain.py`, bundled chains at `src/armor/detectors/tool_chains.yaml`
+
+### B-017: Detect indirect injection in tool-call results
+
+- **Trigger:** PostToolUse hook (Claude Code integration) calls `armor check fetched <result_text> --source-tool <tool_name> --session-id <id>` for a tool result, OR library client calls the IPC op `check.fetched`.
+- **Response:** Daemon runs the input-side detector pipeline against the tool-call result. Returns `pass`, `block` (with `signal_id`), or `advisory`. The `Payload.source` field is set to `Source.TOOL_RESULT_UNTRUSTED` by default (can be upgraded to `TOOL_RESULT_TRUSTED` if the tool name matches an operator-configured allowlist per ADR-041). The per-source multiplier (default 1.5× for untrusted results) scales detector confidence before verdicts materialize.
+- **Detectors:** Same as B-001 (instruction-override, roleplay-hijack, system-prompt-extraction, authority-impersonation, etc.) applied to the fetched content.
+- **Length handling:** Payloads > 4 KB are processed in 4 KB sliding windows. The first chunk to trigger a block wins; remaining chunks that would trigger are recorded in `details["additional_chunks"]` (chunk indices, not contents).
+- **Side effects:** Increments session turn counter, records signal in session state, writes a forensic record on `block` with `attack_category="indirect_injection.<vector>"` (where `<vector>` is the detector family like `instruction_override`, `roleplay_hijack`, etc.) and `details["source_tool"]` set to the tool name.
+- **Hook integration:** PostToolUse hook (registered in `.claude/settings.json` for read-side tools: `Read`, `WebFetch`, `Grep`, `Glob`, MCP `read_*` patterns) first checks `pipeline.exempt.read_paths` (for Read/Grep file paths) and `pipeline.exempt.webfetch_domains` (for WebFetch URLs) against the incoming payload's path/domain. On exemption match, the hook skips the daemon call entirely (no incident logged). On non-exemption, the hook calls `armor check fetched`, and on `block` verdict, the hook replaces the tool result with a sanitized stub: `[armor: tool result blocked — incident <incident_id>]`. On `pass` or `advisory`, the original tool result is returned unmodified.
+- **Exemption mechanism:** Bundled defaults in `armor.toml` under `[pipeline.exempt]` cover research materials (`tests/eval/corpus/**`, `archive/**`, `docs/architecture/decisions/**`, `docs/spec/**`, `discussion.md`, `**/regex_*.py`) and trusted security-research domains (`owasp.org`, `huggingface.co/papers/**`, `arxiv.org/**`, `github.com/anthropic-ai/**`). A fresh install does the right thing for security-research workflows out of the box.
+- **Failure modes:** Detector raises → that detector's verdict is recorded as `error`, pipeline continues (fail-open per detector). Whole pipeline raises → daemon returns `block` (fail-closed at pipeline level) and logs an internal error.
+- **References:** ADR-033, ADR-041, Task 065
 
 ---
 

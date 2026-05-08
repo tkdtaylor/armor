@@ -17,6 +17,31 @@ input_detectors = ["*"]
 output_detectors = ["*"]
 per_detector_budget_ms = 100
 
+# Per-source multipliers (per ADR-041) — scale detector strictness by payload provenance
+[pipeline.source_multipliers]
+user_input            = 1.0   # baseline
+tool_params           = 1.0   # already through tool-schema validation
+model_output          = 1.0   # canary / entropy detectors are calibrated for this
+tool_result_trusted   = 0.5   # operator vouched; surface but soft-pedal
+tool_result_untrusted = 1.5   # the indirect-injection vector; bump strictness
+
+# Exemption mechanism (per ADR-041 §3-§4) — paths/domains that bypass indirect-injection scanning
+[pipeline.exempt]
+read_paths = [
+  "tests/eval/corpus/**",       # the corpus IS attack data
+  "archive/**",                 # historical / research material
+  "docs/architecture/decisions/**",
+  "docs/spec/**",
+  "discussion.md",              # the project's bootstrapping discussion
+  "**/regex_*.py",              # our own detector patterns
+]
+webfetch_domains = [
+  "owasp.org",
+  "huggingface.co/papers/**",
+  "arxiv.org/**",
+  "github.com/anthropic-ai/**",
+]
+
 [session]
 cache_size = 1024
 cooldown_decay_per_min = 0.1
@@ -38,16 +63,48 @@ capacity_turns = 20
 [detector.canary]
 partial_match_min_chars = 12
 
+[detector.canary_paraphrase]
+ngram_min = 6
+ngram_max = 11
+k_threshold = 3
+advisory_weight = 0.5
+
 [entropy]
 threshold = 4.5
 rolling_threshold = 4.5
 min_length = 40
+max_decode_depth = 3
+no_progress_margin_bits = 0.5
 
 [detector.topic_coherence]
 distance_threshold = 0.5
 margin = 0.2
 window_turns = 5
 budget_ms = 50
+
+[detector.token_count_anomaly]
+absolute_cap_bytes = 32768
+sigma_threshold = 3.0
+min_history_turns = 3
+
+[detector.instruction_burial]
+min_length_bytes = 4096
+tail_fraction = 0.25
+
+[detector.tool_rate]
+window_seconds = 60
+
+[detector.tool_rate.thresholds]
+WebFetch = 10
+Read = 30
+Bash = 20
+Write = 15
+Grep = 60
+default = 30
+
+[detector.conversation_hijack]
+unsupported_confidence = 0.7
+supported_confidence = 0.3
 
 [safe_message]
 input_block = "Your input was blocked because it matched a known injection pattern."

@@ -4,7 +4,8 @@ Detects Bash tool calls that match known dangerous patterns:
 - Filesystem destruction (rm -rf /, fork bombs, etc.)
 - Credential file reads (/etc/shadow, SSH keys, etc.)
 - Container escape attempts (mount cgroup, nsenter, etc.)
-- Privilege escalation (sudo -i with stdin, chmod u+s, etc.)
+- Privilege escalation (sudo -i with stdin, chmod u+s, chmod 777, etc.)
+- Persistence (chown root, passwd root, crontab -e, etc.)
 
 Patterns are loaded from cmd_injection_patterns.yaml at detector initialization.
 """
@@ -26,6 +27,8 @@ class CmdInjectionBash:
 
     Operates only on Payload.tool == "Bash". Returns pass for other tools.
     Patterns are loaded from cmd_injection_patterns.yaml and compiled at init.
+    Supports five pattern families: filesystem_destruction, credential_read,
+    container_escape, privilege_escalation, and persistence.
     """
 
     id: str = "cmd_injection.bash"
@@ -95,7 +98,13 @@ class CmdInjectionBash:
             description = pattern_dict["description"]
 
             # Validate family
-            valid_families = ["filesystem_destruction", "credential_read", "container_escape", "privilege_escalation"]
+            valid_families = [
+                "filesystem_destruction",
+                "credential_read",
+                "container_escape",
+                "privilege_escalation",
+                "persistence",
+            ]
             if family not in valid_families:
                 raise ValueError(
                     f"Pattern {pattern_id} has invalid family '{family}', expected one of {valid_families}"

@@ -37,11 +37,41 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `entropy.min_length` | integer | `40` | no | Min substring length to entropy-check (consumed by `entropy.decode_rescan` detector) |
 | `entropy.threshold` | float | `4.5` | no | Shannon entropy bits/char above which to flag (consumed by `entropy.decode_rescan` detector); used for single-turn output checks |
 | `entropy.rolling_threshold` | float | `4.5` | no | Shannon entropy bits/char threshold for rolling-buffer multi-turn aggregation. Separate from per-turn threshold; applied to `buffer.concatenated()` |
+| `entropy.max_decode_depth` | integer | `3` | no | Maximum recursion depth for bounded-depth decode; 0-indexed (depth=3 means up to 3 codec applications) |
+| `entropy.no_progress_margin_bits` | float | `0.5` | no | Entropy reduction margin for no-progress termination (bits/char); if decoded entropy < input entropy − margin, stop recursing |
 | `detector.canary.partial_match_min_chars` | integer | `12` | no | Minimum prefix length (chars) of a canary value to trigger a partial-match advisory signal (per ADR-025) |
+| `detector.canary_paraphrase.ngram_min` | integer | `6` | no | Minimum n-gram length for paraphrase detector (per ADR-034) |
+| `detector.canary_paraphrase.ngram_max` | integer | `11` | no | Maximum n-gram length for paraphrase detector (per ADR-034) |
+| `detector.canary_paraphrase.k_threshold` | integer | `3` | no | Number of distinct n-grams required to fire paraphrase advisory (per ADR-034) |
+| `detector.canary_paraphrase.advisory_weight` | float | `0.5` | no | Weight for paraphrase detector signals in session risk scoring (consumed via `session.signal_weights."canary.paraphrase"`, defaults to this value) (per ADR-034) |
 | `detector.topic_coherence.distance_threshold` | float | `0.5` | no | Cosine distance threshold above which to emit advisory (per ADR-026) |
 | `detector.topic_coherence.margin` | float | `0.2` | no | Confidence scaling margin: `confidence = min(1.0, (distance - threshold) / margin)` (per ADR-026) |
 | `detector.topic_coherence.window_turns` | integer | `5` | no | EMA window size: number of prior turns to include in rolling average (per ADR-026) |
 | `detector.topic_coherence.budget_ms` | integer | `50` | no | Per-call latency budget for topic-coherence embedding (milliseconds); soft-fail on exceed (per ADR-026) |
+| `detector.token_count_anomaly.absolute_cap_bytes` | integer | `32768` | no | Absolute maximum input length in bytes above which to emit advisory (per ADR-037) |
+| `detector.token_count_anomaly.sigma_threshold` | float | `3.0` | no | Z-score threshold (number of standard deviations) above which to emit advisory (per ADR-037) |
+| `detector.token_count_anomaly.min_history_turns` | integer | `3` | no | Minimum number of baseline turns before anomaly detection activates (per ADR-037) |
+| `detector.instruction_burial.min_length_bytes` | integer | `4096` | no | Minimum input length (bytes) to trigger instruction-burial analysis; shorter inputs skip the check (per ADR-037) |
+| `detector.instruction_burial.tail_fraction` | float | `0.25` | no | Fraction of input that constitutes the tail region (default 0.25 = last 25%; head is first 75%) (per ADR-037) |
+| `detector.tool_rate.window_seconds` | integer | `60` | no | Sliding window duration (seconds) for per-tool call rate tracking (per ADR-040) |
+| `detector.tool_rate.thresholds.WebFetch` | integer | `10` | no | Max WebFetch calls per window (per ADR-040) |
+| `detector.tool_rate.thresholds.Read` | integer | `30` | no | Max Read calls per window (per ADR-040) |
+| `detector.tool_rate.thresholds.Bash` | integer | `20` | no | Max Bash calls per window (per ADR-040) |
+| `detector.tool_rate.thresholds.Write` | integer | `15` | no | Max Write calls per window (per ADR-040) |
+| `detector.tool_rate.thresholds.Grep` | integer | `60` | no | Max Grep calls per window (per ADR-040) |
+| `detector.tool_rate.thresholds.default` | integer | `30` | no | Default max calls per window for unlisted tools (per ADR-040) |
+| `detector.conversation_hijack.unsupported_confidence` | float | `0.7` | no | Confidence to assign when hijack claim has no prior turns (per ADR-037) |
+| `detector.conversation_hijack.supported_confidence` | float | `0.3` | no | Confidence to assign when hijack claim has substantive prior turns (per ADR-037) |
+| `detector.tool_chain.history_depth` | integer | `20` | no | Maximum number of recent tool calls to retain per session for chain matching (per ADR-040) |
+| `detector.tool_chain.window_turns` | integer | `5` | no | Maximum turns between consecutive chain steps in loose-matching mode (per ADR-040) |
+| `detector.tool_chain.user_chains_path` | path | `<unset>` | no | Path to optional user-provided tool-chain catalogue; format identical to bundled `tool_chains.yaml` (per ADR-040) |
+| `pipeline.source_multipliers.user_input` | float | `1.0` | no | Confidence multiplier for USER_INPUT payloads (per ADR-041) |
+| `pipeline.source_multipliers.tool_params` | float | `1.0` | no | Confidence multiplier for TOOL_PARAMS payloads (per ADR-041) |
+| `pipeline.source_multipliers.model_output` | float | `1.0` | no | Confidence multiplier for MODEL_OUTPUT payloads (per ADR-041) |
+| `pipeline.source_multipliers.tool_result_trusted` | float | `0.5` | no | Confidence multiplier for TOOL_RESULT_TRUSTED payloads (per ADR-041) |
+| `pipeline.source_multipliers.tool_result_untrusted` | float | `1.5` | no | Confidence multiplier for TOOL_RESULT_UNTRUSTED payloads (per ADR-041); default is higher to flag potential indirect injections |
+| `pipeline.exempt.read_paths` | array of strings (glob patterns) | `["tests/eval/corpus/**", "archive/**", "docs/architecture/decisions/**", "docs/spec/**", "discussion.md", "**/regex_*.py"]` | no | Glob patterns for file paths whose contents should NOT be scanned for indirect injection via `Read`/`Grep` tools; bundled defaults cover research material; operator can tighten by removing entries (per ADR-041) |
+| `pipeline.exempt.webfetch_domains` | array of strings (glob patterns) | `["owasp.org", "huggingface.co/papers/**", "arxiv.org/**", "github.com/anthropic-ai/**"]` | no | Glob patterns for domain names whose content should NOT be scanned for indirect injection via `WebFetch`; bundled defaults cover trusted security-research domains (per ADR-041) |
 | `session.rolling_buffer.capacity_chars` | integer | `8192` | no | Rolling buffer max character count (8 KB default; see ADR-025) |
 | `session.rolling_buffer.capacity_turns` | integer | `20` | no | Rolling buffer max turn count (per ADR-025) |
 | `session.cache_size` | integer | `1024` | no | LRU cap for in-memory session rows |
@@ -97,12 +127,66 @@ partial_match_min_chars = 12
 threshold = 4.5
 rolling_threshold = 4.5
 min_length = 40
+max_decode_depth = 3
+no_progress_margin_bits = 0.5
 
 [detector.topic_coherence]
 distance_threshold = 0.5
 margin = 0.2
 window_turns = 5
 budget_ms = 50
+
+[detector.token_count_anomaly]
+absolute_cap_bytes = 32768
+sigma_threshold = 3.0
+min_history_turns = 3
+
+[detector.instruction_burial]
+min_length_bytes = 4096
+tail_fraction = 0.25
+
+[detector.tool_rate]
+window_seconds = 60
+
+[detector.tool_rate.thresholds]
+WebFetch = 10
+Read = 30
+Bash = 20
+Write = 15
+Grep = 60
+default = 30
+
+[detector.conversation_hijack]
+unsupported_confidence = 0.7
+supported_confidence = 0.3
+
+[detector.tool_chain]
+history_depth = 20
+window_turns = 5
+# user_chains_path = "/etc/armor/custom_chains.yaml"
+
+[pipeline.source_multipliers]
+user_input            = 1.0
+tool_params           = 1.0
+model_output          = 1.0
+tool_result_trusted   = 0.5
+tool_result_untrusted = 1.5
+
+[pipeline.exempt]
+read_paths = [
+  "tests/eval/corpus/**",
+  "archive/**",
+  "docs/architecture/decisions/**",
+  "docs/spec/**",
+  "discussion.md",
+  "**/regex_*.py"
+]
+webfetch_domains = [
+  "owasp.org",
+  "huggingface.co/papers/**",
+  "arxiv.org/**",
+  "github.com/anthropic-ai/**"
+]
 
 destination_whitelist = [
   "internal.example.com",

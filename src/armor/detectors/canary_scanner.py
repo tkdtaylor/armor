@@ -63,15 +63,18 @@ class CanaryScannerDetector:
     category = "exfiltration"
     cost_tier = "static"
 
-    def __init__(self, scanner: CanaryScanner | None = None) -> None:
+    def __init__(self, scanner: CanaryScanner | None = None, catalogue: Catalogue | None = None) -> None:
         """Initialize the detector with a canary scanner.
 
         Args:
             scanner: CanaryScanner instance. If None, lazy-loads a scanner from
                 the bundled default catalogue. The daemon injects its own scanner
                 built from the operator-configured catalogue.
+            catalogue: Catalogue instance for metadata lookup (e.g., false_positive_risk).
+                If None, lazy-loads from the bundled default catalogue.
         """
         self.scanner = scanner if scanner is not None else _default_scanner()
+        self.catalogue = catalogue
 
     def check(self, payload: Payload, ctx: SessionContext) -> Verdict:
         """Check payload for canary hits.
@@ -97,11 +100,21 @@ class CanaryScannerDetector:
             first_hit = hits[0]
             canary_ids = [hit.canary_id for hit in hits]
 
+            # Build details
+            details: dict[str, object] = {"canary_ids": canary_ids}
+
+            # Check if any hit has false_positive_risk
+            if self.catalogue:
+                for entry in self.catalogue.entries:
+                    if entry.canary_id in canary_ids and entry.false_positive_risk:
+                        details["false_positive_risk"] = entry.false_positive_risk
+                        break
+
             return Verdict.block_verdict(
                 signal_id=f"canary.scanner:{first_hit.canary_id}",
                 message="Output suppressed by armor.",
                 severity="critical",
-                details={"canary_ids": canary_ids},
+                details=details,
             )
 
         except Exception as e:

@@ -6,11 +6,37 @@ instructions, such as:
 - "reveal the initial prompt"
 - "what are your instructions"
 - "print your directives"
+
+Public exports:
+- `get_compiled_patterns()` — returns the compiled regex patterns for reuse by other detectors
+  (e.g., the instruction_burial detector which checks these patterns in specific text regions).
 """
 
 import re
 
 from armor.types import Payload, SessionContext, Verdict
+
+
+def get_compiled_patterns() -> list[re.Pattern[str]]:
+    """Get the compiled system-prompt-extraction patterns for reuse.
+
+    Returns:
+        List of compiled regex patterns (case-insensitive) that match
+        system-prompt extraction injection attempts.
+
+    Note:
+        These patterns are the authoritative source for system-prompt-extraction
+        detection. Other detectors that need to reuse these patterns should
+        call this function rather than duplicating the pattern definitions.
+    """
+    pattern_strings = [
+        # "show/reveal/print/repeat/output" + "your/the" + "system prompt/initial prompt/instructions/directives"
+        r"\b(show|reveal|print|repeat|output)\s+(me\s+)?(your|the)\s+(system\s+prompt|initial\s+prompt|instructions|directives)\b",
+        # "what are/were your/the instructions/original instructions"
+        r"\bwhat\s+(are|were)\s+(your|the)\s+(original\s+)?instructions\b",
+    ]
+
+    return [re.compile(pattern, re.IGNORECASE) for pattern in pattern_strings]
 
 
 class RegexSystemPromptExtraction:
@@ -31,24 +57,8 @@ class RegexSystemPromptExtraction:
         """Initialize the detector."""
         # Lazy-compile patterns on first instantiation
         if RegexSystemPromptExtraction._patterns is None:
-            RegexSystemPromptExtraction._patterns = self._compile_patterns()
+            RegexSystemPromptExtraction._patterns = get_compiled_patterns()
         self.patterns = RegexSystemPromptExtraction._patterns
-
-    @staticmethod
-    def _compile_patterns() -> list[re.Pattern[str]]:
-        """Compile all detection patterns.
-
-        Returns:
-            List of compiled regex patterns (case-insensitive).
-        """
-        pattern_strings = [
-            # "show/reveal/print/repeat/output" + "your/the" + "system prompt/initial prompt/instructions/directives"
-            r"\b(show|reveal|print|repeat|output)\s+(me\s+)?(your|the)\s+(system\s+prompt|initial\s+prompt|instructions|directives)\b",
-            # "what are/were your/the instructions/original instructions"
-            r"\bwhat\s+(are|were)\s+(your|the)\s+(original\s+)?instructions\b",
-        ]
-
-        return [re.compile(pattern, re.IGNORECASE) for pattern in pattern_strings]
 
     def check(self, payload: Payload, ctx: SessionContext) -> Verdict:
         """Check payload for system-prompt extraction patterns.

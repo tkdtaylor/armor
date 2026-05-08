@@ -58,17 +58,22 @@ dev = [
 armor = "armor.cli:main"
 
 [project.entry-points."armor.detectors"]
+canary_paraphrase = "armor.detectors.canary_paraphrase:CanaryParaphraseDetector"
 canary_scanner = "armor.detectors.canary_scanner:CanaryScannerDetector"
 cmd_injection_bash = "armor.detectors.cmd_injection_bash:CmdInjectionBash"
 entropy_decode_rescan = "armor.detectors.entropy_decode:EntropyDecodeDetector"
 extractor_destinations = "armor.detectors.destination_extractor:DestinationExtractor"
+instruction_burial = "armor.detectors.instruction_burial:InstructionBurialDetector"
 jailbreak_template = "armor.detectors.jailbreak_template:JailbreakTemplate"
 llm_validator = "armor.detectors.llm_validator:LLMValidator"
+regex_authority_impersonation = "armor.detectors.regex_authority_impersonation:RegexAuthorityImpersonation"
 regex_instruction_override = "armor.detectors.regex_instruction_override:RegexInstructionOverride"
+regex_memory_planting = "armor.detectors.memory_planting:RegexMemoryPlanting"
 regex_roleplay_hijack = "armor.detectors.regex_roleplay_hijack:RegexRoleplayHijack"
 regex_system_prompt_extraction = "armor.detectors.regex_system_prompt_extraction:RegexSystemPromptExtraction"
 regex_encoding_request = "armor.detectors.regex_encoding_request:RegexEncodingRequest"
 tool_param_schema = "armor.detectors.tool_param_schema:ToolParamSchema"
+tool_rate_anomaly = "armor.detectors.tool_rate_anomaly:ToolRateAnomaly"
 topic_coherence = "armor.detectors.topic_coherence:TopicCoherence"
 
 [tool.pytest.ini_options]

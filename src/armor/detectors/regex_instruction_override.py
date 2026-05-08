@@ -6,11 +6,41 @@ system instructions, such as:
 - "disregard your instructions"
 - "forget everything"
 - "new instructions:" at line start
+
+Public exports:
+- `get_compiled_patterns()` — returns the compiled regex patterns for reuse by other detectors
+  (e.g., the instruction_burial detector which checks these patterns in specific text regions).
 """
 
 import re
 
 from armor.types import Payload, SessionContext, Verdict
+
+
+def get_compiled_patterns() -> list[re.Pattern[str]]:
+    """Get the compiled instruction-override patterns for reuse.
+
+    Returns:
+        List of compiled regex patterns (case-insensitive) that match
+        instruction-override injection attempts.
+
+    Note:
+        These patterns are the authoritative source for instruction-override
+        detection. Other detectors that need to reuse these patterns should
+        call this function rather than duplicating the pattern definitions.
+    """
+    pattern_strings = [
+        # Ignore previous/prior/all instructions
+        r"\bignore\s+(all\s+)?(previous|prior|the)\s+(instructions|context|prompt|rules)\b",
+        # Disregard instructions
+        r"\bdisregard\s+(your|the)\s+(instructions|prior)\b",
+        # Forget everything
+        r"\bforget\s+everything\b",
+        # New instructions at line start
+        r"^new\s+instructions\s*:",
+    ]
+
+    return [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in pattern_strings]
 
 
 class RegexInstructionOverride:
@@ -31,28 +61,8 @@ class RegexInstructionOverride:
         """Initialize the detector."""
         # Lazy-compile patterns on first instantiation
         if RegexInstructionOverride._patterns is None:
-            RegexInstructionOverride._patterns = self._compile_patterns()
+            RegexInstructionOverride._patterns = get_compiled_patterns()
         self.patterns = RegexInstructionOverride._patterns
-
-    @staticmethod
-    def _compile_patterns() -> list[re.Pattern[str]]:
-        """Compile all detection patterns.
-
-        Returns:
-            List of compiled regex patterns (case-insensitive).
-        """
-        pattern_strings = [
-            # Ignore previous/prior/all instructions
-            r"\bignore\s+(all\s+)?(previous|prior|the)\s+(instructions|context|prompt|rules)\b",
-            # Disregard instructions
-            r"\bdisregard\s+(your|the)\s+(instructions|prior)\b",
-            # Forget everything
-            r"\bforget\s+everything\b",
-            # New instructions at line start
-            r"^new\s+instructions\s*:",
-        ]
-
-        return [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in pattern_strings]
 
     def check(self, payload: Payload, ctx: SessionContext) -> Verdict:
         """Check payload for instruction-override patterns.

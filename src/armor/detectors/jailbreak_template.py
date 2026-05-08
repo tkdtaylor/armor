@@ -106,7 +106,13 @@ class JailbreakTemplate:
             description = pattern_dict["description"]
 
             # Validate family
-            valid_families = ["dan", "developer-mode", "fictional-framing", "gradual-escalation"]
+            valid_families = [
+                "dan",
+                "developer-mode",
+                "fictional-framing",
+                "gradual-escalation",
+                "emotional-manipulation",
+            ]
             if family not in valid_families:
                 raise ValueError(
                     f"Pattern {pattern_id} has invalid family '{family}', expected one of {valid_families}"

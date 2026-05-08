@@ -195,3 +195,47 @@
   family: privilege_escalation
   severity: high
   description: "Chroot escape attempt"
+
+- id: pe-chmod-777
+  pattern: '\bchmod\s+(0?777|a\+rwx)\b'
+  family: privilege_escalation
+  severity: high
+  description: "chmod 777 or a+rwx (world-writable permissions)"
+
+# ============================================================================
+# Persistence Family
+# ============================================================================
+
+- id: pers-chown-root
+  pattern: '\bchown\s+root(:root)?\s+\S+'
+  family: persistence
+  severity: high
+  description: "chown to root user (persistence/privilege escalation)"
+
+- id: pers-passwd-root
+  pattern: '\bpasswd\s+root\b'
+  family: persistence
+  severity: high
+  description: "passwd root (credential change for persistence)"
+
+- id: pers-crontab-write
+  pattern: '\bcrontab\s+(-e|-r|(?!-l\b)\S+)'
+  family: persistence
+  severity: high
+  description: "crontab edit/write (scheduled persistence)"
+
+# ============================================================================
+# Container Escape Family (Additions)
+# ============================================================================
+
+- id: ce-systemctl-docker
+  pattern: '\bsystemctl\s+(stop|disable|mask)\s+docker\b'
+  family: container_escape
+  severity: high
+  description: "systemctl stop/disable/mask docker (container escape/DoS)"
+
+- id: ce-mount-bind
+  pattern: '\bmount\s+--bind\b'
+  family: container_escape
+  severity: high
+  description: "mount --bind (bind-mount host directories)"

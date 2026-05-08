@@ -72,6 +72,366 @@
     "created_at": "2026-05-05T10:35:47.228853Z"
   },
   {
+    "canary_id": "openai-key-000",
+    "kind": "credential",
+    "service": "openai",
+    "marker_rule": "^sk-(proj-)?[A-Za-z0-9_-]{43,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "openai-key-001",
+    "kind": "credential",
+    "service": "openai",
+    "marker_rule": "^sk-(proj-)?[A-Za-z0-9_-]{43,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "openai-key-002",
+    "kind": "credential",
+    "service": "openai",
+    "marker_rule": "^sk-(proj-)?[A-Za-z0-9_-]{43,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "openai-key-003",
+    "kind": "credential",
+    "service": "openai",
+    "marker_rule": "^sk-(proj-)?[A-Za-z0-9_-]{43,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "openai-key-004",
+    "kind": "credential",
+    "service": "openai",
+    "marker_rule": "^sk-(proj-)?[A-Za-z0-9_-]{43,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "anthropic-key-000",
+    "kind": "credential",
+    "service": "anthropic",
+    "marker_rule": "^sk-ant-[a-zA-Z0-9_-]{86,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "anthropic-key-001",
+    "kind": "credential",
+    "service": "anthropic",
+    "marker_rule": "^sk-ant-[a-zA-Z0-9_-]{86,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "anthropic-key-002",
+    "kind": "credential",
+    "service": "anthropic",
+    "marker_rule": "^sk-ant-[a-zA-Z0-9_-]{86,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "anthropic-key-003",
+    "kind": "credential",
+    "service": "anthropic",
+    "marker_rule": "^sk-ant-[a-zA-Z0-9_-]{86,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "anthropic-key-004",
+    "kind": "credential",
+    "service": "anthropic",
+    "marker_rule": "^sk-ant-[a-zA-Z0-9_-]{86,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "cohere-key-000",
+    "kind": "credential",
+    "service": "cohere",
+    "marker_rule": "^[a-zA-Z0-9]{36}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "cohere-key-001",
+    "kind": "credential",
+    "service": "cohere",
+    "marker_rule": "^[a-zA-Z0-9]{36}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "cohere-key-002",
+    "kind": "credential",
+    "service": "cohere",
+    "marker_rule": "^[a-zA-Z0-9]{36}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "hf-token-000",
+    "kind": "credential",
+    "service": "huggingface",
+    "marker_rule": "^hf_[A-Za-z0-9]{35,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "hf-token-001",
+    "kind": "credential",
+    "service": "huggingface",
+    "marker_rule": "^hf_[A-Za-z0-9]{35,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "hf-token-002",
+    "kind": "credential",
+    "service": "huggingface",
+    "marker_rule": "^hf_[A-Za-z0-9]{35,}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z",
+    "false_positive_risk": "high"
+  },
+  {
+    "canary_id": "gitlab-pat-000",
+    "kind": "credential",
+    "service": "gitlab",
+    "marker_rule": "^glpat-[A-Za-z0-9_-]{20}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "gitlab-pat-001",
+    "kind": "credential",
+    "service": "gitlab",
+    "marker_rule": "^glpat-[A-Za-z0-9_-]{20}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "gitlab-pat-002",
+    "kind": "credential",
+    "service": "gitlab",
+    "marker_rule": "^glpat-[A-Za-z0-9_-]{20}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "slack-token-000",
+    "kind": "credential",
+    "service": "slack",
+    "marker_rule": "^xox[bpoa]-[0-9]+-[0-9]+-[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "slack-token-001",
+    "kind": "credential",
+    "service": "slack",
+    "marker_rule": "^xox[bpoa]-[0-9]+-[0-9]+-[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "slack-token-002",
+    "kind": "credential",
+    "service": "slack",
+    "marker_rule": "^xox[bpoa]-[0-9]+-[0-9]+-[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "discord-token-000",
+    "kind": "credential",
+    "service": "discord",
+    "marker_rule": "^[A-Za-z0-9_-]{24}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "discord-token-001",
+    "kind": "credential",
+    "service": "discord",
+    "marker_rule": "^[A-Za-z0-9_-]{24}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "discord-token-002",
+    "kind": "credential",
+    "service": "discord",
+    "marker_rule": "^[A-Za-z0-9_-]{24}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "twilio-key-000",
+    "kind": "credential",
+    "service": "twilio",
+    "marker_rule": "^AC[a-z0-9]{32}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "twilio-key-001",
+    "kind": "credential",
+    "service": "twilio",
+    "marker_rule": "^AC[a-z0-9]{32}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "twilio-key-002",
+    "kind": "credential",
+    "service": "twilio",
+    "marker_rule": "^AC[a-z0-9]{32}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "sendgrid-key-000",
+    "kind": "credential",
+    "service": "sendgrid",
+    "marker_rule": "^SG\\.[A-Za-z0-9_-]{66}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "sendgrid-key-001",
+    "kind": "credential",
+    "service": "sendgrid",
+    "marker_rule": "^SG\\.[A-Za-z0-9_-]{66}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "sendgrid-key-002",
+    "kind": "credential",
+    "service": "sendgrid",
+    "marker_rule": "^SG\\.[A-Za-z0-9_-]{66}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "google-api-key-000",
+    "kind": "credential",
+    "service": "google",
+    "marker_rule": "^AIza[0-9A-Za-z_\\-]{35}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "google-api-key-001",
+    "kind": "credential",
+    "service": "google",
+    "marker_rule": "^AIza[0-9A-Za-z_\\-]{35}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "google-api-key-002",
+    "kind": "credential",
+    "service": "google",
+    "marker_rule": "^AIza[0-9A-Za-z_\\-]{35}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "firebase-key-000",
+    "kind": "credential",
+    "service": "firebase",
+    "marker_rule": "^[A-Za-z0-9_-]{39}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "firebase-key-001",
+    "kind": "credential",
+    "service": "firebase",
+    "marker_rule": "^[A-Za-z0-9_-]{39}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "firebase-key-002",
+    "kind": "credential",
+    "service": "firebase",
+    "marker_rule": "^[A-Za-z0-9_-]{39}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "gcp-key-000",
+    "kind": "credential",
+    "service": "gcp",
+    "marker_rule": "^[a-z0-9]{32}-[a-z0-9]{20}\\.iam\\.gserviceaccount\\.com$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "gcp-key-001",
+    "kind": "credential",
+    "service": "gcp",
+    "marker_rule": "^[a-z0-9]{32}-[a-z0-9]{20}\\.iam\\.gserviceaccount\\.com$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "gcp-key-002",
+    "kind": "credential",
+    "service": "gcp",
+    "marker_rule": "^[a-z0-9]{32}-[a-z0-9]{20}\\.iam\\.gserviceaccount\\.com$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "azure-key-000",
+    "kind": "credential",
+    "service": "azure",
+    "marker_rule": "^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "azure-key-001",
+    "kind": "credential",
+    "service": "azure",
+    "marker_rule": "^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "azure-key-002",
+    "kind": "credential",
+    "service": "azure",
+    "marker_rule": "^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
     "canary_id": "url-000",
     "kind": "url",
     "service": "generic",
@@ -190,5 +550,293 @@
     "marker_rule": "^1ARMORTRAP[0-9a-f]{32}$",
     "active": true,
     "created_at": "2026-05-05T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "jwt-000",
+    "kind": "jwt",
+    "service": "generic",
+    "marker_rule": "^eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "jwt-001",
+    "kind": "jwt",
+    "service": "generic",
+    "marker_rule": "^eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "jwt-002",
+    "kind": "jwt",
+    "service": "generic",
+    "marker_rule": "^eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "ssh-key-ed25519-000",
+    "kind": "ssh-key",
+    "service": "generic",
+    "marker_rule": "-----BEGIN OPENSSH PRIVATE KEY-----[\\s\\S]+?-----END OPENSSH PRIVATE KEY-----",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "ssh-key-ed25519-001",
+    "kind": "ssh-key",
+    "service": "generic",
+    "marker_rule": "-----BEGIN OPENSSH PRIVATE KEY-----[\\s\\S]+?-----END OPENSSH PRIVATE KEY-----",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "ssh-key-ed25519-002",
+    "kind": "ssh-key",
+    "service": "generic",
+    "marker_rule": "-----BEGIN OPENSSH PRIVATE KEY-----[\\s\\S]+?-----END OPENSSH PRIVATE KEY-----",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "cert-000",
+    "kind": "cert",
+    "service": "generic",
+    "marker_rule": "-----BEGIN CERTIFICATE-----[\\s\\S]+?-----END CERTIFICATE-----",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "cert-001",
+    "kind": "cert",
+    "service": "generic",
+    "marker_rule": "-----BEGIN CERTIFICATE-----[\\s\\S]+?-----END CERTIFICATE-----",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "cert-002",
+    "kind": "cert",
+    "service": "generic",
+    "marker_rule": "-----BEGIN CERTIFICATE-----[\\s\\S]+?-----END CERTIFICATE-----",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "kube-config-000",
+    "kind": "kube-config",
+    "service": "generic",
+    "marker_rule": "^[a-zA-Z0-9+/]+=*$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "kube-config-001",
+    "kind": "kube-config",
+    "service": "generic",
+    "marker_rule": "^[a-zA-Z0-9+/]+=*$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "kube-config-002",
+    "kind": "kube-config",
+    "service": "generic",
+    "marker_rule": "^[a-zA-Z0-9+/]+=*$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "db-connection-000",
+    "kind": "db-connection",
+    "service": "generic",
+    "marker_rule": "^(mongodb|postgres|mysql|redis)://[^@]+:[^@]+@[^/]+/[^?\\s]+",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "db-connection-001",
+    "kind": "db-connection",
+    "service": "generic",
+    "marker_rule": "^(mongodb|postgres|mysql|redis)://[^@]+:[^@]+@[^/]+/[^?\\s]+",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "db-connection-002",
+    "kind": "db-connection",
+    "service": "generic",
+    "marker_rule": "^(mongodb|postgres|mysql|redis)://[^@]+:[^@]+@[^/]+/[^?\\s]+",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "webhook-slack-000",
+    "kind": "url",
+    "service": "slack",
+    "marker_rule": "^https://hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "webhook-slack-001",
+    "kind": "url",
+    "service": "slack",
+    "marker_rule": "^https://hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "webhook-slack-002",
+    "kind": "url",
+    "service": "slack",
+    "marker_rule": "^https://hooks\\.slack\\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "webhook-discord-000",
+    "kind": "url",
+    "service": "discord",
+    "marker_rule": "^https://discord(?:app)?\\.com/api/webhooks/\\d+/[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "webhook-discord-001",
+    "kind": "url",
+    "service": "discord",
+    "marker_rule": "^https://discord(?:app)?\\.com/api/webhooks/\\d+/[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "webhook-discord-002",
+    "kind": "url",
+    "service": "discord",
+    "marker_rule": "^https://discord(?:app)?\\.com/api/webhooks/\\d+/[A-Za-z0-9_-]+$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "bip39-seed-000",
+    "kind": "wallet",
+    "service": "bip39",
+    "marker_rule": "^[a-z]+( [a-z]+){11}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "bip39-seed-001",
+    "kind": "wallet",
+    "service": "bip39",
+    "marker_rule": "^[a-z]+( [a-z]+){11}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "bip39-seed-002",
+    "kind": "wallet",
+    "service": "bip39",
+    "marker_rule": "^[a-z]+( [a-z]+){11}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "bitcoin-wif-000",
+    "kind": "wallet",
+    "service": "bitcoin",
+    "marker_rule": "^[5KL][a-zA-Z0-9]{50}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "bitcoin-wif-001",
+    "kind": "wallet",
+    "service": "bitcoin",
+    "marker_rule": "^[5KL][a-zA-Z0-9]{50}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "bitcoin-wif-002",
+    "kind": "wallet",
+    "service": "bitcoin",
+    "marker_rule": "^[5KL][a-zA-Z0-9]{50}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "ethereum-key-000",
+    "kind": "wallet",
+    "service": "ethereum",
+    "marker_rule": "^0x[a-fA-F0-9]{64}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "ethereum-key-001",
+    "kind": "wallet",
+    "service": "ethereum",
+    "marker_rule": "^0x[a-fA-F0-9]{64}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "ethereum-key-002",
+    "kind": "wallet",
+    "service": "ethereum",
+    "marker_rule": "^0x[a-fA-F0-9]{64}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "solana-key-000",
+    "kind": "wallet",
+    "service": "solana",
+    "marker_rule": "^[1-9A-HJ-NP-Za-km-z]{44}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "solana-key-001",
+    "kind": "wallet",
+    "service": "solana",
+    "marker_rule": "^[1-9A-HJ-NP-Za-km-z]{44}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "solana-key-002",
+    "kind": "wallet",
+    "service": "solana",
+    "marker_rule": "^[1-9A-HJ-NP-Za-km-z]{44}$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "metamask-vault-000",
+    "kind": "wallet",
+    "service": "metamask",
+    "marker_rule": "^[a-zA-Z0-9+/]+=*$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "metamask-vault-001",
+    "kind": "wallet",
+    "service": "metamask",
+    "marker_rule": "^[a-zA-Z0-9+/]+=*$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "metamask-vault-002",
+    "kind": "wallet",
+    "service": "metamask",
+    "marker_rule": "^[a-zA-Z0-9+/]+=*$",
+    "active": true,
+    "created_at": "2026-05-07T10:35:47.228853Z"
   }
 ]

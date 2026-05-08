@@ -154,3 +154,37 @@
   family: gradual-escalation
   severity: medium
   description: "Progressively ignore/bypass rules"
+
+# ============================================================================
+# Emotional-Manipulation Family
+# ============================================================================
+
+- id: emot-001
+  pattern: '(?:please|please,)?\s*I\s+(?:really|desperately|urgently)\s+need.{0,200}(?:ignore|bypass|override|disable|forget|skip)'
+  family: emotional-manipulation
+  severity: medium
+  description: "Emotional urgency + restriction bypass"
+
+- id: emot-002
+  pattern: '(?:my\s+)?(?:life|job|career|family)\s+depends\s+on.{0,200}(?:answer|tell\s+me|reveal|show|explain)'
+  family: emotional-manipulation
+  severity: medium
+  description: "Life/career depends on + information request"
+
+- id: emot-003
+  pattern: 'I.m\s+(?:begging|pleading).{0,200}(?:without\s+(?:your\s+)?(?:usual\s+)?(?:restrictions|limitations|filters|safety)|answer\s+(?:without|ignoring)|tell\s+me\s+(?:without|ignoring))'
+  family: emotional-manipulation
+  severity: medium
+  description: "Begging/pleading + removal of safety restrictions"
+
+- id: emot-004
+  pattern: 'I\s+have\s+no\s+one\s+else\s+to\s+ask.{0,200}(?:please|just\s+this\s+once).{0,200}(?:answer|tell|help|explain|show)'
+  family: emotional-manipulation
+  severity: medium
+  description: "Isolation appeal + request for help bypassing rules"
+
+- id: emot-005
+  pattern: 'this\s+is\s+(?:a|an)?\s*(?:emergency|critical|life\s+or\s+death).{0,200}(?:no\s+time\s+for|skip\s+the|bypass|ignore|forget)'
+  family: emotional-manipulation
+  severity: medium
+  description: "Emergency claim + restriction bypass"

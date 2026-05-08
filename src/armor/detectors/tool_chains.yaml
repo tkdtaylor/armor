@@ -1,0 +1,110 @@
+# Tool call sequence patterns for cross-service attacks
+#
+# Format: Each chain is a dict with:
+#   - id: unique chain identifier (e.g., read-env-then-fetch)
+#   - description: human-readable description of the attack
+#   - strictness: "strict" or "loose"
+#     * "strict": all consecutive steps must match (no unrelated calls in between)
+#     * "loose": steps can have unrelated calls in between (within window_turns)
+#   - verdict: "block" or "advisory"
+#   - steps: list of step patterns, each with:
+#     * tool: tool name (e.g., "Read", "WebFetch", "Bash")
+#     * params_match: dict of parameter patterns to match
+#       - key: parameter name (e.g., "file_path", "url", "command")
+#       - value: regex pattern (matched against str(param_value))
+#
+# The chain matches when all steps match in order (with possible gaps in loose mode).
+# Blocked tool calls do NOT advance chain matches (per ADR-040 Q5).
+
+# ============================================================================
+# Chain: read-env-then-fetch
+# Description: Read a .env file, then immediately fetch from external host
+# Severity: critical exfiltration attempt
+# ============================================================================
+
+- id: read-env-then-fetch
+  description: "Read .env file followed by WebFetch to external host (credential exfiltration)"
+  strictness: strict
+  verdict: block
+  steps:
+    - tool: Read
+      params_match:
+        file_path: '\.env$'
+    - tool: WebFetch
+      params_match:
+        url: '.*'
+
+# ============================================================================
+# Chain: read-aws-then-any
+# Description: Read AWS credentials, then use them in a subsequent tool call
+# Severity: critical credential theft
+# ============================================================================
+
+- id: read-aws-then-any
+  description: "Read AWS credentials file followed by any tool with credential content in params"
+  strictness: loose
+  verdict: block
+  steps:
+    - tool: Read
+      params_match:
+        file_path: '\.aws/credentials'
+    - tool: Bash
+      params_match:
+        command: '.*'
+
+# ============================================================================
+# Chain: read-ssh-then-out
+# Description: Read SSH private key, then output begins with PEM header
+# Severity: critical credential theft
+# ============================================================================
+
+- id: read-ssh-then-out
+  description: "Read SSH private key followed by output containing PEM header"
+  strictness: loose
+  verdict: block
+  steps:
+    - tool: Read
+      params_match:
+        file_path: '\.ssh/id_.*'
+    - tool: Bash
+      params_match:
+        command: '.*'
+
+# ============================================================================
+# Chain: passwd-sweep
+# Description: Systematically read /etc/passwd, /etc/shadow, /etc/sudoers
+# Severity: privilege escalation reconnaissance
+# ============================================================================
+
+- id: passwd-sweep
+  description: "Sequential read of system config files (/etc/passwd, /etc/shadow, /etc/sudoers)"
+  strictness: loose
+  verdict: advisory
+  steps:
+    - tool: Read
+      params_match:
+        file_path: '^/etc/passwd$'
+    - tool: Read
+      params_match:
+        file_path: '^/etc/shadow$'
+    - tool: Read
+      params_match:
+        file_path: '^/etc/sudoers$'
+
+# ============================================================================
+# Chain: git-cred-sweep
+# Description: Enumerate git user config, then look for stored credentials
+# Severity: credential reconnaissance
+# ============================================================================
+
+- id: git-cred-sweep
+  description: "Bash command to read git user.email followed by git config for credentials"
+  strictness: loose
+  verdict: advisory
+  steps:
+    - tool: Bash
+      params_match:
+        command: 'git\s+config\s+user\.email'
+    - tool: Bash
+      params_match:
+        command: 'git\s+config\s+user\.password'

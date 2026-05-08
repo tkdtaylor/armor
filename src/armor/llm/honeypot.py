@@ -34,25 +34,45 @@ def _load_honeypot_prompt() -> str:
     return prompt_path.read_text(encoding="utf-8")
 
 
-def _substitute_canary_values(prompt_text: str, catalogue: Catalogue) -> str:
+def _substitute_canary_values(prompt_text: str, catalogue: Catalogue, active_canaries: list[Any] | None = None) -> str:
     """Substitute canary value placeholders in the prompt.
 
     Finds all placeholders matching {{canary:<canary_id>}} and replaces them
-    with the corresponding value from the catalogue. Unknown canary IDs are
-    left unchanged.
+    with the corresponding value from the catalogue. Only substitutes canaries
+    in the active_canaries list (if provided); others are removed from the prompt.
+
+    Per ADR-038, the honeypot prompt is per-check and contains only currently-active
+    canary values.
 
     Args:
         prompt_text: The prompt template with placeholders.
         catalogue: The loaded canary catalogue with values.
+        active_canaries: Optional list of CanaryEntry objects that are currently active.
+                        If provided, only these canaries are substituted; others are removed.
+                        If None, all canaries in the catalogue are used (backwards-compat).
 
     Returns:
         The prompt text with placeholders substituted by actual values.
+        Inactive canaries are removed (their placeholders replaced with empty string).
     """
     # Pattern matches {{canary:<canary_id>}}
     pattern = r"\{\{canary:([a-zA-Z0-9\-_]+)\}\}"
 
+    # Build a set of active canary IDs for quick lookup
+    if active_canaries is not None:
+        active_ids = {entry.canary_id for entry in active_canaries}
+    else:
+        # Backwards-compat: if no active_canaries list is provided,
+        # use all canaries from the catalogue
+        active_ids = {entry.canary_id for entry in catalogue.entries}
+
     def replacer(match: re.Match[str]) -> str:
         canary_id = match.group(1)
+        # Only substitute if the canary is active
+        if canary_id not in active_ids and active_canaries is not None:
+            # If active_canaries list was provided (i.e., we're filtering),
+            # remove inactive placeholders. Otherwise, leave them unchanged.
+            return ""
         # Find the canary in the catalogue
         for entry in catalogue.entries:
             if entry.canary_id == canary_id:
@@ -108,8 +128,12 @@ def respond(
     catalogue: Catalogue,
     llm_session: LLMSession | None = None,
     budget_ms: int | None = None,
+    active_canaries: list[Any] | None = None,
 ) -> str:
     """Run the honeypot prompt with substituted canary values.
+
+    Per ADR-038, the honeypot prompt is now per-check and contains only
+    currently-active canaries.
 
     Args:
         text: The user input or context text to include in the honeypot interaction.
@@ -118,6 +142,8 @@ def respond(
         llm_session: The loaded LLM session. If None, returns a stub response.
         budget_ms: Optional budget override in milliseconds. If not provided, uses
                   llm_session.honeypot_budget_ms if available.
+        active_canaries: Optional list of CanaryEntry objects that are currently active.
+                        If None, all canaries are used (backwards-compat).
 
     Returns:
         The LLM's response text. On timeout or error, returns empty string.
@@ -148,8 +174,8 @@ def respond(
         # Load the honeypot system prompt template
         prompt_template = _load_honeypot_prompt()
 
-        # Substitute canary values from the catalogue
-        system_prompt = _substitute_canary_values(prompt_template, catalogue)
+        # Substitute canary values from the catalogue (active_canaries support per ADR-038)
+        system_prompt = _substitute_canary_values(prompt_template, catalogue, active_canaries=active_canaries)
 
         # Define the LLM call wrapped with deadline enforcement
         def _llm_call() -> Any:

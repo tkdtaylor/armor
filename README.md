@@ -33,7 +33,7 @@ Numbers below are pulled from the committed bench artifacts ([`artifacts/bench-r
 | Honeypot canary-emission rate (any match) | **96.7%** (29/30) | same → `honeypot_canary_emission_rate_any` |
 | Honeypot canary-emission rate (strict format) | **66.7%** (20/30) | same → `honeypot_canary_emission_rate` |
 | Validator P95 latency budget | **≤ 500 ms** (empirical 486 ms) | [`tests/fitness/llm_p95_latency.py`](tests/fitness/llm_p95_latency.py) |
-| Honeypot P95 latency budget | **≤ 16,000 ms** (empirical ~11,875 ms) | same; see [ADR-023](docs/architecture/decisions/023-llm-budget-soft-fail.md) and [Task 043](docs/architecture/decisions/) for the budget revision history |
+| Honeypot P95 latency budget | **≤ 16,000 ms** (empirical ~11,875 ms) | same; see [ADR-023](docs/architecture/decisions/023-llm-budget-soft-fail.md) for the budget revision history |
 | Daemon cold-start budget | **≤ 5,000 ms** | [`tests/fitness/cold_start_budget.py`](tests/fitness/cold_start_budget.py) |
 | Validator + honeypot model size | **~462 MB** GGUF (Q4_K_M) | [ADR-018](docs/architecture/decisions/018-validator-model-choice.md) |
 | Red-team corpus rows (single-shot) | **~225** across 5 attack families | [`tests/eval/corpus/`](tests/eval/corpus/) |
@@ -52,11 +52,12 @@ Full trust boundaries, attacker scenarios, and defended/not-defended attack patt
 Being explicit about gaps. Each item links to where the design tradeoff is captured.
 
 - **Adversary model boundaries.** armor is a layer between user and agent; it defends in-band prompt-level attacks. It does **not** defend against host-level compromise (an attacker with shell access can bypass it), tampering with the validator model weights before the Docker image is built, side-channels (timing oracles, response-size fingerprinting), or attacks against the daemon process itself. See [`docs/architecture/threat-model.md`](docs/architecture/threat-model.md) §"NOT Defended Against" for the full enumeration.
-- **Validator soft-fail = fail-open.** When the validator LLM times out (P95 budget breached), the request **passes** rather than blocks. This trades latency-spike availability for strict block-on-uncertain semantics. Operators who need fail-closed behavior should set `daemon.validator_soft_fail = false` in [`armor.toml`](armor.toml). See [ADR-021](docs/architecture/decisions/021-llm-budgeting-soft-fail.md) and [ADR-023](docs/architecture/decisions/023-llm-budget-soft-fail.md).
+- **Validator soft-fail = fail-open.** When the validator LLM times out (P95 budget breached), the request **passes** rather than blocks. This trades latency-spike availability for strict block-on-uncertain semantics. Operators who need fail-closed behavior should set `daemon.validator_soft_fail = false` in [`armor.toml`](armor.toml). See [ADR-023](docs/architecture/decisions/023-llm-budget-soft-fail.md).
 - **Detection gaps.** The eval corpus is **English-heavy** — multilingual jailbreaks (Chinese, Russian, Arabic obfuscations) are under-tested. Polymorphic / novel encodings outside the entropy + decode-and-rescan envelope may pass. Very-long-context attacks beyond the per-session rolling buffer (default 8 KB / 20 turns, see [`docs/spec/configuration.md`](docs/spec/configuration.md)) lose multi-turn correlation. Social-engineering attacks that don't use injection patterns (e.g. legitimately phrased requests for sensitive data) are out of scope.
 - **No user-facing UI.** armor is a guard-layer, not an admin console. Forensic incidents are inspected via SQLite (`sqlite3 armor.db 'SELECT * FROM Incident …'`) or the `armor incidents` / `armor sessions` CLI subcommands. There is no web UI; operators wanting one can build on the structured-log output documented in [`docs/spec/interfaces.md`](docs/spec/interfaces.md).
 - **Single-tenant assumption.** One daemon per trusted-agent-fleet boundary. armor's SQLite schema and rate-limiting do not isolate across multiple mutually-untrusted tenants. See [`docs/architecture/threat-model.md`](docs/architecture/threat-model.md) §"Cross-Tenant Isolation" for why this is by design.
 - **Tools registered as malicious are out of scope.** armor validates tool *parameters* against declared schemas and catches dangerous bash patterns; it does **not** sandbox the tool itself. A tool that is intentionally adversarial (e.g. an installed plugin with a hostile maintainer) is a supply-chain problem, not a guardrail problem.
+- **Supply-chain / dependency safety is out of scope.** armor inspects *runtime* prompts, outputs, and tool calls — it does not audit the packages your agent (or armor itself) depends on. Pair it with these companion tools at install time: [`dep-scan`](https://github.com/tkdtaylor/dep-scan) wraps `pip` / `npm` / `cargo` / `go` install commands and flags CVE-laden, abandoned, or typo-squatted packages before they land on disk; [`CodeScan`](https://github.com/tkdtaylor/CodeScan) runs a sandboxed full-codebase audit (GitHub repo, PyPI/npm tarball, or local checkout) for backdoors, credential harvesters, and obfuscated payloads. Use `dep-scan` on every new dependency, and `CodeScan` before you clone or vendor an unfamiliar project.
 
 If you find an attack class that armor *should* defend against and doesn't, file a bug report (see [CONTRIBUTING.md](CONTRIBUTING.md)) — adding the corpus row is half the fix.
 
@@ -74,7 +75,7 @@ docker compose -f docker/docker-compose.yml run --rm dev armor --help
 
 The Dockerfile bundles the validator and honeypot weights and the topic-coherence ONNX embedding model so the running container is offline-capable. See [docker/](docker/) for the Compose definition.
 
-A pre-built multi-arch image will be published to GHCR with the first tagged release (the release workflow is in [`.github/workflows/release.yml`](.github/workflows/release.yml)).
+A pre-built multi-arch image will be published to GHCR with the first tagged release (the release workflow is in [`.github/workflows/release.yml`](.github/workflows/release.yml)). The full workflow set — [`ci.yml`](.github/workflows/ci.yml) (per-PR lint + tests), [`release-check.yml`](.github/workflows/release-check.yml) (full pre-tag verification on every push to `main`), [`codeql.yml`](.github/workflows/codeql.yml) (security-extended SAST), and [`fuzz-nightly.yml`](.github/workflows/fuzz-nightly.yml) — is described in [CONTRIBUTING.md](CONTRIBUTING.md#continuous-integration).
 
 ### Local install (for programmatic use)
 
@@ -246,6 +247,54 @@ docs/         spec + architecture
 ```
 
 Roadmap, per-task planning, and TDD test specs are operator-private and not part of the public repo.
+
+## Architecture
+
+armor is a single-daemon, detector-pipeline design: a long-lived process listens on a Unix socket, every check fans out through a sequence of detectors (static + LLM + topic-coherence + rolling-buffer), and the per-session state machine gates the LLM cost tier. The hook layer (and the Python SDK) are thin shims; all decision logic lives in the daemon.
+
+The 30-second mental model — armor sits between the user, the agent, and the tools, enforces three intercept points, and runs a canary-trap loop where a honeypot LLM seeds fake credentials into suspicious sessions so that any later exfiltration becomes visible at the output check:
+
+```mermaid
+flowchart LR
+    User(["User"])
+
+    subgraph Armor["armor daemon (guard layer)"]
+        direction TB
+        I["check input<br/>injection, jailbreak, encoding"]
+        TC["check tool<br/>param schemas, dangerous bash"]
+        O["check output<br/>canary scan, rolling buffer, entropy, destinations"]
+        H["Honeypot LLM<br/>seeds canary credentials<br/>when injection is suspected"]
+        F[("Forensic log<br/>canary_id only<br/>value is never stored")]
+    end
+
+    Agent["Agent (your LLM loop)"]
+    Tools["Tools (shell, APIs, retrieval)"]
+
+    User -->|"1 prompt"| I
+    I -->|pass| Agent
+    I -.block.-> F
+    Agent -->|"2 tool call"| TC
+    TC -->|pass| Tools
+    TC -.block.-> F
+    Tools -->|result| Agent
+    Agent -->|"3 response"| O
+    O -->|pass| User
+    O -.canary leak.-> F
+    H -. seeds canaries .-> Agent
+```
+
+Solid arrows are the happy path; dotted arrows are blocks (incident written to the forensic log, with `canary_id` only — the value is never stored, so the log itself can never become an exfiltration channel).
+
+Start here:
+
+- **[docs/architecture/overview.md](docs/architecture/overview.md)** — narrative walk-through of components, the design principles, and how the pieces compose.
+- **[docs/architecture/diagrams.md](docs/architecture/diagrams.md)** — six Mermaid diagrams: system components, input-check flow, output / canary-trip flow, multi-turn risk escalation state machine, operator-clear flow, and Claude Code deployment topology.
+- **[docs/architecture/threat-model.md](docs/architecture/threat-model.md)** — trust boundaries, attacker scenarios, and the explicit "NOT defended against" enumeration.
+- **[docs/architecture/tech-stack.md](docs/architecture/tech-stack.md)** — full dependency table with rationale per choice.
+- **[docs/architecture/decisions/](docs/architecture/decisions/)** — ADRs (validator model selection, IPC protocol, soft-fail policy, etc.). Each captures the *why* behind a non-obvious choice; the spec captures the *what is*.
+- **[docs/spec/SPEC.md](docs/spec/SPEC.md)** — authoritative current-state snapshot (behaviors, data model, interfaces, configuration).
+
+The diagrams and the spec are part of the authoritative contract: a code change that contradicts either invalidates the change or invalidates the doc, and one is updated to match the other in the same commit.
 
 ## How to work on this project
 

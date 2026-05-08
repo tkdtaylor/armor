@@ -3,9 +3,14 @@
 Includes Verdict, Payload, SessionContext, and severity/decision enums.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from armor.session.rolling_buffer import RollingBuffer
 
 
 class Decision(StrEnum):
@@ -15,6 +20,21 @@ class Decision(StrEnum):
     BLOCK = "block"
     ADVISORY = "advisory"
     ERROR = "error"
+
+
+class Source(StrEnum):
+    """Payload provenance / trust label (per ADR-041).
+
+    Indicates the origin of the payload, used to scale detector strictness
+    via per-source multipliers. One multiplier per source is applied to
+    detector confidence before verdicts materialize.
+    """
+
+    USER_INPUT = "user_input"
+    MODEL_OUTPUT = "model_output"
+    TOOL_PARAMS = "tool_params"
+    TOOL_RESULT_TRUSTED = "tool_result_trusted"
+    TOOL_RESULT_UNTRUSTED = "tool_result_untrusted"
 
 
 class Severity(StrEnum):
@@ -74,7 +94,7 @@ class Verdict:
         cls,
         message: str = "Input passed all checks",
         details: dict[str, object] | None = None,
-    ) -> "Verdict":
+    ) -> Verdict:
         """Create a pass verdict."""
         return cls(
             decision="pass",
@@ -91,7 +111,7 @@ class Verdict:
         message: str = "Input blocked",
         severity: Literal["low", "medium", "high", "critical"] = "critical",
         details: dict[str, object] | None = None,
-    ) -> "Verdict":
+    ) -> Verdict:
         """Create a block verdict."""
         return cls(
             decision="block",
@@ -108,7 +128,7 @@ class Verdict:
         severity: Literal["low", "medium", "high", "critical"] = "medium",
         message: str = "Advisory signal detected",
         details: dict[str, object] | None = None,
-    ) -> "Verdict":
+    ) -> Verdict:
         """Create an advisory verdict."""
         return cls(
             decision="advisory",
@@ -123,7 +143,7 @@ class Verdict:
         cls,
         reason: str = "Detector error",
         details: dict[str, object] | None = None,
-    ) -> "Verdict":
+    ) -> Verdict:
         """Create an error verdict."""
         return cls(
             decision="error",
@@ -157,11 +177,13 @@ class Payload:
         text: The text payload (for input/output checks).
         tool: Tool name (for tool-call checks).
         params: Tool parameters (for tool-call checks).
+        source: Payload provenance label (per ADR-041); defaults to USER_INPUT for backwards compat.
     """
 
     text: str = ""
     tool: str | None = None
     params: dict[str, object] | None = None
+    source: Source = Source.USER_INPUT
 
 
 @dataclass
@@ -190,11 +212,18 @@ class SessionContext:
         signal_history: Rolling history of signals (list of Signal objects).
         state: Session state level (v0.3 placeholder; task 022 will populate with enum).
                "elevated" enables honeypot invocation. None (default) disables it.
+        rolling_buffer: Multi-turn rolling buffer for exfiltration detection across turns.
+                        See ADR-025. None if not initialized.
+        turn_count: Number of turns in this session (increments on each check).
+                   Used for activation rules like session_turn_min. Inferred from
+                   signal_history length if not set explicitly. (Per ADR-038.)
     """
 
     session_id: str
     signal_history: list[Signal] = field(default_factory=list)
     state: str | None = None
+    rolling_buffer: RollingBuffer | None = None
+    turn_count: int = 0
 
 
 @dataclass

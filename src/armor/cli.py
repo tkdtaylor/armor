@@ -840,6 +840,16 @@ def main(argv: list[str] | None = None) -> int:
     check_tool_parser.add_argument("--session-id", default=None, help="Session ID for stateful checks")
     check_tool_parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
 
+    # check fetched (new per task 065 — indirect-injection detection on tool results)
+    check_fetched_parser = check_sub.add_parser(
+        "fetched", help="Check a tool-result payload for indirect injection (per ADR-033)"
+    )
+    check_fetched_parser.add_argument("text", nargs="?", default=None, help="Tool result text (or read from stdin)")
+    check_fetched_parser.add_argument("--source-tool", required=True, help="Tool name that returned this result")
+    check_fetched_parser.add_argument("--socket", default=None, help="Path to daemon socket")
+    check_fetched_parser.add_argument("--session-id", default=None, help="Session ID for stateful checks")
+    check_fetched_parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
+
     # session subcommand (with sub-subcommands)
     session_parser = sub.add_parser("session", help="Session operations")
     session_sub = session_parser.add_subparsers(dest="session_cmd", required=True)
@@ -936,6 +946,18 @@ def main(argv: list[str] | None = None) -> int:
     health_parser.add_argument("--socket", default=None, help="Path to daemon socket")
     health_parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
 
+    # config subcommand (per task 065 — expose config to hooks)
+    config_parser = sub.add_parser("config", help="Configuration operations")
+    config_sub = config_parser.add_subparsers(dest="config_cmd", required=True)
+
+    # config show
+    config_show_parser = config_sub.add_parser("show", help="Show configuration section")
+    config_show_parser.add_argument(
+        "--section", required=True, help="Configuration section (e.g., pipeline.exempt, pipeline.source_multipliers)"
+    )
+    config_show_parser.add_argument("--socket", default=None, help="Path to daemon socket")
+    config_show_parser.add_argument("--json", action="store_true", help="Machine-readable JSON output")
+
     # hooks subcommand (with sub-subcommands)
     hooks_parser = sub.add_parser("hooks", help="Claude Code hooks management")
     hooks_sub = hooks_parser.add_subparsers(dest="hooks_cmd", required=True)
@@ -994,6 +1016,79 @@ def main(argv: list[str] | None = None) -> int:
                 "check.tool",
                 lambda text: {},  # Tool operation builds payload differently
             )
+        elif args.check_cmd == "fetched":
+            # Special handling for check.fetched (per task 065)
+            socket_path = args.socket or os.environ.get("ARMOR_SOCKET", "/var/run/armor.sock")
+            session_id = args.session_id or os.environ.get("ARMOR_SESSION_ID")
+
+            # Get text from positional arg or stdin
+            if hasattr(args, "text") and args.text:
+                text = args.text
+            else:
+                try:
+                    text = sys.stdin.read()
+                except Exception as e:
+                    sys.stderr.write(f"Error reading from stdin: {e}\n")
+                    return 1
+
+            payload = {
+                "text": text,
+                "source_tool": args.source_tool,
+            }
+
+            try:
+                client = DaemonClient(socket_path=socket_path)
+                response = client.request("check.fetched", payload=payload, session_id=session_id)
+                verdict = response.get("verdict", "error")
+
+                if args.json:
+                    output = {
+                        "verdict": verdict,
+                        "signal_id": response.get("signal_id"),
+                        "message": response.get("message"),
+                        "incident_id": response.get("incident_id"),
+                        "exit_code": 0 if verdict == "pass" else (2 if verdict == "advisory" else 1),
+                    }
+                    sys.stdout.write(json.dumps(output) + "\n")
+                else:
+                    message = response.get("message", "")
+                    if message:
+                        sys.stdout.write(message + "\n")
+
+                exit_code = 0 if verdict == "pass" else (2 if verdict == "advisory" else 1)
+                return exit_code
+            except DaemonUnreachableError as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+            except Exception as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+
+    elif args.cmd == "config":
+        if args.config_cmd == "show":
+            socket_path = args.socket or os.environ.get("ARMOR_SOCKET", "/var/run/armor.sock")
+            try:
+                client = DaemonClient(socket_path=socket_path)
+                # Send config.show request to daemon
+                response = client.request("config.show", payload={"section": args.section})
+                verdict = response.get("verdict", "error")
+
+                if verdict == "pass":
+                    config_section = response.get("config", {})
+                    if args.json:
+                        sys.stdout.write(json.dumps(config_section) + "\n")
+                    else:
+                        sys.stdout.write(json.dumps(config_section, indent=2) + "\n")
+                    return 0
+                else:
+                    sys.stderr.write(f"Error: {response.get('message', 'Unknown error')}\n")
+                    return 1
+            except DaemonUnreachableError as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+            except Exception as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
 
     elif args.cmd == "session":
         if args.session_cmd == "close":
