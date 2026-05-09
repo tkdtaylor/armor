@@ -264,17 +264,29 @@ class HealthReport:
 
     Attributes:
         daemon_reachable: Whether the daemon is responding.
+        socket_reachable: Whether the daemon's Unix socket server is active.
         db_reachable: Whether the SQLite database is accessible.
         model_loaded: Whether the validator LLM is loaded and ready.
         version: Version of the armor daemon.
         uptime_seconds: Daemon uptime in seconds (if available).
+        active_connections: Current number of active daemon connections.
+        max_concurrent: Configured concurrent connection cap.
+        total_checks: Number of check operations completed since daemon start.
+        p95_input_latency_ms: Rolling P95 latency for check.input operations.
+        p95_output_latency_ms: Rolling P95 latency for check.output operations.
     """
 
     daemon_reachable: bool
     db_reachable: bool
     model_loaded: bool
     version: str
+    socket_reachable: bool | None = None
     uptime_seconds: float | None = None
+    active_connections: int | None = None
+    max_concurrent: int | None = None
+    total_checks: int | None = None
+    p95_input_latency_ms: float | None = None
+    p95_output_latency_ms: float | None = None
 
 
 @dataclass

@@ -225,7 +225,7 @@ class AsyncArmorClient:
         """
         try:
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(None, lambda: self._transport.request("health"))
+            response = await loop.run_in_executor(None, lambda: self._transport.request("health.full"))
             # If we got a response with health fields, parse them
             if "daemon_reachable" in response or "health" in response:
                 return self._parse_health_report(response)
@@ -316,12 +316,19 @@ class AsyncArmorClient:
             HealthReport: Parsed health report.
         """
         health_data = response.get("health", {})
+        socket_reachable = health_data.get("socket_reachable", health_data.get("daemon_reachable", False))
         return HealthReport(
-            daemon_reachable=health_data.get("daemon_reachable", False),
+            daemon_reachable=socket_reachable,
             db_reachable=health_data.get("db_reachable", False),
             model_loaded=health_data.get("model_loaded", False),
             version=health_data.get("version", "unknown"),
+            socket_reachable=socket_reachable,
             uptime_seconds=health_data.get("uptime_seconds"),
+            active_connections=health_data.get("active_connections"),
+            max_concurrent=health_data.get("max_concurrent"),
+            total_checks=health_data.get("total_checks"),
+            p95_input_latency_ms=health_data.get("p95_input_latency_ms"),
+            p95_output_latency_ms=health_data.get("p95_output_latency_ms"),
         )
 
     @staticmethod

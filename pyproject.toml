@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ai-armor"
-version = "1.0.0"
+name = "armor-ai"
+version = "0.9.0"
 description = "A defense-in-depth security layer for LLM agents"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,10 +32,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/armor-ai/armor"
-Source = "https://github.com/armor-ai/armor"
-Documentation = "https://github.com/armor-ai/armor#readme"
-Issues = "https://github.com/armor-ai/armor/issues"
+Homepage = "https://github.com/tkdtaylor/armor"
+Source = "https://github.com/tkdtaylor/armor"
+Documentation = "https://github.com/tkdtaylor/armor#readme"
+Issues = "https://github.com/tkdtaylor/armor/issues"
 
 [project.optional-dependencies]
 # Mirrors [dependency-groups] dev so `pip install .[dev]` works for non-uv consumers.
@@ -76,10 +76,24 @@ tool_chain = "armor.detectors.tool_chain:ToolChain"
 tool_param_schema = "armor.detectors.tool_param_schema:ToolParamSchema"
 tool_rate_anomaly = "armor.detectors.tool_rate_anomaly:ToolRateAnomaly"
 token_count_anomaly = "armor.detectors.token_count_anomaly:TokenCountAnomaly"
+conversation_hijack = "armor.detectors.conversation_hijack:ConversationHijack"
 topic_coherence = "armor.detectors.topic_coherence:TopicCoherence"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/armor"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/armor",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "pyproject.toml",
+    "armor.toml",
+]
 
 [tool.pytest.ini_options]
 addopts = "--cov=armor --cov-report=term-missing --cov-fail-under=0"

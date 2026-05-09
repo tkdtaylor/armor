@@ -63,6 +63,7 @@ def test_schema_applies_cleanly(temp_db):
         "destinations",
         "encoding_flag",
         "risk_score",
+        "severity",
         "action",
         "quarantine_id",
         "source_tool",
@@ -175,7 +176,7 @@ def _get_incident_columns_info(db_path: str) -> dict:
 
 
 def _create_v01_schema(db_path: str) -> None:
-    """Create a v0.1 schema (without source_tool, chunk_index, chunk_metadata)."""
+    """Create a v0.1 schema (without later Incident columns)."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -299,6 +300,7 @@ def test_fresh_schema_has_forensic_columns(temp_db):
     assert "source_tool" in columns
     assert "chunk_index" in columns
     assert "chunk_metadata" in columns
+    assert "severity" in columns
 
     # Verify types and nullability (should be NULL, NULL, TEXT NULL / INTEGER NULL)
     assert columns["source_tool"]["type"] == "TEXT"
@@ -309,6 +311,10 @@ def test_fresh_schema_has_forensic_columns(temp_db):
 
     assert columns["chunk_metadata"]["type"] == "TEXT"
     assert columns["chunk_metadata"]["notnull"] == 0  # nullable
+
+    assert columns["severity"]["type"] == "TEXT"
+    assert columns["severity"]["notnull"] == 1
+    assert columns["severity"]["dflt_value"] == "'low'"
 
 
 def test_v01_upgraded_converges_to_fresh(temp_db):
@@ -327,6 +333,7 @@ def test_v01_upgraded_converges_to_fresh(temp_db):
     assert "source_tool" not in v01_columns_before
     assert "chunk_index" not in v01_columns_before
     assert "chunk_metadata" not in v01_columns_before
+    assert "severity" not in v01_columns_before
 
     # Now run migrations to upgrade to v0.2
     run_migrations(temp_db)
@@ -342,7 +349,7 @@ def test_v01_upgraded_converges_to_fresh(temp_db):
         fresh_columns = _get_incident_columns_info(fresh_temp_db)
 
         # The v0.2 columns should exist in both with same types
-        for col_name in ["source_tool", "chunk_index", "chunk_metadata"]:
+        for col_name in ["source_tool", "chunk_index", "chunk_metadata", "severity"]:
             assert col_name in upgraded_columns
             assert col_name in fresh_columns
             assert upgraded_columns[col_name]["type"] == fresh_columns[col_name]["type"]
@@ -394,13 +401,14 @@ def test_insert_and_read_forensic_columns(temp_db):
     # Insert an incident with the new columns
     cursor.execute(
         "INSERT INTO Incident (session_id, attack_category, signal_id, input_hash, "
-        "source_tool, chunk_index, chunk_metadata) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "severity, source_tool, chunk_index, chunk_metadata) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
             "test-session",
             "injection",
             "sig-1",
             "hash-1",
+            "critical",
             "Read",
             0,
             '{"len":1024}',
@@ -410,14 +418,15 @@ def test_insert_and_read_forensic_columns(temp_db):
 
     # Read back and verify
     cursor.execute(
-        "SELECT source_tool, chunk_index, chunk_metadata FROM Incident WHERE signal_id = ?",
+        "SELECT severity, source_tool, chunk_index, chunk_metadata FROM Incident WHERE signal_id = ?",
         ("sig-1",),
     )
     row = cursor.fetchone()
 
     assert row is not None
-    assert row[0] == "Read"
-    assert row[1] == 0
-    assert row[2] == '{"len":1024}'
+    assert row[0] == "critical"
+    assert row[1] == "Read"
+    assert row[2] == 0
+    assert row[3] == '{"len":1024}'
 
     conn.close()

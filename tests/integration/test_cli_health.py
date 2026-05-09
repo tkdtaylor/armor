@@ -17,7 +17,6 @@ class TestHealthCommand:
                 "socket_reachable": True,
                 "db_reachable": True,
                 "model_loaded": True,
-                "db_capacity_percent": 45.0,
                 "uptime_seconds": 3600,
                 "total_checks": 100,
                 "p95_input_latency_ms": 50.5,
@@ -36,14 +35,13 @@ class TestHealthCommand:
             assert exit_code == 0
 
     def test_health_exit_1_when_degraded(self) -> None:
-        """TC-028-07: armor health exits 1 when degraded (DB near full)."""
+        """TC-028-07: armor health exits 1 when degraded (DB unreachable)."""
         mock_response = {
             "verdict": "pass",
             "health": {
                 "socket_reachable": True,
-                "db_reachable": True,
+                "db_reachable": False,
                 "model_loaded": True,
-                "db_capacity_percent": 95.0,  # Near full
                 "uptime_seconds": 3600,
                 "total_checks": 100,
                 "p95_input_latency_ms": 50.5,
@@ -68,7 +66,6 @@ class TestHealthCommand:
                 "socket_reachable": True,
                 "db_reachable": True,
                 "model_loaded": False,  # Critical
-                "db_capacity_percent": 45.0,
                 "uptime_seconds": 3600,
                 "total_checks": 100,
                 "p95_input_latency_ms": 50.5,
@@ -104,7 +101,6 @@ class TestHealthCommand:
                 "socket_reachable": True,
                 "db_reachable": True,
                 "model_loaded": True,
-                "db_capacity_percent": 45.0,
                 "uptime_seconds": 3600,
                 "total_checks": 100,
                 "p95_input_latency_ms": 50.5,
@@ -141,7 +137,6 @@ class TestHealthCommand:
                 "socket_reachable": True,
                 "db_reachable": True,
                 "model_loaded": True,
-                "db_capacity_percent": 45.0,
                 "uptime_seconds": 3600,
                 "total_checks": 100,
                 "p95_input_latency_ms": 50.5,

@@ -24,8 +24,8 @@ The full design discussion that motivated this architecture is in `discussion.md
 │                      │       │  │  ┌──────────────────────┐  │  │
 │   ┌──────────────┐   │       │  │  │ Static detectors     │  │  │
 │   │ python lib   │───┼──────►│  │  │ (regex, A-C, entropy)│  │  │
-│   │ (ArmorClient)│   │ HTTP  │  │  └──────────────────────┘  │  │
-│   └──────────────┘   │ /unix │  │  ┌──────────────────────┐  │  │
+│   │ (ArmorClient)│   │ unix  │  │  └──────────────────────┘  │  │
+│   └──────────────┘   │ socket│  │  ┌──────────────────────┐  │  │
 └──────────────────────┘       │  │  │ Validator LLM        │  │  │
                                │  │  │ (small quantized)    │  │  │
                                │  │  └──────────────────────┘  │  │
@@ -100,7 +100,7 @@ The **exemption mechanism** (`pipeline.exempt.read_paths`, `pipeline.exempt.webf
 
 This project follows **Unix philosophy** — small composable detectors over a single monolithic checker. Each detector has a single responsibility (one signal, one pattern family, one heuristic) and exposes a uniform `Detector.check(payload) -> Verdict` interface. The pipeline is just an ordered list of detectors, configurable per check-point.
 
-The full statement (modularity, interface standardization, maintainability, reusability + the working rules) lives in `CLAUDE.md` and is enforced by the `architect` agent during reviews. Two project-specific addenda:
+The full statement is: modularity, interface standardization, maintainability, and reusability, plus the working rules below. Two project-specific addenda:
 
 - **Detectors fail open by default; the pipeline fails closed.** A single detector raising on bad input is a bug we want to know about, not a security failure — the pipeline runs the next detector. But if the *whole pipeline* errors out and produces no verdict, the request is blocked. Better a false positive than a silent miss.
 - **The validator LLM is on the hot path but never load-bearing.** Static detectors must catch every P0/P1 attack on their own. The LLM exists to add semantic-level signal for P2/P3 attacks (jailbreak framing, gradual escalation) where static rules over-match. Treat its verdict as advisory, weighted into the risk score.

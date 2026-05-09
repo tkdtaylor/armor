@@ -69,22 +69,38 @@ class TestReleaseWorkflow:
         assert "id-token:" in content or "id-token :" in content, "OIDC id-token permission not configured"
 
     def test_workflow_includes_smoke_test(self):
-        """TC-029-04: Smoke test job that pulls published image and runs demo."""
+        """TC-029-04 / TC-102-02: Smoke test pulls the image and checks daemon health."""
         workflow_path = Path(".github/workflows/release.yml")
         with open(workflow_path) as f:
             content = f.read()
 
         assert "smoke" in content.lower(), "Smoke test job not found"
         assert "docker pull" in content or "docker run" in content, "Docker image pull/run not found in smoke test"
+        assert "--entrypoint armor" in content, "CLI help smoke must override the daemon entrypoint"
+        assert "docker run -d --name armor-smoke" in content, "daemon image is not started for smoke test"
+        assert "docker exec armor-smoke armor health" in content, "smoke test does not query daemon health"
+        assert "published daemon image and verify health" in content, "smoke comment does not match behavior"
+        stale_smoke_comment = "run the e2e " + "demo"
+        assert stale_smoke_comment not in content, "smoke comment still claims to run the e2e demo"
+        stale_step = "Run e2e demo inside " + "container"
+        assert stale_step not in content, "stale e2e-demo smoke label remains"
 
 
 class TestArmorVersion:
     """TC-029-05: armor --version reflects build-time tag."""
 
     def test_version_is_not_hardcoded_zero(self):
-        """Verify __version__ is set up for tag-based override."""
-        # In development, __version__ should be "0.0.0" (overridden at build time)
-        assert __version__ == "0.0.0", f"Expected '0.0.0' in dev, got {__version__}"
+        """TC-102-01: __version__ is read from the armor-ai distribution metadata."""
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as pkg_version
+
+        try:
+            expected = pkg_version("armor-ai")
+        except PackageNotFoundError:
+            expected = "0.0.0+unknown"
+        assert __version__ == expected, (
+            f"__version__ should match importlib.metadata.version('armor-ai') ({expected!r}); got {__version__!r}"
+        )
 
     def test_cli_uses_package_version(self):
         """Verify CLI reads from package metadata."""
@@ -126,19 +142,15 @@ class TestREADME:
         assert ".github/workflows/release.yml" in content, "release workflow reference not found"
 
     def test_readme_pypi_path(self):
-        """TC-029-07: PyPI path acknowledges the name-collision and points to examples/.
-
-        Per the public-release docs refresh (2026-05-07), the README
-        no longer shows `pip install armor` because the bare `armor` name on PyPI
-        is taken by an unrelated project; the README explicitly states a final
-        non-colliding name will land with the first tagged release. Assertions
-        updated to: PyPI is mentioned + the examples/ cross-link is present.
-        """
+        """TC-029-07 / TC-102-01: PyPI path uses the reserved `armor-ai` distribution."""
         readme_path = Path("README.md")
         with open(readme_path) as f:
             content = f.read()
 
         assert "PyPI" in content, "PyPI is not mentioned in README"
+        assert "pip install armor-ai" in content, "README does not use the armor-ai install command"
+        old_dist_name = "ai" + "-armor"
+        assert old_dist_name not in content, "README still contains the old distribution name"
         assert "examples/" in content, "examples/ cross-link not found"
 
     def test_readme_mentions_demo(self):
@@ -196,7 +208,7 @@ class TestPostReleaseChecklist:
         assert checklist_path.exists(), "Post-release checklist not found"
 
     def test_checklist_contains_verification_steps(self):
-        """Verify checklist covers fresh container, fresh pip, hook installer."""
+        """TC-102-03 / TC-104-01 / TC-105-01: Checklist covers current release commands."""
         checklist_path = Path("docs/release/post-release-checklist.md")
         with open(checklist_path) as f:
             content = f.read()
@@ -208,9 +220,34 @@ class TestPostReleaseChecklist:
         assert "fresh" in content.lower() and "pip install" in content.lower(), (
             "Fresh pip install verification not in checklist"
         )
-        assert "hook" in content.lower() or "armor hook" in content.lower(), (
-            "Hook installer verification not in checklist"
+        assert "armor-ai" in content, "Checklist does not use the armor-ai PyPI project"
+        assert "armor hooks install" in content, "Checklist does not use the current hooks install command"
+        stale_hook_cmd = "armor hook " + "install"
+        stale_pypi_url = "pypi.org/pypi/" + "armor/json"
+        assert stale_hook_cmd not in content, "Checklist still has stale singular hook command"
+        assert stale_pypi_url not in content, "Checklist still points at the bare armor PyPI project"
+        assert "v0.4" not in content, "Checklist still contains stale v0.4 release note"
+        stale_examples_check = "Verify examples are available " + "in the wheel"
+        stale_examples_claim = "examples/` directory should be shipped " + "with the wheel"
+        assert stale_examples_check not in content
+        assert stale_examples_claim not in content
+        assert "Verify the installed package contents and CLI entrypoint" in content
+        assert "hook" in content.lower(), "Hook installer verification not in checklist"
+        assert "cat ./.claude/settings.json" in content, (
+            "Checklist must inspect the project-local settings file created by armor hooks install"
         )
+        assert "cat ~/.claude/settings.json" not in content, (
+            "Checklist still inspects the user-global Claude settings path"
+        )
+        assert "v0.9.0" in content, "Checklist does not use the current v0.9.0 tag example"
+        assert "0.9.0rc1" in content, "Checklist does not use the current 0.9.0rc1 PyPI example"
+
+    def test_checklist_has_no_stale_050_examples(self):
+        """TC-105-02: Checklist contains no stale v0.5.0 / 0.5.0 examples."""
+        content = Path("docs/release/post-release-checklist.md").read_text()
+
+        assert "v0.5.0" not in content
+        assert "0.5.0" not in content
 
 
 class TestADR:
@@ -222,7 +259,7 @@ class TestADR:
         assert adr_path.exists(), "ADR-030 not found"
 
     def test_adr_documents_semver_scope(self):
-        """Verify ADR documents SDK, CLI, IPC under semver; corpus/ADRs not."""
+        """TC-105-03 / TC-105-04: ADR documents current semver and metadata policy."""
         adr_path = Path("docs/architecture/decisions/030-release-versioning.md")
         with open(adr_path) as f:
             content = f.read()
@@ -233,18 +270,29 @@ class TestADR:
         assert "CLI" in content, "CLI not mentioned"
         assert "IPC" in content, "IPC not mentioned"
         assert "Semantic Versioning" in content or "semantic versioning" in content, "Semantic Versioning not explained"
+        assert "armor-ai" in content, "ADR does not name the current PyPI distribution"
+        assert 'importlib.metadata.version("armor-ai")' in content, (
+            "ADR does not document the current armor-ai metadata lookup"
+        )
+        assert 'importlib.metadata.version("armor")' not in content, (
+            "ADR still documents the old armor distribution metadata lookup"
+        )
+        assert 'version = "0.0.0"' not in content, "ADR still says pyproject.toml carries the old 0.0.0 placeholder"
+        assert "No version bumps in `pyproject.toml` between releases" not in content, (
+            "ADR still claims pyproject.toml is not bumped between releases"
+        )
 
 
 class TestProjectMetadata:
     """TC-029-13: pyproject.toml final metadata."""
 
     def test_project_name_locked(self):
-        """Verify PyPI distribution name is `ai-armor` (the bare `armor` is taken on PyPI)."""
+        """TC-102-01: PyPI distribution name is `armor-ai` (the bare `armor` is taken)."""
         pyproject_path = Path("pyproject.toml")
         with open(pyproject_path) as f:
             content = f.read()
 
-        assert 'name = "ai-armor"' in content, "PyPI distribution name is not 'ai-armor'"
+        assert 'name = "armor-ai"' in content, "PyPI distribution name is not 'armor-ai'"
 
     def test_classifiers_present(self):
         """Verify classifiers list is non-empty."""
@@ -285,13 +333,34 @@ class TestDockerfile:
         assert dockerfile_path.exists(), "docker/Dockerfile not found"
 
     def test_dockerfile_bakes_model(self):
-        """Verify Dockerfile references model.gguf."""
+        """Verify Dockerfile bakes a GGUF validator model into the image."""
         dockerfile_path = Path("docker/Dockerfile")
         with open(dockerfile_path) as f:
             content = f.read()
 
-        assert "model.gguf" in content, "Model weight file not referenced in Dockerfile"
+        assert ".gguf" in content, "GGUF model file not referenced in Dockerfile"
+        assert "/models/active.gguf" in content, (
+            "Dockerfile should copy/install the validator model at /models/active.gguf"
+        )
         assert "multi-stage" in content or "as builder" in content, "Multi-stage Dockerfile not used"
+
+
+class TestTask102ReleaseDrift:
+    """Task 102 release-name, workflow-smoke, and doc-drift assertions."""
+
+    def test_tc_102_04_changelog_no_stale_unverified_release_claim(self):
+        """TC-102-04: 0.9.0 prose no longer says completed verification is missing."""
+        text = Path("CHANGELOG.md").read_text()
+        first_release = text.split("## [0.9.0]", 1)[1].split("### Added", 1)[0]
+
+        assert "end-to-end Docker build" not in first_release
+        assert "verified on a fresh clone" not in first_release
+        assert "preview measurements" in first_release
+
+    def test_tc_102_04_interfaces_metadata_date_current(self):
+        """TC-102-04: interfaces spec metadata reflects the latest release-surface edit."""
+        text = Path("docs/spec/interfaces.md").read_text()
+        assert "**Last updated:** 2026-05-09" in text
 
 
 if __name__ == "__main__":

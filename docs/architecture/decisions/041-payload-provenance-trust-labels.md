@@ -3,7 +3,7 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** ADR-033 (indirect injection — supersedes its `SessionContext.payload_source` proposal); `archive/discussion.md` §7 Category 2; tasks 065, 075; `docs/spec/data-model.md` `Payload` and `SessionContext` entities.
+**References:** ADR-033 (indirect injection — supersedes its `SessionContext.payload_source` proposal); internal design audit category *Indirect / Second-Order Injection*; tasks 065, 075; `docs/spec/data-model.md` `Payload` and `SessionContext` entities.
 
 ## Context
 
@@ -14,7 +14,7 @@ ADR-033 (indirect injection) noticed the gap and proposed `SessionContext.payloa
 1. **Provenance is a property of the data, not the session.** Ten checks within one session can each have different provenance; putting the marker on `SessionContext` forces every detector to remember to pass it correctly per-call and conflates session-level state with per-payload metadata.
 2. **It's gating, not calibrating.** ADR-033's intent — "encoding-request detector returns `pass` when source is `fetched`" — treats provenance as a binary on/off switch for whole detectors. A better model: provenance is a **calibration parameter** that scales detector outputs (confidence, severity) to reflect how strict we should be with each finding.
 
-The audit also surfaced a real-world dogfooding constraint: **with strict indirect-injection scanning enabled, building armor itself would have been blocked.** Reading [archive/discussion.md](../../archive/discussion.md) (a transcript explicitly *about* prompt injection), reading the eval corpus (every TP row *is* an attack string), web-fetching prompt-injection research, and reading our own `regex_*.py` source files would all FP against the indirect-injection pipeline. Antivirus must exempt its own definition files; the same property is required here.
+The audit also surfaced a real-world dogfooding constraint: **with strict indirect-injection scanning enabled, building armor itself would have been blocked.** Reading internal prompt-injection design notes, reading the eval corpus (every TP row *is* an attack string), web-fetching prompt-injection research, and reading our own `regex_*.py` source files would all FP against the indirect-injection pipeline. Antivirus must exempt its own definition files; the same property is required here.
 
 ## Decision
 

@@ -2,6 +2,8 @@
 
 This directory shows how to wire the armor daemon into a Claude Code project so every user prompt, tool call, model output, and session boundary is checked.
 
+Last verified hook integration: 2026-05-09 against Claude Code 2.1.133, plus Codex CLI 0.130.0-alpha.5 JSON payload compatibility.
+
 ## Where these files go
 
 Copy [settings.json](settings.json) into your Claude Code project at `.claude/settings.json` (create the directory if it doesn't exist). Claude Code reads it automatically on the next session.
@@ -23,12 +25,14 @@ The five hooks fire at four lifecycle points (PostToolUse has two entries with d
 
 If any check returns a block verdict, Claude Code halts at that lifecycle point and the user sees a safe error message — never the offending payload.
 
+The hook commands consume the JSON payload each agent sends on stdin. Claude Code supplies `tool_name` / `tool_input` / `tool_response`; Codex-style hook payloads with `tool_input.command` are accepted as Bash tool checks for the same local integration test path.
+
 ## 30-second walkthrough
 
 1. **Start the armor daemon** in one terminal (see the [project README](../../README.md#getting-started) for the full daemon flags):
 
    ```bash
-   uv run armor daemon --socket /tmp/armor.sock --db /tmp/armor.db
+   ARMOR_DISABLE_LLM=true uv run armor daemon --socket /tmp/armor.sock --db /tmp/armor.db
    ```
 
 2. **Point this example at it** by exporting the socket path before starting Claude Code:

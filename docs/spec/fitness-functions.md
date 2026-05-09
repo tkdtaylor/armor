@@ -19,9 +19,9 @@ violation, asserted by
 | `make fitness-smoke` | `-m smoke` | Pre-push hook. Pure-function checks only; intentionally excludes anything that loads a model or shells out to a long-running test suite. Designed to complete in seconds. |
 | `make fitness-full` | (no selector) | Nightly / release gate. Runs every check, including `@pytest.mark.slow` and `@pytest.mark.requires_llm`. |
 
-The Stop hook [`check-fitness.py`](../../.claude/scripts/check-fitness.py)
-runs `make fitness` at the end of each turn under the `strict` hook profile
-and surfaces failures to the agent. It is advisory, not blocking.
+Maintainer-local hook harnesses may run `make fitness` at the end of an agent
+turn and surface failures to the agent. That local automation is advisory, not
+blocking; CI remains the public source of truth.
 
 ## Marker conventions
 
@@ -97,31 +97,32 @@ and every file there corresponds to exactly one row.
 | Invariant | Why | Test |
 |-----------|-----|------|
 | README is structurally and substantively truthful | Per task 057, the README must contain the structural and content elements that make it honest about what the project does and does not do. | [test_readme_truthfulness.py](../../tests/fitness/test_readme_truthfulness.py) |
-| Public-release readiness (SECURITY.md matchers, project-status badges, etc.) | Post-rewrite verification consolidating tasks 032 / 035 / 037 / 038 / 044. | [test_public_release.py](../../tests/fitness/test_public_release.py) |
-| SDK type-strictness, docstring coverage, ADR requirements | Per task 026, the SDK surface is type-strict, every public symbol has a docstring, and the SDK's invariants are pinned. | [test_sdk_polish.py](../../tests/fitness/test_sdk_polish.py) |
+| Public-release readiness (SECURITY.md matchers, project-status badges, etc.) | Post-rewrite verification of release-readiness invariants. | [test_public_release.py](../../tests/fitness/test_public_release.py) |
+| SDK type-strictness, docstring coverage, ADR requirements | The SDK surface is type-strict, every public symbol has a docstring, and the SDK's invariants are pinned. | [test_sdk_polish.py](../../tests/fitness/test_sdk_polish.py) |
 | Daemon emits structured-log JSON with required fields | Per TC-028-08, all logs from the daemon must be valid JSON with required fields (`ts`, `level`, `event`). | [test_structured_logs.py](../../tests/fitness/test_structured_logs.py) |
-| Project email rebrand consistency | Task 039 — every shipped contact-info file and the canonical-email matcher reference the rebrand target. | [test_email_rebrand.py](../../tests/fitness/test_email_rebrand.py) |
-| `docs/architecture/diagrams.md` describes the operator-clear flow | Task 036 — the diagrams file must describe the operator-clear quarantine-release flow. | [test_diagrams_operator_clear.py](../../tests/fitness/test_diagrams_operator_clear.py) |
-| `examples/claude_code/` integration example fitness | Task 055 — the Claude Code SDK example structure, README references, and offline-smoke contract are pinned. | [test_claude_code_example.py](../../tests/fitness/test_claude_code_example.py) |
-| `examples/custom_agent.py` fitness | Task 056 — the custom-agent example structure and offline-smoke contract are pinned. | [test_custom_agent_example.py](../../tests/fitness/test_custom_agent_example.py) |
-| Demo recording artifact pins | Task 059 — the demo recording artifact's path, format, and README references are pinned. | [test_demo_recording.py](../../tests/fitness/test_demo_recording.py) |
+| Project email rebrand consistency | Every shipped contact-info file and the canonical-email matcher reference the rebrand target. | [test_email_rebrand.py](../../tests/fitness/test_email_rebrand.py) |
+| `docs/architecture/diagrams.md` describes the operator-clear flow | The diagrams file must describe the operator-clear quarantine-release flow. | [test_diagrams_operator_clear.py](../../tests/fitness/test_diagrams_operator_clear.py) |
+| `examples/claude_code/` integration example fitness | The Claude Code SDK example structure, README references, and offline-smoke contract are pinned. | [test_claude_code_example.py](../../tests/fitness/test_claude_code_example.py) |
+| `examples/custom_agent.py` fitness | The custom-agent example structure and offline-smoke contract are pinned. | [test_custom_agent_example.py](../../tests/fitness/test_custom_agent_example.py) |
+| Demo recording artifact pins | The demo recording artifact's path, format, and README references are pinned. | [test_demo_recording.py](../../tests/fitness/test_demo_recording.py) |
+| v1.0 readiness gate is concrete (detection floor, perf gates, integration gates, external-validation plan) | Per task 099, `docs/v1-readiness.md` must carry the five required sections with concrete (non-aspirational) gates and a dated external-validation plan; closes the readiness-drift gap before tagging. | [test_v1_readiness.py](../../tests/fitness/test_v1_readiness.py) |
 
-### Spec-drift audits (post-task pins)
+### Spec-drift audits (post-audit pins)
 
-These nine modules pin specific spec-drift fixes from the task-045..053
-audits. They prevent the same drift from recurring silently.
+These nine modules pin specific spec-drift fixes from a cluster of
+post-launch audits. They prevent the same drift from recurring silently.
 
 | Invariant | Why | Test |
 |-----------|-----|------|
-| Task 045 — AWS-shape canary fixture replacement | Pins the AWS-shaped canary replacement audit so the fixture cannot regress. | [test_audit_045.py](../../tests/fitness/test_audit_045.py) |
-| Task 046 — single canonical `honeypot_budget_ms` value | Reconciliation pin: code, ADR, spec, config, and helpers all reference the same value. | [test_audit_046.py](../../tests/fitness/test_audit_046.py) |
-| Task 047 — `docs/spec/architecture.md` component table accuracy | Pins the architecture spec audit so the component table cannot drift from reality. | [test_audit_047.py](../../tests/fitness/test_audit_047.py) |
-| Task 048 — spec drift cluster fixes | Pins a cluster of small spec/code mismatches so they cannot return. | [test_audit_048.py](../../tests/fitness/test_audit_048.py) |
-| Task 049 — `incidents export` spec/code alignment | The spec documents `incidents export` if and only if the code implements it. | [test_audit_049.py](../../tests/fitness/test_audit_049.py) |
-| Task 050 — `armor.toml` post-FSM rewrite pins | Spec audit checks for the FSM-aware `armor.toml`. | [test_audit_050.py](../../tests/fitness/test_audit_050.py) |
-| Task 051 — README + CLAUDE.md doc-fix pins | Pins the doc fixes so the same paragraph drift cannot return. | [test_audit_051.py](../../tests/fitness/test_audit_051.py) |
-| Task 052 — `docs/architecture/diagrams.md` refresh pins | Pins the diagrams refresh so the diagrams cannot fall out of sync silently. | [test_audit_052.py](../../tests/fitness/test_audit_052.py) |
-| Task 053 — code and doc tidy-up pins | Pins the cleanup so the tidy-up cannot regress. | [test_audit_053.py](../../tests/fitness/test_audit_053.py) |
+| AWS-shape canary fixture replacement | Pins the AWS-shaped canary replacement audit so the fixture cannot regress. | [test_audit_045.py](../../tests/fitness/test_audit_045.py) |
+| Single canonical `honeypot_budget_ms` value | Reconciliation pin: code, ADR, spec, config, and helpers all reference the same value. | [test_audit_046.py](../../tests/fitness/test_audit_046.py) |
+| `docs/spec/architecture.md` component table accuracy | Pins the architecture spec audit so the component table cannot drift from reality. | [test_audit_047.py](../../tests/fitness/test_audit_047.py) |
+| Spec drift cluster fixes | Pins a cluster of small spec/code mismatches so they cannot return. | [test_audit_048.py](../../tests/fitness/test_audit_048.py) |
+| `incidents export` spec/code alignment | The spec documents `incidents export` if and only if the code implements it. | [test_audit_049.py](../../tests/fitness/test_audit_049.py) |
+| `armor.toml` post-FSM rewrite pins | Spec audit checks for the FSM-aware `armor.toml`. | [test_audit_050.py](../../tests/fitness/test_audit_050.py) |
+| README + public-doc doc-fix pins | Pins the doc fixes so the same paragraph drift cannot return. | [test_audit_051.py](../../tests/fitness/test_audit_051.py) |
+| `docs/architecture/diagrams.md` refresh pins | Pins the diagrams refresh so the diagrams cannot fall out of sync silently. | [test_audit_052.py](../../tests/fitness/test_audit_052.py) |
+| Code and doc tidy-up pins | Pins the cleanup so the tidy-up cannot regress. | [test_audit_053.py](../../tests/fitness/test_audit_053.py) |
 
 ---
 
@@ -133,7 +134,7 @@ self-contained.
 
 | Invariant | Why | Test |
 |-----------|-----|------|
-| Every detector has a row in `tests/eval/corpus/` | Per CLAUDE.md project conventions: "new detectors land as their own task with a corpus entry." Compares detector class names against eval-corpus IDs. | [tests/eval/test_corpus.py](../../tests/eval/test_corpus.py) |
+| Documented corpus-covered detector families have rows | Per project conventions, shipped detector families that claim eval-corpus coverage land with corpus rows. Enforces the required detector/family coverage map, including ADR-037 context-window families and explicit metadata for detector signals masked by later pipeline blocks. | [tests/eval/test_corpus.py](../../tests/eval/test_corpus.py) |
 | P95 corpus latency under per-detector budget | Catches latency regressions before they impact users. Microbenchmarks `tests/eval/corpus/` rows; fail if P95 > 50 ms (static detectors) or 500 ms (LLM detectors). | [tests/eval/test_corpus.py](../../tests/eval/test_corpus.py) |
 
 ---
@@ -164,7 +165,7 @@ mapping).
 
 | Invariant | Why | Candidate check |
 |-----------|-----|-----------------|
-| `ARMOR_QUARANTINE_KEY` is never read outside `db.quarantine` | Key reads should funnel through one module. | AST scan for `os.environ` reads of the key name. |
+| Quarantine key handling stays in `db.quarantine` | Key reads should funnel through one module. | AST scan: only `db.quarantine` may open `<db_dir>/.key` or accept `--quarantine-key-path`. |
 
 ### Complexity
 

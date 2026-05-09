@@ -3,13 +3,18 @@
 archive/
 
 # Operator-private build process — task files, test specs, sprint plans, and
-# roadmap drafts. The build-process *workflow* (TDD spec-first, atomic commits,
-# task lifecycle) is documented publicly in CONTRIBUTING.md and CLAUDE.md, but
-# specific task/test-spec contents may include sensitive data, attack-corpus
-# instructions, or vendor-specific details that should not ship in the public
-# repo. Kept locally so the workflow keeps working on the operator's machine.
+# roadmap drafts. The build-process workflow is documented publicly in
+# CONTRIBUTING.md, but specific task/test-spec contents may include sensitive
+# data, attack-corpus instructions, or vendor-specific details that should not
+# ship in the public repo. Kept locally so the workflow keeps working on the
+# operator's machine.
 docs/plans/
 docs/tasks/
+
+# Local agent harnesses — keep public integration examples under examples/.
+.claude/
+CLAUDE.md
+AGENTS.md
 
 # Secrets
 .env
@@ -17,7 +22,7 @@ docs/tasks/
 # Python virtual environment (lives in the Docker volume — not part of the repo)
 .venv/
 
-# Python bytecode — also emitted by .claude/scripts/ hooks
+# Python bytecode
 __pycache__/
 *.pyc
 *.pyo
@@ -56,10 +61,6 @@ models/
 # emitted by candidate models, so they must stay local. Aggregate numbers
 # are documented in docs/architecture/decisions/018-validator-model-choice.md.
 artifacts/bench-results/
-
-# Claude Code local state — not part of the reproducible environment
-.claude/settings.local.json
-.claude/.last-checkpoint
 
 # Design discussion artifacts — local reference, not part of public release
 discussion.md

@@ -88,7 +88,7 @@ This keeps the socket handler responsive (no blocking calls on the event loop) w
 
 ## See also
 
-- [B-008: Daemon serves multiple concurrent hooks via Unix socket](../behaviors.md#b-008-daemon-serves-multiple-concurrent-hooks-via-unix-socket)
+- [B-008: Daemon serves multiple concurrent hooks via Unix socket](../../spec/behaviors.md#b-008-daemon-serves-multiple-concurrent-hooks-via-unix-socket)
 - Task 002 (daemon skeleton) — implements this ADR
 - Task 006 (SQLite session store) — implements the SQLite write path
 - Task 015 (validator LLM) — implements the LLM inference path

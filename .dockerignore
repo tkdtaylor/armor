@@ -1,0 +1,45 @@
+.git/
+.github/
+
+# Local-only/private operator material
+.env
+.claude/
+CLAUDE.md
+AGENTS.md
+archive/
+docs/plans/
+docs/tasks/
+
+# Local development caches and virtualenvs
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+
+# Build/package outputs
+build/
+dist/
+*.egg-info/
+
+# Local databases and model/benchmark artifacts
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+models/
+*.gguf
+**/*.gguf
+docker/model.gguf
+artifacts/bench-results/
+
+# Editor/OS noise
+.idea/
+*.swp
+*.swo
+.DS_Store

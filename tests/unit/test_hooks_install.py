@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import tempfile
 
 from armor.cli import _install_hooks
@@ -232,7 +233,7 @@ class TestHooksInstaller:
             assert content == original_content
 
     def test_install_hooks_event_mappings(self) -> None:
-        """Test that hooks have correct event mappings per spec (B-017)."""
+        """TC-096-01: hooks have correct event mappings per spec (B-017)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = os.path.join(tmpdir, "settings.json")
 
@@ -264,3 +265,23 @@ class TestHooksInstaller:
             # Verify Stop has "armor session close"
             stop_cmd = hooks["Stop"][0]["hooks"][0]["command"]
             assert "armor session close" in stop_cmd
+
+    def test_install_hooks_commands_resolve_to_armor_cli(self) -> None:
+        """TC-096-01: installed hook commands resolve to the armor CLI."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = os.path.join(tmpdir, "settings.json")
+
+            result = _install_hooks(settings_path)
+            assert result == 0
+
+            with open(settings_path) as f:
+                data = json.load(f)
+
+            assert shutil.which("armor") or shutil.which("uv"), "neither armor nor uv is available on PATH"
+            for entries in data["hooks"].values():
+                for entry in entries:
+                    for hook in entry["hooks"]:
+                        command = hook["command"]
+                        assert command.startswith("armor "), command
+                        if "check fetched" in command:
+                            assert "--hook-mode" in command

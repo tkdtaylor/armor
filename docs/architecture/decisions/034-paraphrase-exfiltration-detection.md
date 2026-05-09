@@ -3,17 +3,17 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §6 lines 275-283 *Slow Burn Exfiltration*; §7 Category 3 (line 311) *Natural Language Paraphrase*; ADR-025 (rolling buffer); behaviors.md B-009a (chunked exfil).
+**References:** Internal design audit categories *Slow Burn Exfiltration* and *Natural Language Paraphrase*; ADR-025 (rolling buffer); behaviors.md B-009a (chunked exfil).
 
 ## Context
 
-Today's canary-leak detection works on three layers:
+The canary-leak detection design works on three layers:
 
 1. **Aho-Corasick exact match** on the single-turn output (`canary.scanner`).
 2. **Entropy-decode-rescan** for base64/hex-encoded leaks (`entropy.decode_rescan`).
 3. **Rolling-buffer concatenation scan** for chunked leaks across turns (B-009a) — including a **partial-canary prefix detector** that fires on a contiguous prefix ≥ 12 chars.
 
-All three rely on the **literal canary value** (or a contiguous prefix of it) appearing in the output stream. The discussion's §6 *Slow Burn* and §7 Category 3 *Natural Language Paraphrase* call out a class of leaks none of these three catches:
+All three rely on the **literal canary value** (or a contiguous prefix of it) appearing in the output stream. The design audit called out a class of leaks none of these three catches:
 
 - *"the AWS key starts with `AKIA…`, then has `IOSFODNN`, and ends with `7EXAMPLE`"* — the value is described, never pasted contiguously.
 - *"the second character is `K`, the seventh is `O`, …"* — per-character extraction.
@@ -23,7 +23,7 @@ This is not a hypothetical class. Real exfiltration techniques — including one
 
 ## Decision
 
-**Proposed.** Add a new advisory-tier detector **`canary.paraphrase`** that operates on the rolling buffer (per ADR-025) and detects fragmented or paraphrased canary leaks. The detector is **advisory only** — it feeds the FSM (per ADR-024), never blocks unilaterally, because the false-positive surface is intrinsically larger than exact-match detection.
+Add a new advisory-tier detector **`canary.paraphrase`** that operates on the rolling buffer (per ADR-025) and detects fragmented or paraphrased canary leaks. The detector is **advisory only** — it feeds the FSM (per ADR-024), never blocks unilaterally, because the false-positive surface is intrinsically larger than exact-match detection.
 
 ### Three approaches on the table
 
@@ -89,4 +89,4 @@ Answered 2026-05-07.
 - ADR-025: rolling buffer (the substrate this detector consumes).
 - ADR-021: honeypot prompt + value isolation (forensic invariants — never log canary values).
 - ADR-024: session FSM (the advisory feeds `apply_signal`).
-- `archive/discussion.md` §6 lines 275-283 and §7 Category 3 line 311.
+- Internal design audit categories *Slow Burn Exfiltration* and *Natural Language Paraphrase*.

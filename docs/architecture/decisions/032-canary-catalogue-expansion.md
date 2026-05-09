@@ -3,11 +3,11 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §11 (lines 418-477) *High-Value Targets List*; ADR-010 (catalogue storage); ADR-021 (honeypot prompt + value isolation); ADR-031 (honeyfs on-disk placement, §3 recipe table).
+**References:** Internal credential-type inventory; ADR-010 (catalogue storage); ADR-021 (honeypot prompt + value isolation); ADR-031 (honeyfs on-disk placement, §3 recipe table).
 
 ## Context
 
-The 2026-05-07 audit of `archive/discussion.md` against the current spec surfaced that the bundled catalogue ships with **8 kinds × 3 entries = 24 canaries total**: AWS access keys, GitHub PATs, Stripe keys, generic URLs/paths/hostnames/emails, and crypto wallets. The original design table in `archive/discussion.md` §11 enumerates dozens of credential families an attacker realistically tries to extract — and several of the most relevant ones for an LLM-agent guardrail are entirely absent.
+The 2026-05-07 audit against the current spec surfaced that the bundled catalogue shipped with **8 kinds × 3 entries = 24 canaries total**: AWS access keys, GitHub PATs, Stripe keys, generic URLs/paths/hostnames/emails, and crypto wallets. The internal credential-type inventory enumerates dozens of credential families an attacker realistically tries to extract — and several of the most relevant ones for an LLM-agent guardrail were entirely absent.
 
 Notably missing from `src/armor/canaries/default_catalogue.json`:
 
@@ -24,7 +24,7 @@ ADR-031's recipe table (§3) already names many of these kinds (`gitlab-pat-*`, 
 
 ## Decision
 
-**Proposed.** Expand `src/armor/canaries/default_catalogue.json` to cover every kind named in ADR-031 §3's recipe table, plus the third-party LLM-provider keys called out above. Each new kind ships with:
+Expand `src/armor/canaries/default_catalogue.json` to cover every kind named in ADR-031 §3's recipe table, plus the third-party LLM-provider keys called out above. Each new kind ships with:
 
 - **`canary_id`** — sequential, kind-prefixed (e.g. `openai-key-000`).
 - **`kind`** — taxonomy bucket (`credential | url | path | hostname | wallet | email | jwt | ssh-key | cert | kube-config | db-connection`).
@@ -75,4 +75,4 @@ Answered 2026-05-07.
 - ADR-010: catalogue storage schema (the `kind`/`service`/`marker_rule` fields this ADR populates).
 - ADR-021: honeypot prompt + value isolation (the prompt template this ADR forces a regeneration of).
 - ADR-031 §3: per-kind on-disk recipe table — load-bearing for which kinds this ADR must add.
-- `archive/discussion.md` §11 lines 418-477: original high-value-targets table.
+- Internal credential-type inventory: original high-value-targets table.

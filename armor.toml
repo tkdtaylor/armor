@@ -15,6 +15,7 @@ honeypot_budget_ms = 16000
 [pipeline]
 input_detectors = ["*"]
 output_detectors = ["*"]
+tool_detectors = ["cmd_injection.*", "tool_param.*", "tool_rate.*", "tool_chain"]
 per_detector_budget_ms = 100
 
 # Fetched-content chunking (per ADR-033)

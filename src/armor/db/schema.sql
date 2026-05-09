@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS Incident (
     destinations TEXT, -- JSON: ["hostname1", "hostname2", ...]
     encoding_flag BOOLEAN DEFAULT 0,
     risk_score INTEGER DEFAULT 0,
+    severity TEXT NOT NULL DEFAULT 'low' CHECK(severity IN ('low', 'medium', 'high', 'critical')),
     action TEXT DEFAULT 'blocked' CHECK(action IN ('blocked', 'advisory_only', 'passed_with_warning')),
     quarantine_id INTEGER REFERENCES QuarantinedPayload(id),
     source_tool TEXT NULL,
@@ -52,7 +53,7 @@ CREATE TABLE IF NOT EXISTS QuarantinedPayload (
 -- Index on QuarantinedPayload for TTL sweep
 CREATE INDEX IF NOT EXISTS idx_quarantined_expires_at ON QuarantinedPayload(expires_at);
 
--- SessionRollingBuffer table: append-only rolling output buffer per session (task 023)
+-- SessionRollingBuffer table: append-only rolling output buffer per session (ADR-025)
 CREATE TABLE IF NOT EXISTS SessionRollingBuffer (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL REFERENCES Session(session_id),
@@ -64,7 +65,7 @@ CREATE TABLE IF NOT EXISTS SessionRollingBuffer (
 -- Index on SessionRollingBuffer for fast lookups by session_id
 CREATE INDEX IF NOT EXISTS idx_rolling_buffer_session_ts ON SessionRollingBuffer(session_id, created_at);
 
--- OperatorAuditLog table: audit trail for operator actions (task 028)
+-- OperatorAuditLog table: audit trail for operator actions
 CREATE TABLE IF NOT EXISTS OperatorAuditLog (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL DEFAULT (datetime('now')),

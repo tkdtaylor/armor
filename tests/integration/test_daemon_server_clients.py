@@ -37,8 +37,8 @@ def start_daemon(socket_path: str, db_path: str, timeout: float = 10.0) -> subpr
     """
     proc = subprocess.Popen(
         ["uv", "run", "armor", "daemon", "--socket", socket_path, "--db", db_path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         text=True,
         env={**os.environ, "ARMOR_DISABLE_LLM": "true"},
     )
@@ -51,9 +51,21 @@ def start_daemon(socket_path: str, db_path: str, timeout: float = 10.0) -> subpr
             return proc
         time.sleep(0.05)
 
-    proc.terminate()
-    proc.wait(timeout=5)
+    stop_daemon(proc)
     raise TimeoutError(f"Daemon failed to start listening on {socket_path} within {timeout}s")
+
+
+def stop_daemon(proc: subprocess.Popen, timeout: float = 5.0) -> None:
+    """Terminate a daemon subprocess, then kill it if graceful shutdown stalls."""
+    if proc.poll() is not None:
+        return
+
+    proc.terminate()
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def send_request(socket_path: str, request: dict, timeout: float = 5.0) -> dict:
@@ -110,13 +122,7 @@ def daemon_process(temp_dir: Path) -> Generator[subprocess.Popen, None, None]:
 
     yield proc
 
-    # Cleanup
-    try:
-        proc.terminate()
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
+    stop_daemon(proc)
 
 
 class TestDaemonServerClients:
@@ -139,8 +145,7 @@ class TestDaemonServerClients:
             assert response["v"] == 1, "Response version should be 1"
             assert response["verdict"] == "pass", "Simple text should pass"
         finally:
-            daemon.terminate()
-            daemon.wait(timeout=5)
+            stop_daemon(daemon)
 
     def test_concurrent_clients(self, temp_dir: Path) -> None:
         """TC-030-02: Multiple concurrent clients.
@@ -163,7 +168,7 @@ class TestDaemonServerClients:
                     "op": "check.input",
                     "payload": {"text": f"client-{client_id}"},
                 }
-                response = send_request(socket_path, request)
+                response = send_request(socket_path, request, timeout=15.0)
                 responses.append(response)
 
             # Use asyncio to run concurrent connections (simulating concurrent clients)
@@ -179,8 +184,7 @@ class TestDaemonServerClients:
                 assert resp["v"] == 1, f"Client {i}: version should be 1"
                 assert resp["verdict"] == "pass", f"Client {i}: verdict should be pass"
         finally:
-            daemon.terminate()
-            daemon.wait(timeout=5)
+            stop_daemon(daemon)
 
     def test_max_concurrent_enforcement(self, temp_dir: Path) -> None:
         """TC-030-03: Max concurrent limit is enforced.
@@ -194,8 +198,8 @@ class TestDaemonServerClients:
         # Start daemon with max_concurrent=2
         proc = subprocess.Popen(
             ["uv", "run", "armor", "daemon", "--socket", socket_path, "--db", db_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             text=True,
             env={**os.environ, "ARMOR_DISABLE_LLM": "true"},
         )
@@ -255,8 +259,7 @@ class TestDaemonServerClients:
             for i, result in enumerate(results):
                 assert result == "pass", f"Request {i}: expected 'pass', got '{result}'"
         finally:
-            proc.terminate()
-            proc.wait(timeout=5)
+            stop_daemon(proc)
 
     def test_handle_malformed_json(self, temp_dir: Path) -> None:
         """TC-030-04: Malformed JSON is rejected gracefully.
@@ -293,8 +296,7 @@ class TestDaemonServerClients:
             assert response["v"] == 1, "Response version should be 1"
             assert response["verdict"] == "error", "Malformed JSON should return error verdict"
         finally:
-            daemon.terminate()
-            daemon.wait(timeout=5)
+            stop_daemon(daemon)
 
     def test_json_per_line_output(self, temp_dir: Path) -> None:
         """TC-030-05: Output is valid NDJSON (one JSON per line).
@@ -346,8 +348,7 @@ class TestDaemonServerClients:
                 assert response["v"] == 1, f"Line {i}: version should be 1"
                 assert response["verdict"] == "pass", f"Line {i}: verdict should be pass"
         finally:
-            daemon.terminate()
-            daemon.wait(timeout=5)
+            stop_daemon(daemon)
 
     def test_graceful_shutdown_removes_socket(self, temp_dir: Path) -> None:
         """TC-030-06: Socket file is removed after shutdown.
@@ -368,8 +369,7 @@ class TestDaemonServerClients:
             response = send_request(socket_path, request)
             assert response["verdict"] == "pass", "Daemon should respond to requests"
         finally:
-            daemon.terminate()
-            daemon.wait(timeout=5)
+            stop_daemon(daemon)
             time.sleep(0.1)  # Give cleanup a moment
 
         # Verify socket is removed

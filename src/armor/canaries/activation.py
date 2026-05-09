@@ -87,8 +87,8 @@ def _evaluate_tool_used(rule: dict[str, Any], ctx: SessionContext) -> bool:
     # For MVP, we'll check if the signal history contains any "meta.tool_*" signals
     # or similar indicators that the tool was used.
 
-    # TODO: When task 074+ establishes explicit tool tracking in SessionContext,
-    # this should query that instead of signal_history inference.
+    # TODO: When explicit tool tracking lands in SessionContext, query that
+    # instead of inferring from signal_history.
     # For now, return False to be conservative (safe default).
     # In practice, a proper implementation would store tool_calls in SessionContext.
 

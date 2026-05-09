@@ -5,6 +5,7 @@ Handles NDJSON request/response protocol with concurrent client support.
 
 import asyncio
 import contextlib
+import fnmatch
 import json
 import logging
 import os
@@ -12,7 +13,8 @@ import signal
 import sys
 import time
 import tomllib
-from datetime import UTC, datetime
+from collections import deque
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +34,44 @@ from armor.pipeline import Pipeline
 from armor.types import Payload, SessionContext, Source, Verdict
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_DETECTOR_FILTERS: dict[str, list[str]] = {
+    "check.input": ["*"],
+    "check.output": ["*"],
+    "check.tool": ["cmd_injection.*", "tool_param.*", "tool_rate.*", "tool_chain"],
+}
+
+
+def _duration_to_cutoff(value: object) -> str | None:
+    """Return a SQLite UTC cutoff timestamp for duration strings like 30m or 1h."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("duration must be a non-empty string")
+
+    raw = value.strip().lower()
+    unit = raw[-1]
+    magnitude_text = raw[:-1] if unit in {"s", "m", "h", "d"} else raw
+    try:
+        magnitude = int(magnitude_text)
+    except ValueError as exc:
+        raise ValueError(f"invalid duration {value!r}") from exc
+    if magnitude < 0:
+        raise ValueError("duration must be non-negative")
+
+    if unit == "m":
+        delta = timedelta(minutes=magnitude)
+    elif unit == "h":
+        delta = timedelta(hours=magnitude)
+    elif unit == "d":
+        delta = timedelta(days=magnitude)
+    elif unit == "s" or unit.isdigit():
+        delta = timedelta(seconds=magnitude)
+    else:
+        raise ValueError(f"unsupported duration unit {unit!r}")
+
+    cutoff = datetime.now(UTC) - delta
+    return cutoff.strftime("%Y-%m-%d %H:%M:%S")
 
 
 class DaemonServer:
@@ -71,6 +111,9 @@ class DaemonServer:
         self._server: asyncio.Server | None = None
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._start_time = time.time()
+        self._total_checks = 0
+        self._input_latencies_ms: deque[float] = deque(maxlen=512)
+        self._output_latencies_ms: deque[float] = deque(maxlen=512)
 
         # Database paths
         self.db_path = db_path or "/var/lib/armor/armor.db"
@@ -172,7 +215,7 @@ class DaemonServer:
             except Exception as e:
                 logger.error(f"Failed to load configuration: {e}")
 
-        # Load trusted source tools allowlist from config at daemon-init time (per task 080, ADR-041)
+        # Load trusted source tools allowlist from config at daemon-init time (ADR-041)
         # Read once at daemon-init, not per-request
         self.trusted_source_tools: list[str] = []
         if self.config and "pipeline" in self.config and "fetched" in self.config["pipeline"]:
@@ -189,6 +232,8 @@ class DaemonServer:
             multipliers = self.config["pipeline"]["source_multipliers"]
             Pipeline.set_source_multipliers(multipliers)
             logger.info(f"Loaded source multipliers from config: {multipliers}")
+
+        self._detector_filters = self._load_detector_filters()
 
         # Check if we're running in an armor-development tree and emit advisory (per ADR-041 §5)
         cwd = Path.cwd()
@@ -259,6 +304,43 @@ class DaemonServer:
         self._inject_llm_session()
 
         logger.info(f"Loaded {len(self.registry)} detector(s)")
+
+    def _load_detector_filters(self) -> dict[str, list[str]]:
+        """Load per-operation detector allowlists from `pipeline.*_detectors` config."""
+        pipeline_config = self.config.get("pipeline", {}) if isinstance(self.config.get("pipeline", {}), dict) else {}
+        config_keys = {
+            "check.input": "input_detectors",
+            "check.output": "output_detectors",
+            "check.tool": "tool_detectors",
+        }
+
+        filters: dict[str, list[str]] = {}
+        for operation, key in config_keys.items():
+            default = DEFAULT_DETECTOR_FILTERS[operation]
+            configured = pipeline_config.get(key, default)
+            if not isinstance(configured, list) or not all(isinstance(item, str) for item in configured):
+                logger.warning(f"pipeline.{key} must be a list of strings; using defaults")
+                filters[operation] = list(default)
+                continue
+            filters[operation] = configured or list(default)
+        return filters
+
+    def _detectors_for_operation(self, operation: str) -> list[Any]:
+        """Return detectors selected by the configured allowlist for the operation."""
+        detectors = self.registry.all()
+        patterns = self._detector_filters.get(operation)
+        if not patterns or "*" in patterns:
+            return detectors
+
+        selected = [
+            detector
+            for detector in detectors
+            if any(
+                fnmatch.fnmatchcase(detector.id, pattern) or fnmatch.fnmatchcase(detector.category, pattern)
+                for pattern in patterns
+            )
+        ]
+        return selected
 
     def _inject_llm_session(self) -> None:
         """Inject LLM session into detectors that depend on it (post-load loop).
@@ -368,7 +450,11 @@ class DaemonServer:
             session_id = request.get("session_id", "anon")
 
             if operation in ("check.input", "check.output", "check.tool", "check.fetched"):
-                return await self._handle_check_operation(operation, request, session_id)
+                started = time.perf_counter()
+                response = await self._handle_check_operation(operation, request, session_id)
+                elapsed_ms = (time.perf_counter() - started) * 1000
+                self._record_check_metric(operation, elapsed_ms)
+                return response
 
             if operation == "config.show":
                 return await self._handle_config_show(request)
@@ -428,6 +514,23 @@ class DaemonServer:
                 "message": str(e),
             }
 
+    def _record_check_metric(self, operation: str, elapsed_ms: float) -> None:
+        """Record in-memory health metrics for completed check operations."""
+        self._total_checks += 1
+        if operation == "check.input":
+            self._input_latencies_ms.append(elapsed_ms)
+        elif operation == "check.output":
+            self._output_latencies_ms.append(elapsed_ms)
+
+    @staticmethod
+    def _p95(samples: deque[float]) -> float | None:
+        """Return nearest-rank P95 for a bounded in-memory sample window."""
+        if not samples:
+            return None
+        ordered = sorted(samples)
+        index = max(0, min(len(ordered) - 1, int(len(ordered) * 0.95 + 0.999999) - 1))
+        return ordered[index]
+
     async def _handle_check_operation(self, operation: str, request: dict[str, Any], session_id: str) -> dict[str, Any]:
         """Handle a check operation (input/output/tool/fetched) end-to-end.
 
@@ -466,7 +569,7 @@ class DaemonServer:
                 text = payload_data.get("text", "")
                 source_tool = payload_data.get("source_tool", "unknown")
                 # Check if source_tool is in the trusted allowlist (case-sensitive match)
-                # Per task 080, trust upgrade: if tool is in allowlist, use TOOL_RESULT_TRUSTED
+                # Trust upgrade: if tool is in allowlist, use TOOL_RESULT_TRUSTED (ADR-041)
                 if source_tool in self.trusted_source_tools:
                     # Trust upgrade: source_tool is in allowlist
                     source = Source(payload_data.get("source", Source.TOOL_RESULT_TRUSTED))
@@ -480,7 +583,9 @@ class DaemonServer:
             # Build full SessionContext from session store
             ctx = await self._build_session_context(session_id)
 
-            detectors = self.registry.all()
+            detectors = (
+                self.registry.all() if operation == "check.fetched" else self._detectors_for_operation(operation)
+            )
 
             # Special handling for check.fetched: implement 4 KB chunking (ADR-033)
             if operation == "check.fetched":
@@ -787,7 +892,7 @@ class DaemonServer:
         session_row = await self.session_store.get_or_create(session_id)
 
         # Coerce persisted state string to SessionState enum
-        # Raises ValueError on unknown state (fail loudly per task 087 spec)
+        # Raises ValueError on unknown state (fail loudly)
         try:
             state_enum: SessionState | None = SessionState(session_row.current_state)
         except ValueError as e:
@@ -840,7 +945,7 @@ class DaemonServer:
         )
 
     async def _handle_config_show(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Handle config.show operation (per task 065 — expose config to hooks).
+        """Handle config.show operation — expose runtime config to hooks.
 
         Payload:
           - section: str, the config section to show (e.g., "pipeline.exempt", "pipeline.source_multipliers")
@@ -894,6 +999,8 @@ class DaemonServer:
           - session_id: str, restrict to one session
           - category: str glob (e.g. `direct_injection.*`)
           - since_id: int, return only incidents with `id > since_id`
+          - since: str duration (e.g. `1h`, `30m`)
+          - severity: str, restrict to one severity
         """
         if self.forensic_logger is None:
             return {"v": 1, "verdict": "error", "message": "forensic store unavailable"}
@@ -908,13 +1015,20 @@ class DaemonServer:
         session_id = payload.get("session_id") or None
         category = payload.get("category") or None
         since_id = payload.get("since_id")
+        severity = payload.get("severity") or None
+        try:
+            since_ts = _duration_to_cutoff(payload.get("since"))
+        except ValueError as exc:
+            return {"v": 1, "verdict": "error", "message": str(exc)}
 
         rows = await asyncio.to_thread(
             self.forensic_logger.list_incidents,
-            limit_int,
-            session_id,
-            category,
-            since_id if isinstance(since_id, int) else None,
+            limit=limit_int,
+            session_id=session_id if isinstance(session_id, str) else None,
+            category=category if isinstance(category, str) else None,
+            since_id=since_id if isinstance(since_id, int) else None,
+            since_ts=since_ts,
+            severity=severity if isinstance(severity, str) else None,
         )
         logger.info(
             "incidents.list served",
@@ -956,18 +1070,21 @@ class DaemonServer:
             return {"v": 1, "verdict": "error", "message": "forensic store unavailable"}
 
         payload = request.get("payload") or {}
-        # Note: since and severity filters are accepted in the request but not
-        # yet implemented in the forensic logger. They are reserved for future use.
         session_id = payload.get("session_id") or None
+        severity = payload.get("severity") or None
+        try:
+            since_ts = _duration_to_cutoff(payload.get("since"))
+        except ValueError as exc:
+            return {"v": 1, "verdict": "error", "message": str(exc)}
 
-        # Get all incidents (export is not paginated like list)
-        # We'll use a large limit to get all matching incidents
         rows = await asyncio.to_thread(
             self.forensic_logger.list_incidents,
-            limit=100000,  # Large limit for export
-            session_id=session_id,
-            category=None,  # Not filtering by category in export
+            limit=100000,
+            session_id=session_id if isinstance(session_id, str) else None,
+            category=None,
             since_id=None,
+            since_ts=since_ts,
+            severity=severity if isinstance(severity, str) else None,
         )
 
         logger.info(
@@ -1065,22 +1182,30 @@ class DaemonServer:
             except Exception:
                 db_reachable = False
 
+        from armor import __version__
+
         uptime = max(0, int(time.time() - self._start_time))
+        health: dict[str, Any] = {
+            "socket_reachable": socket_reachable,
+            "db_reachable": db_reachable,
+            "model_loaded": self.llm_session is not None,
+            "version": __version__,
+            "uptime_seconds": uptime,
+            "active_connections": self.active_connections,
+            "max_concurrent": self.max_concurrent,
+            "total_checks": self._total_checks,
+        }
+        p95_input = self._p95(self._input_latencies_ms)
+        if p95_input is not None:
+            health["p95_input_latency_ms"] = p95_input
+        p95_output = self._p95(self._output_latencies_ms)
+        if p95_output is not None:
+            health["p95_output_latency_ms"] = p95_output
+
         return {
             "v": 1,
             "verdict": "pass",
-            "health": {
-                "socket_reachable": socket_reachable,
-                "db_reachable": db_reachable,
-                "model_loaded": self.llm_session is not None,
-                "uptime_seconds": uptime,
-                "active_connections": self.active_connections,
-                "max_concurrent": self.max_concurrent,
-                "db_capacity_percent": 0.0,
-                "total_checks": 0,
-                "p95_input_latency_ms": 0.0,
-                "p95_output_latency_ms": 0.0,
-            },
+            "health": health,
         }
 
     async def start(self) -> None:

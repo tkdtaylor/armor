@@ -3,11 +3,11 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §7 Category 7 lines 345-346 *Rate Limit Bypass*, *Cross-Service Attack*; ADR-024 (session FSM); behaviors.md B-010 (tool param schema).
+**References:** Internal design audit categories *Rate Limit Bypass* and *Cross-Service Attack*; ADR-024 (session FSM); behaviors.md B-010 (tool param schema).
 
 ## Context
 
-`archive/discussion.md` §7 Category 7 lines 345-346 calls out two tool-abuse vectors with no current coverage:
+The design audit called out two tool-abuse vectors with no current coverage:
 
 | Vector | Description (discussion) | Today's coverage |
 |---|---|---|
@@ -24,7 +24,7 @@ Today's coverage is good at "is this individual tool call dangerous on its own" 
 
 ## Decision
 
-**Proposed.** Add two session-level detectors under category `meta.tool_pattern`:
+Add two session-level detectors under category `meta.tool_pattern`:
 
 ### Detector 1: `meta.tool_rate_anomaly` (advisory)
 
@@ -93,7 +93,7 @@ Answered 2026-05-07.
 
 ## See also
 
-- `archive/discussion.md` §7 Category 7 lines 345-346.
+- Internal design audit categories *Rate Limit Bypass* and *Cross-Service Attack*.
 - ADR-031: honeyfs (the recipe paths form the substrate for chain matching).
 - ADR-024: session FSM (the signal aggregation substrate).
 - behaviors.md B-010: per-call tool param schema (single-call counterpart).

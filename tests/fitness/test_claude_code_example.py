@@ -55,6 +55,15 @@ def test_tc_055_04_readme_has_required_topics() -> None:
         assert needle in text, f"README missing reference to {needle!r}"
 
 
+def test_tc_096_06_readme_has_real_session_verification_anchor() -> None:
+    """TC-096-06: README records the agent versions used for real-session verification."""
+    text = (EX_DIR / "README.md").read_text()
+    assert "Last verified hook integration:" in text
+    assert "Claude Code" in text
+    assert "Codex CLI" in text
+    assert "2026-05-09" in text
+
+
 def test_tc_055_05_readme_length_under_120_lines() -> None:
     """TC-055-05: README is ≤120 lines."""
     text = (EX_DIR / "README.md").read_text()

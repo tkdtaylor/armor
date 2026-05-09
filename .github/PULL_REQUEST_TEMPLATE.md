@@ -1,6 +1,6 @@
 <!--
-This template encodes the milestone rules from CLAUDE.md. Do not delete
-sections — leave the unchecked checkboxes as a record of what does not
+This template encodes the project milestone rules from CONTRIBUTING.md. Do not
+delete sections — leave the unchecked checkboxes as a record of what does not
 apply, and explain why in a brief note.
 -->
 

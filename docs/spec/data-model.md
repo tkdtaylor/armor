@@ -52,6 +52,7 @@ triggered_canary  text        canary_id if applicable (NEVER the canary value it
 destinations      blob (json) extracted URLs/IPs/emails (sanitized: hostnames only)
 encoding_flag     boolean     true if the block was triggered by the `entropy.decode_rescan` detector (encoded exfiltration)
 risk_score        integer     session risk score at time of block
+severity          text        verdict severity: "low" | "medium" | "high" | "critical"
 action            text        "blocked" | "advisory_only" | "passed_with_warning"
 quarantine_id     integer     FK QuarantinedPayload.id (nullable)
 source_tool       text        for check.fetched blocks, the source tool name (e.g. "WebFetch"); nullable for other sources
@@ -147,7 +148,7 @@ activation     object (optional) dict defining when the canary is active (per AD
 - Value isolation: Canary values are read only by the honeypot path (`src/armor/llm/honeypot.py`). The validator LLM (`src/armor/llm/validator.py`) never accesses `catalogue.values()` or reads the `value` field (enforced by fitness function `tests/fitness/test_validator_no_value_access.py`).
 - Value transit: Canary values flow from the in-memory catalogue → honeypot.py (with active subset) → prompt substitution → LLM context window (volatile). Values never appear in prompt template files (only placeholders like `{{canary:id}}`), never in forensic logs, never in the validator path.
 - Activation consistency: For any session, an activated-then-deactivated canary, if reactivated, produces the same value (no regeneration mid-session). Enforced by fitness function `tests/fitness/test_canary_activation_consistency.py`.
-- Identity:** `canary_id`. Stable across catalogue rotations and installations.
+- **Identity:** `canary_id`. Stable across catalogue rotations and installations.
 - **Lifecycle:** Values generated at install time by `armor canary generate`. Schema bundled with the package. Catalogue merged at daemon boot and frozen for the daemon's lifetime. Active subset computed per-check.
 
 #### Entity: `ToolSchemas` (in-memory registry, frozen at boot)
@@ -279,8 +280,8 @@ TOOL_RESULT_UNTRUSTED  = "tool_result_untrusted"  # Tool result from external so
 ```json
 {
   "v": 1,
-  "verdict": "pass" | "block" | "advisory" | "try_later" | "error",
-  "signal_id": "regex:override-001",
+  "verdict": "pass" | "block" | "advisory" | "error",
+  "signal_id": "regex.instruction_override:override-001",
   "message": "Input blocked: instruction-override pattern matched.",
   "incident_id": 42
 }
@@ -301,14 +302,22 @@ TOOL_RESULT_UNTRUSTED  = "tool_result_untrusted"  # Tool result from external so
 |----|----------------|-------------------|
 | `canary.list` | `{}` | `{ "verdict": "pass", "canaries": [{canary_id, kind, service, active}, ...] }` |
 | `config.show` | `{ "section": "pipeline.exempt" \| "pipeline.source_multipliers", "json"?: bool }` | `{ "verdict": "pass", "config": {...} }` (TOML format or JSON if `json=true`) |
-| `incidents.list` / `incidents.tail` | `{ "limit"?: 50, "session_id"?: str, "category"?: glob, "since_id"?: int }` | `{ "verdict": "pass", "incidents": [<incident row>...] }` |
+| `incidents.list` / `incidents.tail` | `{ "limit"?: 50, "session_id"?: str, "category"?: glob, "since_id"?: int, "since"?: duration, "severity"?: str }` | `{ "verdict": "pass", "incidents": [<incident row>...] }` |
 | `incidents.show` | `{ "incident_id": int\|str }` | `{ "verdict": "pass", "incident": <row>\|null }` |
 | `incidents.export` | `{ "since"?: str, "session_id"?: str, "severity"?: str }` | `{ "verdict": "pass", "incidents": [<incident row>...] }` (NDJSON framing applied client-side by `armor incidents export`) |
 | `incident.get` | `{ "id": int\|str }` | `{ "verdict": "pass", "incident": <row>\|null }` (SDK form) |
 | `sessions.list` | `{ "state"?: str }` | `{ "verdict": "pass", "sessions": [<session row>...] }` |
 | `sessions.show` | `{ "session_id": str }` | `{ "verdict": "pass", "session": <row>\|null }` |
 | `sessions.unblock` | `{ "session_id": str, "reason": str (non-empty), "actor"?: str }` | `{ "verdict": "pass", "new_state": "Watching" }` or `{ "verdict": "error", "message": "..." }` if not Blocked or `reason` missing |
-| `health.full` | `{}` | `{ "verdict": "pass", "health": {socket_reachable, db_reachable, model_loaded, uptime_seconds, ...} }` |
+| `health.full` | `{}` | `{ "verdict": "pass", "health": {socket_reachable, db_reachable, model_loaded, version, uptime_seconds, active_connections, max_concurrent, total_checks, p95_input_latency_ms?, p95_output_latency_ms?} }` |
+
+`health.full` metrics are in-memory since daemon start. `total_checks` counts
+completed `check.*` operations. `p95_input_latency_ms` and
+`p95_output_latency_ms` are nearest-rank P95 values over bounded rolling windows
+and are present only after at least one corresponding `check.input` or
+`check.output` sample exists. `db_capacity_percent` is intentionally absent
+until the daemon computes a real SQLite capacity metric; health responses must
+not include placeholder metric fields.
 
 - **Versioning:** Top-level `v` integer. Daemon supports the current version + the previous one.
 
@@ -318,7 +327,7 @@ TOOL_RESULT_UNTRUSTED  = "tool_result_untrusted"  # Tool result from external so
 - **Consumer:** Operator tooling, SIEM ingestion
 
 ```json
-{"ts":"2026-05-05T18:30:01Z","session_id":"claude-code-12345-abc","attack_category":"exfiltration.canary_leak","signal_id":"canary:aws-key-001","input_hash":"...","output_hash":"...","triggered_canary":"aws-key-001","destinations":["webhook.site"],"encoding_flag":false,"risk_score":85,"action":"blocked"}
+{"ts":"2026-05-05T18:30:01Z","session_id":"claude-code-12345-abc","attack_category":"exfiltration.canary_leak","signal_id":"canary:aws-key-001","input_hash":"...","output_hash":"...","triggered_canary":"aws-key-001","destinations":["webhook.site"],"encoding_flag":false,"risk_score":85,"severity":"critical","action":"blocked"}
 ```
 
 ---

@@ -28,7 +28,7 @@ Use **hand-curated JSON data files** bundled in the repo at `src/armor/detectors
 
 **Rationale for each choice:**
 
-- **Not runtime-fetched from Anthropic**: Armor is designed to work air-gapped. Outbound network calls from the daemon are forbidden (see `CLAUDE.md` boundaries). Anthropic does not publish a stable, versioned schema endpoint; the documented tool contract is in the human docs. Encoding schemas in the repo is acceptable churn (tool-surface changes are rare and visible).
+- **Not runtime-fetched from Anthropic**: Armor is designed to work air-gapped. Outbound network calls from the daemon are forbidden by the project invariants. Anthropic does not publish a stable, versioned schema endpoint; the documented tool contract is in the human docs. Encoding schemas in the repo is acceptable churn (tool-surface changes are rare and visible).
 
 - **Not inline Python dict**: Data-driven formats (JSON, YAML) are easier to extend, review, and audit than code. Contributors can understand the schema structure without reading Python. Separating data from logic reduces cognitive load.
 

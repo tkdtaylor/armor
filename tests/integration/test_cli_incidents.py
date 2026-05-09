@@ -9,6 +9,8 @@ Covers task 036 spec markers:
 import json
 from unittest.mock import Mock, patch
 
+import pytest
+
 from armor.cli import main
 
 
@@ -201,6 +203,21 @@ class TestIncidentsCommands:
             assert call[0][0] == "incidents.list"
             assert call[1]["payload"]["limit"] == 50
 
+    def test_incidents_list_sends_since_filter(self) -> None:
+        """TC-107-06: incidents list --since is sent to the daemon."""
+        mock_response = {"verdict": "pass", "incidents": []}
+
+        with patch("armor.cli.DaemonClient") as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.request.return_value = mock_response
+
+            main(["incidents", "list", "--since", "1h"])
+
+            call = mock_client.request.call_args
+            assert call[0][0] == "incidents.list"
+            assert call[1]["payload"]["since"] == "1h"
+
     def test_incidents_tail_streams_new_incidents(self) -> None:
         """TC-028-03: armor incidents tail streams new incidents."""
         # Test that tail returns 0 on KeyboardInterrupt (successful termination)
@@ -245,6 +262,33 @@ class TestIncidentsCommands:
 
                 # Should exit cleanly on KeyboardInterrupt
                 assert exit_code == 0
+
+    def test_incidents_tail_parses_filter_expression(self) -> None:
+        """TC-107-07: incidents tail --filter becomes concrete daemon filters."""
+        with patch("armor.cli.DaemonClient") as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.request.side_effect = [
+                {"verdict": "pass", "incidents": []},
+                KeyboardInterrupt(),
+            ]
+
+            with patch("armor.cli.time.sleep"):
+                exit_code = main(
+                    [
+                        "incidents",
+                        "tail",
+                        "--filter",
+                        "session=tail-session,category=direct_injection.*,severity=critical",
+                    ]
+                )
+
+            assert exit_code == 0
+            call = mock_client.request.call_args_list[0]
+            assert call[0][0] == "incidents.list"
+            assert call[1]["payload"]["session_id"] == "tail-session"
+            assert call[1]["payload"]["category"] == "direct_injection.*"
+            assert call[1]["payload"]["severity"] == "critical"
 
     def test_incidents_export_ndjson_output(self) -> None:
         """TC-049-03: incidents export writes NDJSON with documented schema."""
@@ -398,7 +442,18 @@ class TestIncidentsCommands:
 
                 mock_stdout.write = capture_write
 
-                exit_code = main(["incidents", "export", "--session", "filtered-session", "--since", "1h"])
+                exit_code = main(
+                    [
+                        "incidents",
+                        "export",
+                        "--session",
+                        "filtered-session",
+                        "--since",
+                        "1h",
+                        "--severity",
+                        "critical",
+                    ]
+                )
 
                 # Verify the request was made with correct filters
                 mock_client.request.assert_called_once()
@@ -406,23 +461,24 @@ class TestIncidentsCommands:
                 assert call[0][0] == "incidents.export"
                 assert call[1]["payload"]["session_id"] == "filtered-session"
                 assert call[1]["payload"]["since"] == "1h"
+                assert call[1]["payload"]["severity"] == "critical"
 
                 assert exit_code == 0
 
     def test_incidents_export_help(self) -> None:
         """TC-049-02: armor incidents export --help exits 0.
 
-        Note: This is operator-verified. The test here checks that the
-        subcommand is registered and accessible.
+        TC-107-08: The help check is an executable assertion, not a placeholder.
         """
-        # Placeholder: actual help output will be verified manually
-        # by running 'armor incidents export --help'
-        pass
+        with pytest.raises(SystemExit) as exc_info:
+            main(["incidents", "export", "--help"])
 
-    def test_incidents_export_make_check(self) -> None:
-        """TC-049-04: make check passes.
+        assert exc_info.value.code == 0
 
-        Note: This is operator-verified separately via make check.
-        """
-        # Placeholder: actual test is run via make check
-        pass
+    def test_incidents_export_help_includes_severity_filter(self, capsys) -> None:
+        """TC-107-09: export still exposes the documented severity filter."""
+        with pytest.raises(SystemExit) as exc_info:
+            main(["incidents", "export", "--help"])
+
+        assert exc_info.value.code == 0
+        assert "--severity" in capsys.readouterr().out

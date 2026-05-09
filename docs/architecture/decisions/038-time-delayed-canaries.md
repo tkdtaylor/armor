@@ -3,13 +3,13 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §5 line 172 *Time-delayed canaries* ("Values that only appear in certain conversation contexts"); ADR-010 (catalogue storage); ADR-031 §4 (`armor honeyfs rotate`); data-model.md `CanaryCatalogue`.
+**References:** Internal design audit category *Time-delayed canaries*; ADR-010 (catalogue storage); ADR-031 §4 (`armor honeyfs rotate`); data-model.md `CanaryCatalogue`.
 
 ## Context
 
 The current catalogue (per ADR-010 and data-model.md *CanaryCatalogue*) is **frozen at daemon boot** — the active set is loaded once and immutable for the daemon's lifetime. ADR-031 §4 introduced `armor honeyfs rotate` as the operator-driven primitive for swapping the active set, but rotation is a **whole-set replacement**, not a context-conditioned activation.
 
-`archive/discussion.md` §5 line 172 calls out a finer-grained idea: **canaries that are active only in specific conversation contexts**. The motivation: a sophisticated attacker who has reconnaissance access (read-only shell inside the container) can enumerate every active canary value once, then craft injections that *avoid* those specific values — bypassing detection. If the active set varies by context, single-shot enumeration buys the attacker less.
+The design audit called out a finer-grained idea: **canaries that are active only in specific conversation contexts**. The motivation: a sophisticated attacker who has reconnaissance access (read-only shell inside the container) can enumerate every active canary value once, then craft injections that *avoid* those specific values — bypassing detection. If the active set varies by context, single-shot enumeration buys the attacker less.
 
 Concrete scenarios where context-specific canaries would help:
 
@@ -19,7 +19,7 @@ Concrete scenarios where context-specific canaries would help:
 
 ## Decision
 
-**Proposed.** Extend the catalogue schema with an optional `activation` field (a structured rule) and the `Catalogue` loader to evaluate the activation rule per check rather than at boot. The active subset varies per check; the *full* catalogue (with all rules) remains frozen at boot.
+Extend the catalogue schema with an optional `activation` field (a structured rule) and the `Catalogue` loader to evaluate the activation rule per check rather than at boot. The active subset varies per check; the *full* catalogue (with all rules) remains frozen at boot.
 
 ### Schema extension
 
@@ -90,7 +90,7 @@ Answered 2026-05-07.
 
 ## See also
 
-- `archive/discussion.md` §5 line 172.
+- Internal design audit category *Time-delayed canaries*.
 - ADR-010: catalogue storage (the schema this ADR extends).
 - ADR-031 §4: `armor honeyfs rotate` (the whole-set rotation primitive; this ADR is the per-check counterpart).
 - ADR-024: session FSM (the source of `fsm_state_at_least` rule data).

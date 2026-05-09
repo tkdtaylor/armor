@@ -65,7 +65,7 @@ The registry is populated once at daemon start, then read-only for the lifetime 
 
 ## Consequences
 
-- **No hot reload in v1**: Detectors are discovered once at daemon startup. Adding a new detector requires a daemon restart. (Hot reload is explicitly deferred to v2+; see [CLAUDE.md](../../CLAUDE.md#plan-mode).)
+- **No hot reload in v1**: Detectors are discovered once at daemon startup. Adding a new detector requires a daemon restart. Hot reload is explicitly deferred to v2+.
 - **Entry points must be syntactically valid**: A malformed entry point (class not found, syntax error) causes daemon startup to fail. This is intentional — fail fast.
 - **Detector instantiation**: The detector class is instantiated once at boot. This means detector __init__ runs once; any state initialization happens then. Detectors must be stateless or thread-safe (they're called concurrently by the daemon's asyncio event loop via `asyncio.to_thread`).
 
@@ -78,7 +78,7 @@ The registry is populated once at daemon start, then read-only for the lifetime 
 
 ## See also
 
-- [B-001 through B-003: Check operations](../behaviors.md) — the pipeline that runs discovered detectors
+- [B-001 through B-003: Check operations](../../spec/behaviors.md) — the pipeline that runs discovered detectors
 - Task 003 (this task) — implements detector discovery
 - Task 004 (P0 regex detectors) — first set of concrete detectors; will populate entry points
 - Task 005 (canary scanner) — second detector; will add entry point

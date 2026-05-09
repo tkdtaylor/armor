@@ -6,7 +6,7 @@ Spec markers:
     TC-054-03 — recipe references check, fitness, demo, and --offline-smoke
     TC-054-04 — Docker stage is gated on $(DOCKER) / ifdef DOCKER
     TC-054-05 — RELEASE_CHECKLIST.md exists with all five required sections
-    TC-054-06 — CONTRIBUTING.md (or CLAUDE.md) references make release-check
+    TC-054-06 — CONTRIBUTING.md references make release-check
 """
 
 from __future__ import annotations
@@ -78,20 +78,24 @@ def test_tc_054_04_docker_stage_gated_on_env_var(makefile_text: str) -> None:
 
 
 def test_tc_054_05_release_checklist_exists_with_required_sections() -> None:
-    """TC-054-05: RELEASE_CHECKLIST.md exists with all five required headers."""
+    """TC-054-05 / TC-106-01 / TC-106-02: checklist pins current release artifacts."""
     p = REPO_ROOT / "RELEASE_CHECKLIST.md"
     assert p.exists(), "RELEASE_CHECKLIST.md missing"
     text = p.read_text()
     for section in ("Pre-flight", "Automated verification", "Manual verification", "Tag and push", "Post-tag"):
         assert section in text, f"checklist missing section: {section}"
     assert "make release-check" in text, "checklist does not reference make release-check"
+    assert "ghcr.io/tkdtaylor/armor:$VERSION" in text, "checklist does not verify the GHCR release image"
+    assert "armor-ai==$VERSION" in text, "checklist does not verify the armor-ai PyPI artifact"
+    assert "when the image publish path is wired" not in text, "checklist still treats GHCR publishing as future work"
+    assert "final non-colliding name" not in text, "checklist still treats the PyPI project name as unresolved"
 
 
-def test_tc_054_06_contributing_or_claudemd_references_release_check() -> None:
-    """TC-054-06: CONTRIBUTING.md or CLAUDE.md references make release-check."""
+def test_tc_054_06_contributing_references_release_check() -> None:
+    """TC-054-06: CONTRIBUTING.md references make release-check."""
     matches = []
-    for fname in ("CONTRIBUTING.md", "CLAUDE.md"):
+    for fname in ("CONTRIBUTING.md",):
         p = REPO_ROOT / fname
         if p.exists() and "make release-check" in p.read_text():
             matches.append(fname)
-    assert matches, "Neither CONTRIBUTING.md nor CLAUDE.md references make release-check"
+    assert matches, "CONTRIBUTING.md does not reference make release-check"

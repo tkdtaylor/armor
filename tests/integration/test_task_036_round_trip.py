@@ -13,6 +13,9 @@ Spec markers covered:
 - TC-036-04: sessions.show returns the full state.
 - TC-036-05: sessions.unblock transitions Blocked → Watching and writes audit row.
 - TC-036-06: --reason is required by argparse (CLI subprocess form).
+- TC-097-01: health.full returns no hardcoded placeholder health metrics.
+- TC-097-02: total_checks increments for check operations.
+- TC-097-03: p95_input_latency_ms reflects the observed rolling window.
 """
 
 from __future__ import annotations
@@ -340,3 +343,30 @@ class TestHealthFull:
         assert "socket_reachable" in health
         assert "db_reachable" in health
         assert "uptime_seconds" in health
+        assert "db_capacity_percent" not in health
+
+    def test_health_metrics_after_input_workload(self, daemon_with_seed: tuple[str, str]) -> None:
+        """TC-097-01/02/03: check metrics are computed, not placeholder zeros."""
+        socket_path, _db_path = daemon_with_seed
+
+        for idx in range(20):
+            resp = _send(
+                socket_path,
+                {
+                    "v": 1,
+                    "op": "check.input",
+                    "session_id": f"health-metrics-{idx}",
+                    "payload": {"text": f"benign health metrics payload {idx}"},
+                },
+            )
+            assert resp["verdict"] in {"pass", "advisory", "block"}
+
+        resp = _send(socket_path, {"v": 1, "op": "health.full"})
+        assert resp["verdict"] == "pass"
+        health = resp["health"]
+
+        assert "db_capacity_percent" not in health
+        assert health["total_checks"] == 20
+        assert health["p95_input_latency_ms"] > 0.0
+        assert health["p95_input_latency_ms"] < 60_000.0
+        assert "p95_output_latency_ms" not in health

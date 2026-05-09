@@ -16,6 +16,7 @@ from typing import Any, Literal, cast
 import yaml
 
 from armor.llm.validator import validate
+from armor.session.state_machine import SessionState
 from armor.types import Payload, SessionContext, Verdict
 
 logger = logging.getLogger(__name__)
@@ -235,6 +236,17 @@ class JailbreakTemplate:
             Block verdict if LLM confidence >= threshold, otherwise advisory unchanged.
         """
         try:
+            if ctx.state not in (SessionState.WATCHING, SessionState.ELEVATED, SessionState.HIGH, SessionState.BLOCKED):
+                return Verdict.advisory_verdict(
+                    signal_id=static_signal_id,
+                    severity="medium",
+                    details={
+                        "family": static_family,
+                        "llm_available": False,
+                        "llm_skipped": "state_below_watching",
+                    },
+                )
+
             if not self._llm_session:
                 # LLM not available; return advisory unchanged
                 return Verdict.advisory_verdict(

@@ -7,8 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Claude Code hook commands now parse real hook JSON from stdin** (task 096). `armor check tool --hook-mode` accepts `tool_name`/`tool_input` payloads, `armor check fetched --hook-mode` accepts `tool_name` plus tool-result payloads, and Codex-style `tool_input.command` payloads are treated as Bash tool checks for the local integration path.
+- **Validator/honeypot P95 latency fitness now discards the first 1–2 rows as warmup** (task 092). The first call into `llama-cpp` per process incurs one-time costs (KV-cache init, page-fault-in on the GGUF, allocator init) that aren't representative of steady-state inference. Pre-fix 5×`test_llm_p95_under_budget_smoke` runs swung the validator P95 across 467–1193 ms (2.5× variance) on the same hardware; post-fix 5×runs land at 359–438 ms with the budget unchanged at 500 ms. README's "Measured performance" preamble now documents the methodology and ADR-023 carries the amendment with the empirical evidence.
+
+### Fixed
+
+- **Detector allowlist config now affects daemon runtime behavior** (task 108). `pipeline.input_detectors`, `pipeline.output_detectors`, and `pipeline.tool_detectors` now select detectors for their matching check operations, and the spec no longer documents an unused telemetry env var.
+- **Incident filters are now applied instead of merely accepted** (task 107). `incidents list --since`, `incidents tail --filter`, and `incidents export --since/--severity` now flow through daemon-side forensic queries, and incident rows persist verdict severity for export filtering.
+- **Root release checklist now verifies the current publish paths** (task 106). The pre-tag checklist no longer treats GHCR or PyPI publishing as future work, and it names the `armor-ai` PyPI artifact directly.
+- **Release versioning docs now match the 0.9.x package line** (task 105). The post-release checklist examples use `v0.9.0` / `0.9.0rc1`, and ADR-030 now documents the current `armor-ai` distribution metadata flow instead of the old placeholder/tag-derived wording.
+- **Release smoke/checklist wording now matches the shipped artifacts** (task 103). The release workflow describes its published-image health smoke accurately, and the post-release checklist no longer claims source-tree examples ship inside the wheel.
+- **Release metadata now uses the reserved `armor-ai` PyPI project name** (task 102). The tag-release image smoke test also starts the daemon image correctly and verifies `armor health` from inside the running container instead of appending CLI args to the daemon entrypoint.
+- **`jailbreak.template` now respects the session FSM gate before invoking the validator LLM** (task 101). Soft jailbreak-template advisories stay static-only while the session is below `Watching`, matching the documented LLM cost-tier contract.
+
+## [0.9.0] — 2026-05-09
+
+First public preview. The architecture and core detector pipeline are
+locked, the spec ↔ code drift has been swept, and the operator-facing
+surface (CLI, SDK, Docker image, integration examples) is in place. This
+is **not** a v1.0: full corpus detection rates, SDK examples against real
+APIs, and external review/dogfood validation have not yet been completed
+against the v1.0 readiness bar. Treat headline performance numbers as
+preview measurements, not production guarantees. v1.0 readiness work is
+tracked operator-private.
+
 ### Added
 
+- **`armor incidents export`** CLI subcommand for exporting forensic records to JSONL with operator-supplied filters (session, time window, verdict).
+- **SECURITY.md** disclosure policy with a structured reporting procedure, numeric SLA, public-issue guard, and private-channel anchor (Security Advisory + email).
+- **Contributor scaffolding**: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/dependabot.yml`, and the `.github/workflows/release.yml` release workflow.
+- **Honeypot P95 latency fitness check** at the post-ADR-023 16,000 ms budget (ADR-023 supersedes the v0.4 12,000 ms placeholder).
+- **`scripts/fitness.sh`** wired into CI so the fitness suite runs on every PR.
 - **`examples/claude_code/`** — drop-in `.claude/settings.json` plus walkthrough `README.md` and self-validating `demo.sh` for wiring armor into a Claude Code project. Covers all four lifecycle hooks (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`).
 - **`examples/custom_agent.py`** — defense-in-depth Anthropic agent loop with armor checks at all three layers (`check_input` on the user prompt, `check_tool_call` before tool execution, `check_output` on the model response). Three pre-canned attack-demo modes (`injection`, `path-traversal`, `canary-leak`) prove which layer fires for which attack class.
 - **`make release-check`** target — staged pre-tag verification (lint + typecheck + unit + eval + fitness + demo + every example's `--offline-smoke`). Optional Docker stage gated on `DOCKER=1`.
@@ -19,41 +50,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`artifacts/demo.svg`** — terminal-styled visual of the `make demo` flow embedded at the top of README so visitors see armor working in <30 seconds. `artifacts/recording.md` documents how to swap in a real asciicast.
 - **README "Measured performance" section** — 10 cited numbers (validator TP rate, accuracy, honeypot emission rates, P95 budgets, cold-start budget, model size, corpus row counts) anchored to source files.
 - **README "Threat model" + "Limitations" sections** — adversary statement, link to `docs/architecture/threat-model.md`, and explicit enumeration of what armor does *not* defend against (host-level compromise, multilingual jailbreaks, validator soft-fail = fail-open, no UI, single-tenant).
-
-### Changed
-
-- **CI workflow pinned to `uv sync --frozen`** in `ci.yml` — every job installs the exact tree the lockfile describes (was `uv sync --all-extras --dev`).
-- **Dependabot** added a third ecosystem (`docker`) alongside `pip` and `github-actions`. Weekly Monday cadence across all three.
-- **Issue templates** converted from markdown to YAML form schema. `bug_report.yml` has an attack-class dropdown (input injection / canary exfiltration / tool abuse / multi-turn / other) so triage routes to the right detector group automatically. `feature_request.yml` requires "what attack does this defend against" as a structured field.
-- **PR template** dropped the operator-private `docs/tasks/active/NNN-*.md` reference (replaced with a "Linked task or context" section appropriate for external contributors) and added `make fitness` to the local-verification checklist alongside `make check`.
-- **CONTRIBUTING.md** added "Continuous integration" section documenting the workflow set and the merge gate; "Local setup" lists `make release-check`.
-- **Task lifecycle workflow simplified** in CLAUDE.md — the old `backlog/ → active/ → completed/` ceremony with a `chore: start task` commit was retired because `docs/tasks/` is gitignored (its concurrency-guard role had no remaining audience). One `feat:` commit per task is the new rule.
-
-### Fixed
-
-- **Two stale README assertions** in `tests/test_task_029.py::TestREADME` (`docker run ghcr.io/...` → `docker compose`; `pip install armor` → `PyPI` mention) updated to match the README content as it has been since the v1.0 docs refresh.
-- **TC-038-04 squashed-history-count threshold** widened from 8 to 25 to accommodate ongoing C7 batch work; the assertion's role is to signal a rerun is needed, not to block routine commits. See `archive/038-rerun-runbook.md` for the recovery procedure.
-
-## [1.0.0] — 2026-05-07
-
-First public release. Adds the operator-facing release surface (CLI export, security disclosure procedure, contributor docs), reconciles configuration with the post-FSM data model, and removes pre-rebrand and pre-rotation literals from the public tree.
-
-### Added
-
-- **`armor incidents export`** CLI subcommand for exporting forensic records to JSONL with operator-supplied filters (session, time window, verdict).
-- **SECURITY.md** disclosure policy with a structured reporting procedure, numeric SLA, public-issue guard, and private-channel anchor (Security Advisory + email).
-- **Contributor scaffolding**: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/dependabot.yml`, and the `.github/workflows/release.yml` release workflow.
-- **Honeypot P95 latency fitness check** at the post-ADR-023 16,000 ms budget (ADR-023 supersedes the v0.4 12,000 ms placeholder).
-- **`scripts/fitness.sh`** wired into CI so the fitness suite runs on every PR.
+- **`docs/v1-readiness.md`** — concrete gate for promoting from preview to v1.0, covering detection floors, performance reproducibility, integration verification, and external validation.
+- **Real health metrics** — `health.full` now reports computed in-memory `total_checks` plus rolling input/output P95 latencies; the unimplemented `db_capacity_percent` placeholder was removed from the IPC response and CLI rendering.
+- **Verified Docker build path** — local `armor-dev` now builds from the repository root, downloads the public Qwen3 GGUF and ONNX embedding models without `HF_TOKEN`, and documents the measured build duration plus final image size.
 
 ### Changed
 
 - **Canonical contact emails** moved to `taylorguard.me`: general / security / Code-of-Conduct contact is `tools@taylorguard.me`; commercial-license inquiries go to `licensing@taylorguard.me`.
 - **`armor.toml` schema** rewritten for the post-FSM model: session thresholds, cooldown decay, signal weights, validator/honeypot budgets, and rolling-buffer / topic-coherence keys are now first-class.
 - **Architecture component table** added to `docs/architecture/overview.md` enumerating every runtime module the daemon ships with.
-- **Architecture diagrams** refreshed for v1.0: HoneypotGate, pipeline orchestrator, logging sink, and rolling buffer added to the runtime-flow diagram.
-- **Roadmap and per-task planning are operator-private** and no longer part of the public repo. The build-process workflow itself (TDD spec-first, atomic commits, ADR + test-spec + task-completion as separate commits) remains documented in `CONTRIBUTING.md` and `CLAUDE.md`.
-- **Public git history** rewritten and squashed to seven milestone commits with a single canonical author identity (the GitHub noreply). Pre-rewrite history preserved on the operator's local disk via a `--mirror` clone; not part of the public repo.
+- **Architecture diagrams** refreshed for the public preview: HoneypotGate, pipeline orchestrator, logging sink, and rolling buffer added to the runtime-flow diagram.
+- **Roadmap, per-task planning, and local agent harnesses are operator-private** and no longer part of the public repo. The build-process workflow itself (TDD spec-first, atomic commits, ADR + test-spec + task-completion as separate commits) remains documented in `CONTRIBUTING.md`.
+- **Public git history** rewritten for the public preview with a single canonical author identity (the GitHub noreply). Pre-rewrite history preserved on the operator's local disk via a `--mirror` clone; not part of the public repo.
+- **CI workflow pinned to `uv sync --frozen`** in `ci.yml` — every job installs the exact tree the lockfile describes (was `uv sync --all-extras --dev`).
+- **Dependabot** added a third ecosystem (`docker`) alongside `pip` and `github-actions`. Weekly Monday cadence across all three.
+- **Issue templates** converted from markdown to YAML form schema. `bug_report.yml` has an attack-class dropdown (input injection / canary exfiltration / tool abuse / multi-turn / other) so triage routes to the right detector group automatically. `feature_request.yml` requires "what attack does this defend against" as a structured field.
+- **PR template** dropped the operator-private references (replaced with a "Linked task or context" section appropriate for external contributors) and added `make fitness` to the local-verification checklist alongside `make check`.
+- **CONTRIBUTING.md** added "Continuous integration" section documenting the workflow set and the merge gate; "Local setup" lists `make release-check`.
+- **README performance claims** now include sample sizes, Wilson 95% confidence intervals, measurement date, hardware envelope, and the reproduction path instead of implying local benchmark JSON is committed.
+- **Docker Compose local service** no longer depends on operator-private `.env` or `.claude` mounts; it uses the repository root as build context with a public `.dockerignore`.
 
 ### Fixed
 
@@ -62,6 +77,7 @@ First public release. Adds the operator-facing release surface (CLI export, secu
 - **Honeypot p95 latency regression** above the v0.4 placeholder budget — fixed and a new fitness gate set at the ADR-023 budget.
 - **Spec drift cluster** across `docs/spec/configuration.md`, `data-model.md`, `behaviors.md`, and `interfaces.md` reconciled in one pass.
 - **Fitness pytest discovery** — modules renamed so pytest collects them by default; `structured_logs` test renamed to follow the same convention.
+- **Docker runtime image** now installs the package into an unprivileged-user-readable location and includes the required `libgomp1` runtime library for `llama-cpp-python`.
 
 ## [0.4.0] — 2026-05-06
 
@@ -101,15 +117,15 @@ Initial v0.2 release: encoding, obfuscation, and tool-call protection.
 
 ### Added
 
-- **Encoding-request detector** (Task 009): detects base64/hex/rot13/encrypt keywords in user input.
-- **Output entropy analyzer** (Task 010): opportunistic decode-and-rescan on high-entropy output.
-- **Install-time canary generation** (Task 015, ADR-010 rewritten): per-installation values, runtime injection, no hardcoded values.
-- **URL/IP/email extractors** (Task 011): with destination whitelist support.
-- **Command-injection denylist** (Task 012): filesystem destruction, credential reads, container escape patterns for Bash.
-- **Parameter tampering check** (Task 013): schema-driven tool-call parameter validation.
-- **Eval harness** (Task 014): corpus-driven pytest parametrization with CI gate.
-- **Daemon subprocess integration tests** (Task 030): replaces pytest-asyncio hangs with subprocess-based per-test isolation.
-- **Corpus canary substitution** (Task 031): `{canary:<id>}` template references resolved at load time.
+- **Encoding-request detector**: detects base64/hex/rot13/encrypt keywords in user input.
+- **Output entropy analyzer**: opportunistic decode-and-rescan on high-entropy output.
+- **Install-time canary generation** (ADR-010 rewritten): per-installation values, runtime injection, no hardcoded values.
+- **URL/IP/email extractors**: with destination whitelist support.
+- **Command-injection denylist**: filesystem destruction, credential reads, container escape patterns for Bash.
+- **Parameter tampering check**: schema-driven tool-call parameter validation.
+- **Eval harness**: corpus-driven pytest parametrization with CI gate.
+- **Daemon subprocess integration tests**: replaces pytest-asyncio hangs with subprocess-based per-test isolation.
+- **Corpus canary substitution**: `{canary:<id>}` template references resolved at load time.
 
 ### Changed
 
@@ -121,14 +137,14 @@ Initial v0.1 release: foundation and P0 detection.
 
 ### Added
 
-- **Project setup** (Task 001): uv, ruff, pytest-cov, pre-commit, Makefile, CI skeleton.
-- **Daemon skeleton** (Task 002): Unix socket IPC, request/response loop, structured logging.
-- **Detector trait** (Task 003): pipeline runner, Verdict aggregation.
-- **Static detectors** (Task 004): instruction-override, role-play hijack, system-prompt extraction.
-- **Canary catalogue** (Task 005): Aho-Corasick scanner, generator for common patterns (AWS keys, API tokens, etc.).
-- **SQLite session store** (Task 006): forensic incident table, quarantined payload table with AES-256 encryption.
-- **armor CLI** (Task 007): daemon control, check commands, Claude Code hook installer.
-- **End-to-end demo** (Task 008): proves detection and forensic logging work.
+- **Project setup**: uv, ruff, pytest-cov, pre-commit, Makefile, CI skeleton.
+- **Daemon skeleton**: Unix socket IPC, request/response loop, structured logging.
+- **Detector trait**: pipeline runner, Verdict aggregation.
+- **Static detectors**: instruction-override, role-play hijack, system-prompt extraction.
+- **Canary catalogue**: Aho-Corasick scanner, generator for common patterns (AWS keys, API tokens, etc.).
+- **SQLite session store**: forensic incident table, quarantined payload table with AES-256 encryption.
+- **armor CLI**: daemon control, check commands, Claude Code hook installer.
+- **End-to-end demo**: proves detection and forensic logging work.
 
 ### Changed
 

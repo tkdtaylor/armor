@@ -6,9 +6,11 @@ TC-033-03: Both within budget → exit 0 and print observed P95 values
 TC-033-04: ARMOR_DISABLE_LLM=true → exit 0 with SKIPPED message
 TC-033-05: Weights missing on disk → exit 0 with SKIPPED message
 TC-033-06: Smoke variant completes in <60 s
+TC-092-01: Smoke fitness reproducibly passes on the documented hardware
+TC-092-05: 5 fresh ``make fitness-smoke`` runs all exit 0
 
 Per ADR-023 (amended by Task 043), enforce two separate latency budgets:
-- Validator P95 ≤ 500 ms (empirical from ADR-018: 486 ms)
+- Validator P95 ≤ 500 ms (empirical from ADR-018: 486 ms, steady state after warmup)
 - Honeypot P95 ≤ 16,000 ms (empirical from Task 043 measurement: ~15,000-15,500 ms)
 
 The honeypot budget was initially set to 12,000 ms based on ADR-018 (11,875 ms + 125 ms buffer).
@@ -16,9 +18,17 @@ Subsequent measurements on developer machines consistently showed P95 around 15,
 suggesting the empirical baseline shifted due to prompt growth or hardware variance. Task 043
 updates the budget to 16,000 ms to accommodate this measurement with a 500 ms safety buffer.
 
+Methodology (task 092): each measurement run discards the first ``WARMUP_*_ROWS`` rows
+before timing. The first call into ``llama-cpp`` per process incurs one-time costs (KV-cache
+allocation, page-fault-in on the GGUF weights, allocator initialization) that are not
+representative of steady-state inference — the budget is intended to constrain steady state,
+not cold start. The 100-row full corpus dilutes warmup naturally (P95 lands at ~row 95);
+the 20-row smoke variant does not, so explicit warmup is required to make the smoke and
+full variants measure the same thing.
+
 This test runs the corpus through the LLM and measures latency.
-Smoke (default): ~20 validator / ~5 honeypot rows (fast CI gate)
-Full: ≥100 validator / ≥30 honeypot rows (nightly or explicit opt-in)
+Smoke (default): 20 validator / 5 honeypot timed rows (fast CI gate; +2/+1 warmup, discarded)
+Full: ≥100 validator / ≥30 honeypot timed rows (nightly or explicit opt-in; same warmup)
 """
 
 import logging
@@ -45,13 +55,22 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 VALIDATOR_BUDGET_MS = 500
 HONEYPOT_BUDGET_MS = 16000
 
-# Smoke test row counts (fast gate for CI)
+# Smoke test row counts (fast gate for CI). Counts are TIMED rows; warmup rows
+# are loaded and executed in addition to these but their latencies are discarded.
 SMOKE_VALIDATOR_ROWS = 20
 SMOKE_HONEYPOT_ROWS = 5
 
 # Full test row counts (nightly or explicit opt-in via ARMOR_FITNESS_FULL=1)
 FULL_VALIDATOR_ROWS = 100
 FULL_HONEYPOT_ROWS = 30
+
+# Warmup row counts (discarded from latency stats). The first call into
+# llama-cpp per process incurs one-time costs (KV-cache init, page-fault-in
+# on the GGUF, allocator init) that are not representative of steady-state
+# inference. Discarding the first 2 validator + 1 honeypot rows makes the
+# 20-row smoke variant measure the same thing as the 100-row full variant.
+WARMUP_VALIDATOR_ROWS = 2
+WARMUP_HONEYPOT_ROWS = 1
 
 # System prompts
 VALIDATOR_SYSTEM_PROMPT = (
@@ -246,12 +265,25 @@ def _strip_think(text: str) -> str:
     return think_block.sub("", text).strip()
 
 
-def measure_validator_latency(llm_session: LLMSession, rows: list[dict[str, Any]]) -> tuple[list[float], int]:
-    """Measure latency on validator rows. Returns (latencies_ms, successful_count)."""
+def measure_validator_latency(
+    llm_session: LLMSession,
+    rows: list[dict[str, Any]],
+    warmup: int = WARMUP_VALIDATOR_ROWS,
+) -> tuple[list[float], int]:
+    """Measure latency on validator rows.
+
+    The first ``warmup`` rows are executed but their latencies are discarded —
+    they prime KV cache, page-fault in the GGUF weights, and absorb other
+    one-time per-process costs. Subsequent rows reflect steady-state inference,
+    which is what the budget is intended to constrain.
+
+    Returns (latencies_ms, successful_count) where the count refers to TIMED rows.
+    """
     latencies_ms: list[float] = []
     successful = 0
 
-    for row in rows:
+    for i, row in enumerate(rows):
+        is_warmup = i < warmup
         try:
             messages = [
                 {"role": "system", "content": VALIDATOR_SYSTEM_PROMPT},
@@ -265,6 +297,8 @@ def measure_validator_latency(llm_session: LLMSession, rows: list[dict[str, Any]
                 top_p=1.0,
             )
             elapsed = time.perf_counter() - t0
+            if is_warmup:
+                continue
             latencies_ms.append(elapsed * 1000)
             successful += 1
         except Exception as e:
@@ -274,13 +308,22 @@ def measure_validator_latency(llm_session: LLMSession, rows: list[dict[str, Any]
 
 
 def measure_honeypot_latency(
-    llm_session: LLMSession, rows: list[dict[str, Any]], system_prompt: str
+    llm_session: LLMSession,
+    rows: list[dict[str, Any]],
+    system_prompt: str,
+    warmup: int = WARMUP_HONEYPOT_ROWS,
 ) -> tuple[list[float], int]:
-    """Measure latency on honeypot rows. Returns (latencies_ms, successful_count)."""
+    """Measure latency on honeypot rows.
+
+    The first ``warmup`` rows are executed but their latencies are discarded
+    (see ``measure_validator_latency`` for rationale). Returns (latencies_ms,
+    successful_count) where the count refers to TIMED rows.
+    """
     latencies_ms: list[float] = []
     successful = 0
 
-    for row in rows:
+    for i, row in enumerate(rows):
+        is_warmup = i < warmup
         try:
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -294,6 +337,8 @@ def measure_honeypot_latency(
                 top_p=1.0,
             )
             elapsed = time.perf_counter() - t0
+            if is_warmup:
+                continue
             latencies_ms.append(elapsed * 1000)
             successful += 1
         except Exception as e:
@@ -324,15 +369,24 @@ def check_llm_p95_latency() -> bool:
         print(f"SKIPPED: Model path does not exist: {model_path}")
         return True
 
-    # Determine test variant
+    # Determine test variant. Load count = timed rows + warmup rows; warmup
+    # rows are executed but their latencies are discarded (see module docstring).
     use_full = os.environ.get("ARMOR_FITNESS_FULL", "false").lower() in ("true", "1", "yes")
-    max_validator = FULL_VALIDATOR_ROWS if use_full else SMOKE_VALIDATOR_ROWS
-    max_honeypot = FULL_HONEYPOT_ROWS if use_full else SMOKE_HONEYPOT_ROWS
+    timed_validator = FULL_VALIDATOR_ROWS if use_full else SMOKE_VALIDATOR_ROWS
+    timed_honeypot = FULL_HONEYPOT_ROWS if use_full else SMOKE_HONEYPOT_ROWS
+    max_validator = timed_validator + WARMUP_VALIDATOR_ROWS
+    max_honeypot = timed_honeypot + WARMUP_HONEYPOT_ROWS
 
     print(f"LLM P95 latency check ({'full' if use_full else 'smoke'} variant)")
     print(f"  Model: {model_path}")
-    print(f"  Validator rows: {max_validator} (budget: {VALIDATOR_BUDGET_MS} ms P95)")
-    print(f"  Honeypot rows: {max_honeypot} (budget: {HONEYPOT_BUDGET_MS} ms P95)")
+    print(
+        f"  Validator rows: {timed_validator} timed + {WARMUP_VALIDATOR_ROWS} warmup "
+        f"(budget: {VALIDATOR_BUDGET_MS} ms P95, steady state)"
+    )
+    print(
+        f"  Honeypot rows: {timed_honeypot} timed + {WARMUP_HONEYPOT_ROWS} warmup "
+        f"(budget: {HONEYPOT_BUDGET_MS} ms P95, steady state)"
+    )
 
     try:
         from llama_cpp import Llama
@@ -369,7 +423,10 @@ def check_llm_p95_latency() -> bool:
         validator_rows = load_validator_corpus(catalogue, max_rows=max_validator)
         honeypot_rows = load_honeypot_corpus(catalogue, max_rows=max_honeypot)
 
-        print(f"  Loaded {len(validator_rows)} validator rows, {len(honeypot_rows)} honeypot rows")
+        print(
+            f"  Loaded {len(validator_rows)} validator rows ({WARMUP_VALIDATOR_ROWS} warmup), "
+            f"{len(honeypot_rows)} honeypot rows ({WARMUP_HONEYPOT_ROWS} warmup)"
+        )
 
         # Measure validator
         print("  Measuring validator latency...", end=" ", flush=True)

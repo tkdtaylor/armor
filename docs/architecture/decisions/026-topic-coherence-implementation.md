@@ -28,7 +28,7 @@ Three implementation paths were evaluated:
 
 **Determinism:** ONNX inference is deterministic across runs (no sampling, no variance), aiding both testing and production consistency. Validator-LLM verdicts would introduce variance into session risk scoring.
 
-**No outbound network:** The ONNX model is baked into the container at build time; no per-call or per-session network I/O. This satisfies the "no daemon network calls" invariant (CLAUDE.md).
+**No outbound network:** The ONNX model is baked into the container at build time; no per-call or per-session network I/O. This satisfies the "no daemon network calls" invariant.
 
 **No per-turn LLM budget pressure:** Validator is gated on session state ≥ Watching and advisory presence (task 022). Topic coherence detects at every turn regardless of state, so LLM path would unintentionally escalate LLM pressure.
 

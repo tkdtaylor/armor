@@ -1,5 +1,6 @@
 """Unit tests for the detector registry."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -259,9 +260,8 @@ class TestDetectorIntegration:
         Verifies that the architecture.md rows for tool_chain and token_count_anomaly
         have Source column links pointing to the actual module files.
         """
-        from pathlib import Path
-
-        arch_file = Path("docs/spec/architecture.md")
+        repo_root = Path(__file__).resolve().parents[3]
+        arch_file = repo_root / "docs/spec/architecture.md"
         arch_content = arch_file.read_text()
 
         # Check that both detectors are mentioned with correct file paths

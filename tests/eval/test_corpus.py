@@ -32,9 +32,23 @@ all_rows = load_corpus()
 # Filter to single-shot rows only for the parametrized test
 # Multi-turn rows are tested separately in test_runner_multi_turn.py
 corpus = [r for r in all_rows if not r.is_multi_turn()]
+declared_detector_coverage_cases = [(row, detector_id) for row in corpus for detector_id in row.covers_detectors]
 
 # Latency budget in milliseconds (per detector, static-only for v0.2)
 LATENCY_BUDGET_MS = 50
+
+REQUIRED_CONTEXT_WINDOW_FAMILIES = {
+    "context_overflow",
+    "instruction_burial",
+    "memory_planting",
+    "conversation_hijack",
+}
+REQUIRED_CONTEXT_WINDOW_DETECTORS = {
+    "meta.token_count_anomaly",
+    "meta.instruction_burial",
+    "meta.memory_planting",
+    "meta.conversation_hijack",
+}
 
 # Global stats collection for coverage report
 _coverage_stats: dict[str, dict[str, int]] = defaultdict(lambda: {"tp": 0, "tn": 0})
@@ -46,6 +60,67 @@ def _extract_detector_signal_id(signal_id: str | None) -> str:
     if signal_id is None:
         return "none"
     return signal_id.split(":")[0]
+
+
+def _covered_detector_ids(rows: list["corpus_loader.CorpusRow"]) -> set[str]:
+    """Return detector IDs covered by direct signal expectations or row metadata."""
+    covered = set()
+    for row in rows:
+        signal_detector_id = _extract_detector_signal_id(row.expected_signal_id)
+        if signal_detector_id != "none":
+            covered.add(signal_detector_id)
+        covered.update(row.covers_detectors)
+    return covered
+
+
+def _payload_for_row(row: "corpus_loader.CorpusRow") -> Payload:
+    """Build a payload for a single-shot corpus row."""
+    if row.tool is not None:
+        return Payload(tool=row.tool, params=row.tool_params)
+    return Payload(text=row.input)
+
+
+def test_required_context_window_families_have_corpus_rows() -> None:
+    """TC-109-02: ADR-037 context-window families are represented in the corpus."""
+    families = {row.family for row in corpus if row.attack_category == "context_window" and row.family is not None}
+
+    assert families >= REQUIRED_CONTEXT_WINDOW_FAMILIES
+
+
+def test_required_context_window_detectors_have_corpus_coverage() -> None:
+    """TC-109-01: documented corpus-covered context-window detectors have rows."""
+    covered_detector_ids = _covered_detector_ids(corpus)
+
+    assert covered_detector_ids >= REQUIRED_CONTEXT_WINDOW_DETECTORS
+
+
+@pytest.mark.parametrize(
+    ("row", "detector_id"),
+    declared_detector_coverage_cases,
+    ids=[f"{row.id}:{detector_id}" for row, detector_id in declared_detector_coverage_cases],
+)
+def test_declared_detector_coverage_is_exercisable(row: "corpus_loader.CorpusRow", detector_id: str) -> None:
+    """TC-109-03: explicit coverage metadata must produce a detector-only signal."""
+    detector = registry.get(detector_id)
+
+    assert detector is not None, f"Corpus {row.id} covers unknown detector {detector_id}"
+
+    payload = _payload_for_row(row)
+    ctx = SessionContext(session_id=f"{row.id}:{detector_id}:coverage", signal_history=[])
+    verdict = detector.check(payload, ctx)
+
+    assert verdict.decision != "pass", f"Corpus {row.id} did not exercise {detector_id}"
+    assert verdict.signal_id is not None
+    assert verdict.signal_id.startswith(f"{detector_id}:")
+
+
+def test_fitness_spec_names_corpus_coverage_invariant() -> None:
+    """TC-109-04: docs/spec/fitness-functions.md names this file as the corpus coverage gate."""
+    spec_path = Path(__file__).parents[2] / "docs" / "spec" / "fitness-functions.md"
+    content = spec_path.read_text(encoding="utf-8")
+
+    assert "Documented corpus-covered detector families have rows" in content
+    assert "[tests/eval/test_corpus.py]" in content
 
 
 @pytest.mark.skipif(

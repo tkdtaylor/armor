@@ -164,7 +164,8 @@ class TestHooksInstall:
     def test_example_file_parity(self) -> None:
         """TC-079-05: Example file structural equivalence to install output."""
         # Read the example file
-        example_path = Path("examples/claude_code/settings.json")
+        repo_root = Path(__file__).resolve().parents[2]
+        example_path = repo_root / "examples/claude_code/settings.json"
         with open(example_path) as f:
             example_settings = json.load(f)
 

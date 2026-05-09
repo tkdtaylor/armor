@@ -97,7 +97,7 @@ class Pipeline:
         Returns:
             Aggregated Verdict.
         """
-        # Per task 080 (ADR-041), when source is TOOL_RESULT_TRUSTED, skip indirect-injection regex detectors
+        # When source is TOOL_RESULT_TRUSTED (ADR-041), skip indirect-injection regex detectors
         # (trust applies to origin, not content — canary/entropy detectors still run)
         detectors_to_run = detectors
         if payload.source == Source.TOOL_RESULT_TRUSTED:

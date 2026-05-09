@@ -93,6 +93,6 @@ If a deployed armor instance is compromised and an attacker gains read access to
 
 ## See also
 
-- [B-007: Capture forensic record on every block](../behaviors.md#b-007-capture-forensic-record-on-every-block)
-- [data-model.md: Entity: QuarantinedPayload](../spec/data-model.md#entity-quarantinedpayload)
+- [B-007: Capture forensic record on every block](../../spec/behaviors.md#b-007-capture-forensic-record-on-every-block)
+- [data-model.md: Entity: QuarantinedPayload](../../spec/data-model.md#entity-quarantinedpayload)
 - Task 006 (SQLite session store + forensic incident + quarantined payload) — implements this ADR

@@ -147,4 +147,4 @@ def test_corpus_verdict(row):
 - Task 003 (this task) — implements the loader and parametrized test harness
 - Task 004 (P0 regex detectors) — first detectors; contributes corpus rows
 - Task 005 (canary scanner) — second detector; contributes corpus rows
-- [B-001 through B-003](../behaviors.md) — detector behaviors being tested
+- [B-001 through B-003](../../spec/behaviors.md) — detector behaviors being tested

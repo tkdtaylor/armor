@@ -10,7 +10,7 @@ The project is **source-available, not OSI open source.** Please use the wording
 
 ## Workflow
 
-armor is built using an agent-driven workflow documented in [`CLAUDE.md`](CLAUDE.md). You don't need to use the same tooling, but the conventions still apply:
+armor is built using a deliberate maintainer workflow. You don't need to use the same tooling, but the conventions still apply:
 
 1. **Test spec first.** Every change that touches behavior, an interface, or the data model needs a paired test spec — a short markdown describing the test cases (TC-NNN-XX) the change must satisfy, written before the implementation. The maintainer keeps these specs in an operator-private directory, but for an external PR a `tests/<feature>-test-spec.md` alongside the new tests is sufficient. The format mirrors the spec markers already cited in [`docs/spec/fitness-functions.md`](docs/spec/fitness-functions.md).
 2. **One task, one commit.** Don't batch unrelated changes. If a fix and a refactor are both warranted, two commits, please.

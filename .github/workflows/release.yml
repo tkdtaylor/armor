@@ -75,7 +75,7 @@ jobs:
       - name: Publish to PyPI (OIDC trusted publishing)
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  # Smoke test: pull the published image and run the e2e demo
+  # Smoke test: pull the published daemon image and verify health
   smoke-test:
     needs: build-image
     runs-on: ubuntu-latest
@@ -99,10 +99,25 @@ jobs:
         run: docker pull ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }}
 
       - name: Test image help command
-        run: docker run --rm ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }} --help
+        run: docker run --rm --entrypoint armor ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }} --help
 
-      - name: Run e2e demo inside container
-        run: docker run --rm ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }} armor health
+      - name: Start published daemon image
+        run: docker run -d --name armor-smoke ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }}
+
+      - name: Smoke test daemon health inside container
+        run: |
+          for i in {1..30}; do
+            if docker exec armor-smoke armor health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs armor-smoke
+          exit 1
+
+      - name: Clean up smoke container
+        if: always()
+        run: docker rm -f armor-smoke || true
 
   # Create GitHub Release with auto-generated notes
   create-release:
@@ -135,5 +150,5 @@ jobs:
           generateReleaseNotes: true
           body: |
             Multi-arch image: ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }}
-            PyPI: pip install ai-armor==${{ steps.meta.outputs.version }}
+            PyPI: pip install armor-ai==${{ steps.meta.outputs.version }}
             See post-release checklist: docs/release/post-release-checklist.md

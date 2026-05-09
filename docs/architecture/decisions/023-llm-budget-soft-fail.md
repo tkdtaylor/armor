@@ -282,6 +282,31 @@ Per-path budgets cleanly map to the empirical reality: the validator is fast (48
 
 ---
 
+## Amendment (Task 092 — 2026-05-09)
+
+### Measurement methodology: warmup discarded from P95
+
+**Rationale:** The smoke variant of `test_llm_p95_under_budget_smoke` was flaking on the maintainer's dev hardware — five back-to-back runs reported validator P95 in a 467–1193 ms range, with budget overshoots of 30–138%. Killing background processes did not stabilize it. A per-row diagnostic identified the root cause: the **first call into `llama-cpp` per process is consistently ~50% slower than steady-state** (one-time KV-cache allocation, page-fault-in on the GGUF, allocator init). The 100-row full bench naturally amortizes this — P95 lands at row ~95 of sorted latencies, well past warmup — so the 486 ms baseline in ADR-018 is genuinely steady-state. The 20-row smoke variant has P95 at row ~19 of sorted, which lands **on top of** the cold-start row when no warmup is performed. The result is a P95 that swings with whatever ambient noise affects the first call, even though steady-state inference is consistently 333–395 ms.
+
+**Resolution:** `measure_validator_latency` and `measure_honeypot_latency` (in [`tests/fitness/_llm_p95_helpers.py`](../../../tests/fitness/_llm_p95_helpers.py)) now discard the first `WARMUP_VALIDATOR_ROWS = 2` and `WARMUP_HONEYPOT_ROWS = 1` rows from the timed-latency list. The corpus loader fetches `timed + warmup` rows so the timed-row count is unchanged from before. Both smoke and full variants apply the same warmup, making the smoke gate measure the same statistic as the full bench.
+
+**Budget unchanged.** The 500 ms validator budget reflects the steady-state SLA the daemon enforces at runtime; the dev-machine flake was a measurement artifact, not a runtime regression. ADR-018's empirical 486 ms remains the reference value.
+
+**Validation:** Five back-to-back invocations of `test_llm_p95_under_budget_smoke` post-fix on the same hardware envelope (Intel Core Ultra 9 185H, n_threads=1) produced **5/5 PASS** with validator P95 = 438, 375, 361, 387, 359 ms — all comfortably under the 500 ms budget. Steady-state median 360–415 ms, max 500–615 ms (single-row tail driven by occasional Qwen reasoning overhead despite the `/no_think` suffix).
+
+**Implications:**
+- Future bench / fitness work that times `llama-cpp` on small N must apply the same warmup pattern, or it will measure first-call overhead instead of steady-state inference.
+- The runtime-path soft-fail mechanism (per-call deadline) is unaffected — it's already steady-state-aware (every request is a separate budget check).
+- README's "Measured performance" preamble now documents the warmup convention so external readers understand the methodology.
+
+**References:**
+- Task 092 — Validator P95 latency reconciliation
+- Per-row diagnostic showing row 0 = 525 ms outlier vs rows 1–19 = 333–395 ms steady state
+- Pre-fix 5x runs: P95 = 467, 831, 917, 1193, 496 ms (variance 2.5×)
+- Post-fix 5x runs: P95 = 438, 375, 361, 387, 359 ms (all under 500 ms)
+
+---
+
 ## References
 
 - **ADR-018** — Validator + honeypot model choice (empirical latencies)

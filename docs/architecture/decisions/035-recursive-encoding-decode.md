@@ -3,7 +3,7 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §7 Category 4 lines 312-321 *Encoding & Obfuscation Attacks*, "Multi-Layer Encoding"; behaviors.md B-006; ADR-014 (output entropy policy).
+**References:** Internal design audit category *Encoding & Obfuscation Attacks / Multi-Layer Encoding*; behaviors.md B-006; ADR-014 (output entropy policy).
 
 ## Context
 
@@ -11,13 +11,13 @@
 
 > *"Recursive decode is not supported — single pass only; deferred until corpus evidence shows a measurable false-negative class that recursion would catch."*
 
-This was a deliberate v1 simplification. The audit of `archive/discussion.md` §7 Category 4 line 319 — *"Multi-Layer Encoding (nested encodings, base64 of hex of…)"* — names this gap explicitly. A real attacker can pipeline `base64(hex(canary))` (or any nesting) and bypass `entropy.decode_rescan` because the first decode pass produces another encoded blob, not the canary.
+This was a deliberate v1 simplification. The design audit named multi-layer encoding explicitly. A real attacker can pipeline `base64(hex(canary))` (or any nesting) and bypass a single-pass `entropy.decode_rescan` because the first decode pass produces another encoded blob, not the canary.
 
 Reversing the deferral is non-trivial because **recursive decode is a budget hazard**. A maliciously-constructed input can force unbounded decoding (a self-referential base64 chain, a high-entropy non-canary that decodes to another high-entropy non-canary indefinitely). Single-pass decode bounds the work; recursion needs explicit termination conditions.
 
 ## Decision
 
-**Proposed.** Replace the single-pass decode in `entropy.decode_rescan` with a **bounded-depth recursive decode** that terminates on any of:
+Replace the single-pass decode in `entropy.decode_rescan` with a **bounded-depth recursive decode** that terminates on any of:
 
 1. **Depth cap** — `entropy.max_decode_depth`, default `3`. A 4-layer encoding is exotic enough that a configurable knob is sufficient; the daemon does not need to chase arbitrary depth.
 2. **Per-detector budget** — the existing `pipeline.per_detector_budget_ms` (default 100 ms) bounds total wall-clock work; recursion stops when the budget is consumed.
@@ -67,4 +67,4 @@ Answered 2026-05-07.
 
 - ADR-014: output entropy policy (the original single-pass decision this ADR revises).
 - behaviors.md B-006: the spec sentence this ADR rewrites.
-- `archive/discussion.md` §7 Category 4 line 319.
+- Internal design audit category *Multi-Layer Encoding*.

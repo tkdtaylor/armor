@@ -102,7 +102,7 @@ def test_input_hash_sha256(forensic_logger):
 
 
 def test_triggered_canary_id_not_value(forensic_logger, catalogue):
-    """TC-019-03: Triggered canary field contains ID, not value."""
+    """TC-019-03, TC-096-05: Triggered canary field contains ID, not value."""
     active_canaries = catalogue.active_canaries()
     if not active_canaries:
         # Requires `armor canary generate`; see ADR-010
@@ -223,6 +223,60 @@ def test_output_hash_nullable(forensic_logger):
     assert row[1] is None  # output_hash
 
     conn.close()
+
+
+def test_incidents_list_filters_by_persisted_severity(forensic_logger):
+    """TC-107-02: incidents persist severity and can be filtered by it."""
+    high_verdict = Verdict.block_verdict(signal_id="test:high", severity="high")
+    critical_verdict = Verdict.block_verdict(signal_id="test:critical", severity="critical")
+
+    high_id = forensic_logger._write_incident_sync(high_verdict, SessionContext(session_id="severity-high"), "high")
+    forensic_logger._write_incident_sync(critical_verdict, SessionContext(session_id="severity-critical"), "critical")
+
+    results = forensic_logger.list_incidents(limit=100, severity="high")
+
+    assert [row["id"] for row in results] == [high_id]
+    assert results[0]["severity"] == "high"
+
+
+def test_incidents_list_filters_by_since_ts_with_other_filters(forensic_logger):
+    """TC-107-03: since_ts combines with session/category filters."""
+    old_id = forensic_logger._write_incident_sync(
+        Verdict.block_verdict(signal_id="regex.instruction_override"),
+        SessionContext(session_id="time-filter"),
+        "old",
+        source="user_input",
+    )
+    new_id = forensic_logger._write_incident_sync(
+        Verdict.block_verdict(signal_id="regex.roleplay_hijack"),
+        SessionContext(session_id="time-filter"),
+        "new",
+        source="user_input",
+    )
+    other_session_id = forensic_logger._write_incident_sync(
+        Verdict.block_verdict(signal_id="regex.roleplay_hijack"),
+        SessionContext(session_id="other-session"),
+        "other",
+        source="user_input",
+    )
+
+    conn = sqlite3.connect(forensic_logger.db_path)
+    try:
+        conn.execute("UPDATE Incident SET ts = ? WHERE id = ?", ("2026-05-01 00:00:00", old_id))
+        conn.execute("UPDATE Incident SET ts = ? WHERE id = ?", ("2026-05-09 12:00:00", new_id))
+        conn.execute("UPDATE Incident SET ts = ? WHERE id = ?", ("2026-05-09 12:00:00", other_session_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+    results = forensic_logger.list_incidents(
+        limit=100,
+        session_id="time-filter",
+        category="direct_injection.*",
+        since_ts="2026-05-09 00:00:00",
+    )
+
+    assert [row["id"] for row in results] == [new_id]
 
 
 def test_attack_category_direct_injection_input(forensic_logger):

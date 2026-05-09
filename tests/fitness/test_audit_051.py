@@ -1,4 +1,4 @@
-"""Fitness tests for task 051: README and CLAUDE.md doc fixes."""
+"""Fitness tests for task 051: README and public-doc fixes."""
 
 import re
 from pathlib import Path
@@ -43,19 +43,19 @@ def test_tc_051_03_readme_no_unguarded_ghcr_image():
     assert violations == [], violations
 
 
-def test_tc_051_05_claudemd_smoke_test_includes_socket():
-    """TC-051-05: CLAUDE.md smoke-test example passes `--socket`."""
-    text = (REPO_ROOT / "CLAUDE.md").read_text()
+def test_tc_051_05_readme_smoke_test_includes_socket():
+    """TC-051-05: README smoke-test example passes `--socket`."""
+    text = (REPO_ROOT / "README.md").read_text()
 
     # Find the armor check input line in the Commands section
     m = re.search(r"armor check input[^\n]*", text)
-    assert m is not None, "CLAUDE.md missing 'armor check input' example"
-    assert "--socket" in m.group(0), f"CLAUDE.md smoke-test missing --socket: {m.group(0)}"
+    assert m is not None, "README missing 'armor check input' example"
+    assert "--socket" in m.group(0), f"README smoke-test missing --socket: {m.group(0)}"
 
 
-def test_tc_051_04_claudemd_project_tree_matches_repo():
-    """TC-051-04: CLAUDE.md project tree includes all major top-level entries."""
-    text = (REPO_ROOT / "CLAUDE.md").read_text()
+def test_tc_051_04_readme_project_structure_matches_repo():
+    """TC-051-04: README project structure includes all major public entries."""
+    text = (REPO_ROOT / "README.md").read_text()
 
     # Extract the tree block (between the ``` markers in the Project structure section)
     tree_start = text.find("## Project structure")
@@ -71,15 +71,8 @@ def test_tc_051_04_claudemd_project_tree_matches_repo():
         "artifacts/",
         "tests/",
         "docs/",
-        "archive/",
-        "docker/",
-        "examples/",
-        "scripts/",
-        "armor.toml",
-        "CLAUDE.md",
-        "ruff.toml",
-        "requirements.txt",
-        "discussion.md",
+        "spec/",
+        "architecture/",
     ]
 
     for entry in required_entries:

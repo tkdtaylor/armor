@@ -12,7 +12,7 @@ no literal canary values appear in corpus inputs.
 import logging
 import re
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -64,7 +64,9 @@ class CorpusRow:
         tool: Tool name for tool_abuse rows (optional, defaults to "Bash").
         tool_params: Tool parameters for tool_abuse rows (optional).
         turns: List of Turn objects (multi-turn rows only).
-        family: Attack family name for filtering (multi-turn rows, optional).
+        family: Attack family name for filtering (optional).
+        covers_detectors: Detector IDs directly exercised by this row even if
+            the full pipeline returns a later blocking detector signal.
     """
 
     id: str
@@ -77,6 +79,7 @@ class CorpusRow:
     tool_params: dict[str, object] | None = None
     turns: list[Turn] | None = None
     family: str | None = None
+    covers_detectors: list[str] = field(default_factory=list)
 
     def is_multi_turn(self) -> bool:
         """Return True if this is a multi-turn scenario row."""
@@ -277,6 +280,36 @@ def _resolve_and_validate_input(input_text: str, row_id: str, catalogue: Catalog
     return result
 
 
+def _parse_covers_detectors(row_dict: dict[str, object], file_path: Path, row_id: str) -> list[str]:
+    """Parse optional corpus coverage metadata."""
+    covers_detectors = row_dict.get("covers_detectors", [])
+    if covers_detectors is None:
+        return []
+    if not isinstance(covers_detectors, list) or not all(isinstance(item, str) for item in covers_detectors):
+        raise CorpusValidationError(
+            f"{file_path.name}: row '{row_id}' field 'covers_detectors' must be a list of detector IDs"
+        )
+    return covers_detectors
+
+
+def _parse_input_repeat(row_dict: dict[str, object], file_path: Path, row_id: str) -> int:
+    """Parse optional input_repeat used to keep long-context rows readable."""
+    repeat = row_dict.get("input_repeat", 1)
+    if not isinstance(repeat, int) or repeat < 1:
+        raise CorpusValidationError(f"{file_path.name}: row '{row_id}' field 'input_repeat' must be a positive int")
+    return repeat
+
+
+def _parse_optional_text(row_dict: dict[str, object], field_name: str, file_path: Path, row_id: str) -> str | None:
+    """Parse optional string fields used by readable corpus fixtures."""
+    value = row_dict.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise CorpusValidationError(f"{file_path.name}: row '{row_id}' field '{field_name}' must be a string")
+    return value
+
+
 def load_corpus(category: str | None = None) -> list[CorpusRow]:
     """Load corpus rows from YAML files.
 
@@ -368,6 +401,7 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
                 )
 
             attack_category = row_dict["attack_category"]
+            covers_detectors = _parse_covers_detectors(row_dict, file_path, row_id)
 
             # **Multi-turn row parsing**
             if has_turns:
@@ -384,6 +418,7 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
                     notes=row_dict.get("notes"),
                     turns=turns,
                     family=row_dict.get("family"),
+                    covers_detectors=covers_detectors,
                 )
                 rows.append(row)
                 continue
@@ -401,6 +436,10 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
 
             # Resolve canary references and validate input
             resolved_input = _resolve_and_validate_input(row_dict["input"], row_id, catalogue)
+            resolved_input *= _parse_input_repeat(row_dict, file_path, row_id)
+            input_suffix = _parse_optional_text(row_dict, "input_suffix", file_path, row_id)
+            if input_suffix is not None:
+                resolved_input += _resolve_and_validate_input(input_suffix, f"{row_id}:input_suffix", catalogue)
 
             # Extract tool and tool_params (for tool_abuse category)
             tool = row_dict.get("tool")
@@ -425,6 +464,8 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
                 notes=row_dict.get("notes"),
                 tool=tool,
                 tool_params=tool_params,
+                family=row_dict.get("family"),
+                covers_detectors=covers_detectors,
             )
             rows.append(row)
 

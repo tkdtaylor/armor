@@ -1,8 +1,7 @@
 # ADR-031: Realistic on-disk placement of canary honey-files (`honeyfs`)
 
-**Status:** Accepted
+**Status:** Accepted (deferred — implementation after the public preview)
 **Decision date:** 2026-05-07
-**Task:** TBD (will spawn one or more tasks under a follow-up `honeyfs` epic)
 **Authors:** Kevin
 **Open questions resolved:** 2026-05-07 — see *Acceptance — Open questions answered* below.
 
@@ -15,7 +14,7 @@ Canary tokens today exist in exactly two places:
 
 That covers the scenario where an attacker prompt-injects the agent and the *honeypot LLM* hands the canary back in plaintext. It does **not** cover the scenario where a tool-using agent pivots from "ask the LLM" to filesystem reconnaissance — `cat ~/.aws/credentials`, `find / -name '*.pem'`, `ls ~/.ssh/`, `xxd ~/.bitcoin/wallet.dat`. Today those return either nothing or the operator's real credentials. Neither is a useful detection signal.
 
-The original design discussion (now archived as `archive/discussion.md`, §11 *High-Value Targets List*, lines 418-477) enumerated a comprehensive table of credential types attackers attempt to extract — AWS keys, GitHub PATs, GitLab/Slack/Discord tokens, Stripe/Twilio/SendGrid keys, SSH private keys, JWT tokens, `.env` files, `~/.aws/credentials`, `~/.ssh/config`, BIP39 seeds, Ethereum/Solana/Bitcoin private keys, MetaMask wallets, internal hostnames, webhook URLs, K8s secrets, OpenAI/Anthropic/Cohere/HuggingFace tokens. Each row carried a realistic example value with an embedded marker. That table is the inventory this ADR builds on; the gap it leaves open is **where** those values live on disk so that a recon-then-exfil agent encounters them in the same locations a real engineer would store them.
+The internal design audit enumerated a comprehensive table of credential types attackers attempt to extract — AWS keys, GitHub PATs, GitLab/Slack/Discord tokens, Stripe/Twilio/SendGrid keys, SSH private keys, JWT tokens, `.env` files, `~/.aws/credentials`, `~/.ssh/config`, BIP39 seeds, Ethereum/Solana/Bitcoin private keys, MetaMask wallets, internal hostnames, webhook URLs, K8s secrets, OpenAI/Anthropic/Cohere/HuggingFace tokens. Each row carried a realistic example value with an embedded marker. That inventory is what this ADR builds on; the gap it leaves open is **where** those values live on disk so that a recon-then-exfil agent encounters them in the same locations a real engineer would store them.
 
 This ADR establishes how `armor` lays canaries down at realistic filesystem locations — what we'll call **honeyfs** — and the lifecycle that keeps them from colliding with operators' real credentials.
 
@@ -23,11 +22,11 @@ This ADR establishes how `armor` lays canaries down at realistic filesystem loca
 
 ### 1. Placement target — inside the agent's sandbox container, at canonical real-world paths, with no giveaway naming
 
-The single most important constraint: **honey-files must land in the filesystem the agent's tools actually read, at the paths a real engineer would store credentials, and nothing in those paths can hint that the files are bait.** Per the original Docker-as-sandbox design intent (`archive/discussion.md` §5), the daemon container *is* the agent's runtime environment in the canonical deployment; honeyfs places files inside that container at canonical real-world paths.
+The single most important constraint: **honey-files must land in the filesystem the agent's tools actually read, at the paths a real engineer would store credentials, and nothing in those paths can hint that the files are bait.** Per the Docker-as-sandbox design intent, the daemon container *is* the agent's runtime environment in the canonical deployment; honeyfs places files inside that container at canonical real-world paths.
 
 | Target | Where it works | Where it fails | Verdict |
 |---|---|---|---|
-| Daemon/sandbox container filesystem at canonical paths (`/root/.aws/credentials`, `/root/.ssh/id_ed25519`, …) | The agent's tools execute inside this container in the original sandbox-mode design; files at canonical paths are *exactly* where a real user keeps them | Doesn't help when the agent runs entirely outside the container (e.g. Claude Code on bare host without the agent containerized inside armor) | **Default** for the in-container deployment shape — the canonical pattern from `archive/discussion.md` |
+| Daemon/sandbox container filesystem at canonical paths (`/root/.aws/credentials`, `/root/.ssh/id_ed25519`, …) | The agent's tools execute inside this container in the sandbox-mode design; files at canonical paths are *exactly* where a real user keeps them | Doesn't help when the agent runs entirely outside the container (e.g. Claude Code on bare host without the agent containerized inside armor) | **Default** for the in-container deployment shape |
 | Per-project sandbox directory with armor-named root (`<project>/.armor-honey/`) | No collision risk | **Tips off any attacker with read access to the container** — a directory called `.armor-honey` (or `.armor`, `.honey`, `.canary`, `.trap`) is an obvious bait marker | **Reject** (originally proposed; user feedback corrected this) |
 | Agent host filesystem (the user's `$HOME`) when the agent runs on the bare host (Claude Code) | Maps the in-container default to the host equivalent | Risk of clobbering real credentials; mutation outside the project root requires explicit operator consent | **Opt-in** — gated behind `armor honeyfs install --target $HOME --confirm`, opt-out by default |
 | Shared volume mounted by both daemon and agent containers | Works for sibling-container deployments | Requires Compose/k8s mount configuration the operator must own | **Supported** as a documented recipe; not a default |
@@ -62,7 +61,7 @@ For every entry in the canary catalogue, honeyfs needs to know:
 - The realistic **permissions** (most credential files are `0o600`; SSH directories `0o700`).
 - The **surrounding content** that would normally live in such a file (e.g. an AWS credentials file has a `[default]` section header, a `region`, and the `aws_access_key_id` / `aws_secret_access_key` pair — the canary alone is not enough).
 
-The initial recipe table (drawn from `archive/discussion.md` §11 + standard tool conventions, scoped to v1). Paths shown relative to `$HOME` unless prefixed with `/`:
+The initial recipe table is drawn from the internal credential-type inventory plus standard tool conventions. Paths shown relative to `$HOME` unless prefixed with `/`:
 
 | Catalogue kind | On-disk path | File format | Mode | Notes |
 |---|---|---|---|---|
@@ -189,7 +188,7 @@ Two new boundary additions for `docs/architecture/threat-model.md` (to be made i
 
 8. **Plausible shape beats cryptographic correctness for wallet recipes.** An attacker reading `wallet.dat` and exfiltrating its content trips on the value alone; a tool that tries to decrypt the file gets a parse error but only after the recon has already happened and the bait is already in the rolling buffer. Pure-Python in-process renderers keep the daemon image self-contained.
 
-9. **Drawing on `archive/discussion.md` §11 keeps the catalogue scope honest.** The original design table named the credential types attackers actually go after; the recipe table here is the on-disk realization of that inventory. Nothing new is invented — the ADR just chooses *where* each row of the original table lives on disk.
+9. **Drawing on the internal credential-type inventory keeps the catalogue scope honest.** The inventory named the credential types attackers actually go after; the recipe table here is the on-disk realization of that inventory. Nothing new is invented — the ADR just chooses *where* each row lives on disk.
 
 ## Consequences
 
@@ -221,14 +220,14 @@ Two new boundary additions for `docs/architecture/threat-model.md` (to be made i
 
 - ADR-010: Canary catalogue storage (schema bundled, values generated at install, injected at runtime). honeyfs reuses the same values file and the same `Catalogue` loader.
 - ADR-021: Honeypot system prompt design and canary value isolation. honeyfs extends the prompt template to reference real on-disk paths.
-- `archive/discussion.md` §11 (lines 418-477): *High-Value Targets List* — the credential-type inventory that motivates the per-kind recipe table.
+- Internal credential-type inventory — the source list that motivates the per-kind recipe table.
 - `docs/architecture/diagrams.md` §6: *Deployment topology — Claude Code hook integration.* Establishes that the agent's filesystem is the host, which is why the install target must be operator-supplied.
 - `docs/architecture/threat-model.md` (current): no honeyfs entry yet; this ADR specifies the two new boundaries to add.
 - ~~Future ADR-032 (proposed): tool-side honey-path access detector~~ — **dropped from v1 scope** per Q3. The post-output canary scanner is sufficient because every honey-file value is registered with the live `Catalogue` at install time. A recon-only advisory detector may be reconsidered in a future ADR after field experience.
 
 ### Adjacent gaps captured separately
 
-A 2026-05-07 audit of `archive/discussion.md` against the implemented spec surfaced a constellation of related gaps — some directly load-bearing for honeyfs (the recipe table in §3 *assumes* the catalogue grows to cover those kinds; today it covers only 8 kinds × 3 entries, vs. the dozens of credential families enumerated in `archive/discussion.md` §11). Each gap is tracked as its own follow-up ADR or task so honeyfs's scope stays bounded. Honeyfs itself does not block on any of these — it can ship against today's smaller catalogue, and the values it lays down trip the post-output scanner regardless of how many other kinds exist alongside them.
+A 2026-05-07 audit of the internal design notes against the implemented spec surfaced a constellation of related gaps — some directly load-bearing for honeyfs (the recipe table in §3 *assumes* the catalogue grows to cover those kinds; the catalogue at that point covered only 8 kinds × 3 entries, vs. the dozens of credential families in the inventory). Each gap is tracked as its own follow-up ADR or task so honeyfs's scope stays bounded. Honeyfs itself does not block on any of these — it can ship against a smaller catalogue, and the values it lays down trip the post-output scanner regardless of how many other kinds exist alongside them.
 
 | Tracker | Title | Relationship to honeyfs |
 |---|---|---|
@@ -246,15 +245,15 @@ A 2026-05-07 audit of `archive/discussion.md` against the implemented spec surfa
 | Task 063 | Emotional-manipulation jailbreak patterns (`fictional-framing` family already covered; this adds the `emotional-manipulation` corpus family) | Off the canary path; jailbreak-template extension. |
 | ADR-041 | Payload provenance / trust labels (calibration multiplier + exemption mechanism) | **Foundational primitive added 2026-05-07.** Supersedes ADR-033's `SessionContext.payload_source` proposal. honeyfs is unaffected — canaries trip on verbatim leak regardless of source per §6 above. The ADR also ships an exemption mechanism that prevents armor from blocking its own development workflow (reading this ADR, the eval corpus, etc.). |
 
-The audit memo that produced this list is `archive/2026-05-07-discussion-audit.md` (kept locally, gitignored).
+The private audit memo that produced this list is intentionally not part of the public repository; this section preserves the actionable findings.
 
 ---
 
 ## Acceptance
 
-- **Status:** Accepted — open questions answered 2026-05-07; ready for task scoping.
+- **Status:** Accepted — open questions answered 2026-05-07. Implementation deferred to a post-preview follow-up; the design is locked but no honeyfs install pipeline ships in the first public preview.
 - **Reviewed by:** Kevin (2026-05-07).
-- **Implementation task(s):** TBD — likely split as one task per concern (CLI lifecycle + SQLite manifest schema, per-kind recipe renderers including the in-process wallet/keystore renderers, honeypot-prompt regeneration tied to the install pipeline, threat-model + fitness updates including `honeyfs_no_giveaway_paths.py`, corpus rows for recon-then-exfil scenarios).
+- **Implementation scope (when scheduled):** likely split per concern — CLI lifecycle + SQLite manifest schema, per-kind recipe renderers (including in-process wallet/keystore renderers), honeypot-prompt regeneration tied to the install pipeline, threat-model + fitness updates including `honeyfs_no_giveaway_paths.py`, and corpus rows for recon-then-exfil scenarios.
 
 ### Open questions answered
 
@@ -264,7 +263,7 @@ The four questions left open in the original Proposed-status draft were answered
    → §4 collapses the original `minimal | standard | full` triple into a single shipped `comprehensive` profile that is the default. Profile extensibility is preserved via an `[honeyfs.profiles.<name>]` block in `armor.toml` so operators who want a smaller set author their own.
 
 2. **Placement / naming** — *"placement should default to as close to real world full path as possible in the container and should not contain any terms that would tip off something that only has access to the container that these are trap values, you mentioned `.armor-honey` that's a bad convention if we're trying to make these look like real sensitive values"*
-   → §1 rewritten to make in-container canonical-path placement the default (the original sandbox-mode design from `archive/discussion.md`), reject the `.armor-honey` directory and the `--side-by-side` `.armor-canary` suffix mode (both contain giveaway naming visible to the agent), and add a hard naming rule plus a fitness function (`honeyfs_no_giveaway_paths.py`) that asserts no recipe path or rendered file content contains `armor`, `honey`, `canary`, `trap`, `fake`, `bait`, or `decoy`. The host-mode `--target $HOME` install becomes opt-in only.
+   → §1 rewritten to make in-container canonical-path placement the default, reject the `.armor-honey` directory and the `--side-by-side` `.armor-canary` suffix mode (both contain giveaway naming visible to the agent), and add a hard naming rule plus a fitness function (`honeyfs_no_giveaway_paths.py`) that asserts no recipe path or rendered file content contains `armor`, `honey`, `canary`, `trap`, `fake`, `bait`, or `decoy`. The host-mode `--target $HOME` install becomes opt-in only.
 
 3. **Visibility + escape detection** — *"these should only be visible from within the sandbox, when they're generated we save them to the post cmd checker so they can be found if they manage to 'escape'"*
    → §6 rewritten to make canary-value generation and on-disk placement a **unified install pipeline**: every value rendered into a honey-file is simultaneously registered with the live `Catalogue` and added to the `CanaryScanner`'s Aho-Corasick automaton. The existing post-output scanner therefore *is* the escape detector — no separate honey-path access detector is needed for v1 (the originally-proposed ADR-032 follow-up is dropped to "optional later" status). §4's manifest moves into a SQLite table inside `armor.db` (rather than a JSON file at a giveaway path) so an attacker with read-only shell access inside the container cannot enumerate the bait by name.

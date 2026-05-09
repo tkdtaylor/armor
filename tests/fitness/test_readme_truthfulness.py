@@ -14,6 +14,11 @@ Spec markers:
     TC-057-05 — README has a Measured/Performance/Benchmark/Detection section
     TC-057-06 — README has no real-shape AKIA strings without FAKE/EXAMPLE markers
     TC-057-08 — Limitations section cites at least one ADR or spec doc
+    TC-098-01 — Performance rate rows include N and Wilson 95% CI
+    TC-098-02 — Performance latency rows cite a hardware envelope
+    TC-098-03 — Performance rows cite a source path or reproduction procedure
+    TC-098-04 — Performance preamble dates the run
+    TC-098-05 — Fitness check enforces README performance table evidence format
 """
 
 from __future__ import annotations
@@ -40,6 +45,29 @@ def _limitations_section(text: str) -> str:
     )
     assert m, "README missing Limitations section"
     return m.group(0)
+
+
+def _measured_performance_section(text: str) -> str:
+    m = re.search(
+        r"^##\s+Measured performance.*?(?=^##\s|\Z)",
+        text,
+        flags=re.M | re.S,
+    )
+    assert m, "README missing Measured performance section"
+    return m.group(0)
+
+
+def _performance_table_rows(text: str) -> list[tuple[str, str, str]]:
+    section = _measured_performance_section(text)
+    rows: list[tuple[str, str, str]] = []
+    for line in section.splitlines():
+        if not line.startswith("| ") or line.startswith("| Metric ") or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 3:
+            rows.append((cells[0], cells[1], cells[2]))
+    assert rows, "Measured performance table has no data rows"
+    return rows
 
 
 def test_tc_057_01_readme_has_limitations_section(readme_text: str) -> None:
@@ -91,3 +119,37 @@ def test_tc_057_08_limitations_cites_adr_or_spec(readme_text: str) -> None:
     assert re.search(r"docs/(architecture/decisions/|spec/)", section), (
         "Limitations section has no ADR or spec citations"
     )
+
+
+def test_tc_098_01_rate_rows_include_n_and_wilson_ci(readme_text: str) -> None:
+    """TC-098-01: percentage/rate rows include sample size and Wilson 95% CI."""
+    rows = _performance_table_rows(readme_text)
+    rate_rows = [(metric, value) for metric, value, _source in rows if "%" in value]
+    assert rate_rows, "Measured performance table has no rate rows"
+    for metric, value in rate_rows:
+        assert re.search(r"\(\d+/\d+;", value), f"{metric!r} missing sample size in value cell"
+        assert "Wilson 95% CI" in value, f"{metric!r} missing Wilson 95% CI"
+
+
+def test_tc_098_02_latency_rows_reference_hardware_envelope(readme_text: str) -> None:
+    """TC-098-02: latency rows are tied to the documented hardware envelope."""
+    section = _measured_performance_section(readme_text)
+    assert "Intel Core Ultra 9 185H" in section, "performance preamble missing CPU model"
+    assert "62 GiB RAM" in section, "performance preamble missing RAM"
+    assert "n_threads=1" in section, "performance preamble missing llama.cpp thread count"
+    for metric, value, _source in _performance_table_rows(readme_text):
+        if "latency" in metric.lower() or "cold-start" in metric.lower():
+            assert "hardware envelope above" in value, f"{metric!r} is not tied to hardware envelope"
+
+
+def test_tc_098_03_every_performance_row_has_source(readme_text: str) -> None:
+    """TC-098-03: every measured-performance row cites a source or procedure."""
+    for metric, _value, source in _performance_table_rows(readme_text):
+        assert re.search(r"(tests/|docs/|artifacts/)", source), f"{metric!r} has no source path"
+
+
+def test_tc_098_04_performance_preamble_dates_run(readme_text: str) -> None:
+    """TC-098-04: measured-performance preamble includes a YYYY-MM-DD date."""
+    section = _measured_performance_section(readme_text)
+    preamble = section.split("| Metric |", 1)[0]
+    assert re.search(r"\b20\d{2}-\d{2}-\d{2}\b", preamble), "performance preamble missing run date"

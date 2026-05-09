@@ -3,11 +3,11 @@
 **Date:** 2026-05-07
 **Status:** Deferred (deferred-design ADR — no code ships)
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §7 Category 3 line 309 *Steganography*; ADR-014 (output entropy); ADR-033 (indirect injection).
+**References:** Internal design audit category *Steganography*; ADR-014 (output entropy); ADR-033 (indirect injection).
 
 ## Context
 
-`archive/discussion.md` §7 Category 3 line 309 names *"Steganography — hidden data in images/audio"* as an exfiltration vector. The current detector pipeline has no path that inspects binary file content — every detector operates on text payloads.
+The design audit names *"Steganography — hidden data in images/audio"* as an exfiltration vector. The current detector pipeline has no path that inspects binary file content — every detector operates on text payloads.
 
 Real exfiltration via steganography is rare in the LLM-agent threat model **today**, because:
 
@@ -22,9 +22,9 @@ The vector becomes load-bearing in two specific scenarios:
 
 ## Decision
 
-**Proposed — deferred until corpus evidence.** This ADR documents the gap and the proposed v1+ approach so future work has a starting point, but explicitly **does not** ship a detector in the next release. The cost of binary-content inspection (a libmagic dependency, a steganography-specific scanner, and either OCR or audio-decoding subsystems) is not justified against the current attack surface.
+Defer implementation until corpus evidence justifies it. This ADR documents the gap and the proposed v1+ approach so future work has a starting point, but explicitly **does not** ship a detector in the next release. The cost of binary-content inspection (a libmagic dependency, a steganography-specific scanner, and either OCR or audio-decoding subsystems) is not justified against the current attack surface.
 
-The ADR is published in `Status: Proposed` rather than dropped entirely so that:
+The ADR is published as a deferred-design ADR rather than dropped entirely so that:
 
 - A future operator who hits this attack class has a starting design.
 - The discussion-audit cross-reference in ADR-031 remains complete.
@@ -76,6 +76,6 @@ This ADR is published as a **deferred-design ADR**: it documents the gap and the
 
 ## See also
 
-- `archive/discussion.md` §7 Category 3 line 309.
+- Internal design audit category *Steganography*.
 - ADR-033: indirect injection (the adjacent attack class — text in images, vs this ADR's bytes in images).
 - ADR-014: output entropy (the existing entropy-based detection family this would extend).

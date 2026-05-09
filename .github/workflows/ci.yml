@@ -9,8 +9,8 @@ on:
 # Each gate runs in its own job so failures land on distinct rows in the PR
 # checks list — much easier to read than one giant `make check` log.
 #
-# `release.yml` (task 029) and `fuzz-nightly.yml` (task 027) are intentionally
-# unchanged by this workflow.
+# `release.yml` (tag-driven publish) and `fuzz-nightly.yml` (scheduled IPC
+# fuzzer) are intentionally unchanged by this workflow.
 
 jobs:
   lint:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -56,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -94,7 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -110,14 +110,12 @@ jobs:
 
   fitness:
     runs-on: ubuntu-latest
-    # Fitness functions are advisory while the full suite is being filled in
-    # (task 021 et al.). Surface failures in the PR check list, but don't
-    # block a merge on them yet.
-    continue-on-error: true
+    # Pytest fitness job — the suite is fully filled in for v1.0; runs as a
+    # blocking gate alongside `make-fitness` below.
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -135,12 +133,11 @@ jobs:
     runs-on: ubuntu-latest
     # Runs scripts/fitness.sh — the canonical fitness entry point per
     # docs/spec/fitness-functions.md, complementary to the pytest fitness job
-    # above (the two cover different invariants). Blocking per task 043
-    # (honeypot P95 latency regression resolved via budget update).
+    # above (the two cover different invariants). Blocking gate.
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv

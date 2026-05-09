@@ -2,12 +2,17 @@
 
 import asyncio
 import os
+import sqlite3
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from armor.daemon.server import DaemonServer
+from armor.db.forensic import ForensicLogger
+from armor.db.migrations import run_migrations
+from armor.types import Verdict
 
 
 @pytest.fixture
@@ -29,6 +34,15 @@ def disable_llm_for_tests(monkeypatch) -> None:
     Tests that specifically need an LLM should mock it separately.
     """
     monkeypatch.setenv("ARMOR_DISABLE_LLM", "true")
+
+
+def _fake_detector(detector_id: str, category: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=detector_id,
+        category=category,
+        cost_tier="static",
+        check=lambda _payload, _ctx: Verdict.pass_verdict(),
+    )
 
 
 class TestDaemonServer:
@@ -131,6 +145,140 @@ class TestDaemonServer:
         assert response["v"] == 1
         assert response["verdict"] == "error"
         assert "unknown op" in response["message"]
+
+    def test_detector_filter_config_for_input_output_and_tool(self, temp_socket: str, tmp_path: Path) -> None:
+        """TC-108-01/02/03: per-operation detector allowlists select matching detectors."""
+        config_path = tmp_path / "armor.toml"
+        config_path.write_text(
+            "\n".join(
+                [
+                    "[pipeline]",
+                    'input_detectors = ["meta.*"]',
+                    'output_detectors = ["canary.scanner"]',
+                    'tool_detectors = ["tool_abuse"]',
+                ]
+            )
+        )
+        server = DaemonServer(socket_path=temp_socket, config_path=str(config_path))
+        server.registry.detectors = {
+            "meta.memory_planting": _fake_detector("meta.memory_planting", "context_window"),
+            "canary.scanner": _fake_detector("canary.scanner", "exfiltration"),
+            "cmd_injection.bash": _fake_detector("cmd_injection.bash", "tool_abuse"),
+            "regex.instruction_override": _fake_detector("regex.instruction_override", "direct_injection"),
+        }
+
+        assert [detector.id for detector in server._detectors_for_operation("check.input")] == ["meta.memory_planting"]
+        assert [detector.id for detector in server._detectors_for_operation("check.output")] == ["canary.scanner"]
+        assert [detector.id for detector in server._detectors_for_operation("check.tool")] == ["cmd_injection.bash"]
+
+    def test_detector_filter_star_preserves_all_detectors(self, temp_socket: str, tmp_path: Path) -> None:
+        """TC-108-04: `*` keeps all detectors enabled for an operation."""
+        config_path = tmp_path / "armor.toml"
+        config_path.write_text("[pipeline]\ninput_detectors = ['*']\n")
+        server = DaemonServer(socket_path=temp_socket, config_path=str(config_path))
+        server.registry.detectors = {
+            "meta.memory_planting": _fake_detector("meta.memory_planting", "context_window"),
+            "regex.instruction_override": _fake_detector("regex.instruction_override", "direct_injection"),
+        }
+
+        assert [detector.id for detector in server._detectors_for_operation("check.input")] == [
+            "meta.memory_planting",
+            "regex.instruction_override",
+        ]
+
+    def test_invalid_detector_filter_config_uses_defaults(self, temp_socket: str, tmp_path: Path) -> None:
+        """TC-108-05: invalid allowlist config falls back to safe defaults."""
+        config_path = tmp_path / "armor.toml"
+        config_path.write_text("[pipeline]\ntool_detectors = [123]\n")
+        server = DaemonServer(socket_path=temp_socket, config_path=str(config_path))
+        server.registry.detectors = {
+            "cmd_injection.bash": _fake_detector("cmd_injection.bash", "tool_abuse"),
+            "tool_param.schema": _fake_detector("tool_param.schema", "tool_abuse"),
+            "tool_rate.anomaly": _fake_detector("tool_rate.anomaly", "tool_abuse"),
+            "tool_chain": _fake_detector("tool_chain", "tool_abuse"),
+            "regex.instruction_override": _fake_detector("regex.instruction_override", "direct_injection"),
+        }
+
+        assert [detector.id for detector in server._detectors_for_operation("check.tool")] == [
+            "cmd_injection.bash",
+            "tool_param.schema",
+            "tool_rate.anomaly",
+            "tool_chain",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_incidents_list_applies_payload_filters(self, temp_socket: str, temp_db: str) -> None:
+        """TC-107-04: incidents.list applies age, session, category, and since_id filters."""
+        run_migrations(temp_db)
+        conn = sqlite3.connect(temp_db)
+        try:
+            conn.executemany(
+                "INSERT INTO Incident (id, ts, session_id, attack_category, signal_id, input_hash, severity) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (1, "2020-01-01 00:00:00", "target", "direct_injection.old", "old", "h1", "high"),
+                    (
+                        2,
+                        "2099-05-09 12:00:00",
+                        "target",
+                        "direct_injection.new",
+                        "new",
+                        "h2",
+                        "critical",
+                    ),
+                    (3, "2099-05-09 12:00:00", "other", "direct_injection.new", "other", "h3", "critical"),
+                ],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        server = DaemonServer(socket_path=temp_socket, db_path=temp_db)
+        server.forensic_logger = ForensicLogger(temp_db)
+        response = await server._handle_incidents_list(
+            {
+                "payload": {
+                    "limit": 10,
+                    "session_id": "target",
+                    "category": "direct_injection.*",
+                    "since": "30d",
+                    "since_id": 1,
+                    "severity": "critical",
+                }
+            }
+        )
+
+        assert response["verdict"] == "pass"
+        assert [row["id"] for row in response["incidents"]] == [2]
+
+    @pytest.mark.asyncio
+    async def test_incidents_export_applies_payload_filters(self, temp_socket: str, temp_db: str) -> None:
+        """TC-107-05: incidents.export applies since, session, and severity filters."""
+        run_migrations(temp_db)
+        conn = sqlite3.connect(temp_db)
+        try:
+            conn.executemany(
+                "INSERT INTO Incident (ts, session_id, attack_category, signal_id, input_hash, severity) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    ("2020-01-01 00:00:00", "target", "direct_injection.old", "old", "h1", "critical"),
+                    ("2099-05-09 12:00:00", "target", "direct_injection.new", "new", "h2", "critical"),
+                    ("2099-05-09 12:00:00", "target", "direct_injection.low", "low", "h3", "low"),
+                    ("2099-05-09 12:00:00", "other", "direct_injection.new", "other", "h4", "critical"),
+                ],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        server = DaemonServer(socket_path=temp_socket, db_path=temp_db)
+        server.forensic_logger = ForensicLogger(temp_db)
+        response = await server._handle_incidents_export(
+            {"payload": {"session_id": "target", "since": "30d", "severity": "critical"}}
+        )
+
+        assert response["verdict"] == "pass"
+        assert [row["signal_id"] for row in response["incidents"]] == ["new"]
 
     @pytest.mark.asyncio
     async def test_handle_request_unsupported_version(self, temp_socket: str) -> None:

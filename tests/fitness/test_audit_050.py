@@ -53,6 +53,13 @@ def test_armor_toml_post_fsm_sections():
     # Check signal_weights
     assert "signal_weights" in data["session"], "missing [session.signal_weights] section"
 
+    assert data["pipeline"]["tool_detectors"] == [
+        "cmd_injection.*",
+        "tool_param.*",
+        "tool_rate.*",
+        "tool_chain",
+    ], "TC-108-06: bundled tool detector allowlist does not match shipped defaults"
+
     # Check detector section
     assert "detector" in data, "missing [detector] section"
     for key in ("canary", "topic_coherence"):
@@ -91,3 +98,17 @@ def test_daemon_accepts_bundled_config():
         f"daemon --config armor.toml --help failed with exit {result.returncode}\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
+
+
+def test_configuration_spec_has_live_detector_allowlists_only():
+    """TC-108-07: config spec describes live allowlists and no telemetry placeholder."""
+    config_text = (ROOT / "docs" / "spec" / "configuration.md").read_text()
+    interfaces_text = (ROOT / "docs" / "spec" / "interfaces.md").read_text()
+    text = config_text + "\n" + interfaces_text
+
+    assert "Reserved placeholder" not in text
+    assert "no readers exist" not in text
+    assert "ARMOR_ENABLE_TELEMETRY" not in text
+    assert "Detector allowlist for `check.input`" in text
+    assert "Detector allowlist for `check.output`" in text
+    assert "Detector allowlist for `check.tool`" in text

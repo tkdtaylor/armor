@@ -68,6 +68,9 @@ class TestAudit053:
     def test_053_coverage_tracker_sorted_by_id(self):
         """TC-053-05: coverage-tracker.md rows sort by task ID ascending."""
         tracker = REPO_ROOT / "docs" / "tasks" / "test-specs" / "coverage-tracker.md"
+        if not tracker.exists():
+            pytest.skip("private coverage tracker not present in public tree")
+
         text = tracker.read_text()
         ids = [int(m) for m in re.findall(r"^\|\s*0?(\d+)\s*\|", text, flags=re.M)]
         assert ids == sorted(ids), f"coverage-tracker.md not sorted by ID: {ids}"

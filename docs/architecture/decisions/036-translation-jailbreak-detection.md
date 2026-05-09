@@ -3,7 +3,7 @@
 **Date:** 2026-05-07
 **Status:** Deferred (operator decision 2026-05-07 — canary/honeypot defense considered sufficient backstop)
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §7 Category 4 line 321 *Language Translation Obfuscation*; §7 Category 5 line 331 *Translation Jailbreak*; ADR-022 (jailbreak-detector hybrid); ADR-026 (topic-coherence ONNX embedding).
+**References:** Internal design audit categories *Language Translation Obfuscation* and *Translation Jailbreak*; ADR-022 (jailbreak-detector hybrid); ADR-026 (topic-coherence ONNX embedding).
 
 ## Deferral rationale
 
@@ -24,7 +24,7 @@ Task 068 is dropped from the implementation backlog. The acceptance section of t
 
 ## Context
 
-Two related but distinct attack vectors from `archive/discussion.md` §7:
+Two related but distinct attack vectors from the internal design audit:
 
 - **Translation Obfuscation (Category 4 line 321)** — *"translate to obscure language to hide"* — the attacker asks the model to render output in a low-resource language, hoping the canary scanner (English-keyword-tuned) and the validator LLM (English-prompted) miss it.
 - **Translation Jailbreak (Category 5 line 331)** — *"attack in foreign language"* — the attacker writes the injection itself in a language the static detectors don't cover, hoping the regex family doesn't match.
@@ -35,7 +35,7 @@ This is a real bypass. The 2023 *Low-Resource Language Jailbreak* paper (Yong et
 
 ## Decision
 
-**Proposed.** Add a two-stage detector **`meta.language_anomaly`** that:
+The deferred design would add a two-stage detector **`meta.language_anomaly`** that:
 
 1. **Detects the language of every input and output payload** using a lightweight in-process language classifier.
 2. **When the detected language is non-English, escalates the FSM** with an `advisory` signal weighted by language rarity, AND **back-translates** the payload to English and re-runs the input-side detector pipeline against the translation.
@@ -88,6 +88,6 @@ Answered 2026-05-07.
 
 ## See also
 
-- `archive/discussion.md` §7 Category 4 line 321 and Category 5 line 331.
+- Internal design audit categories *Language Translation Obfuscation* and *Translation Jailbreak*.
 - ADR-022: jailbreak-detector hybrid (the existing static + LLM split this ADR extends to non-English).
 - ADR-026: ONNX embedding (precedent for a non-LLM model in the daemon image).

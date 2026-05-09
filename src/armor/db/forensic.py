@@ -118,8 +118,8 @@ class ForensicLogger:
                 """INSERT INTO Incident (
                     session_id, attack_category, signal_id, input_hash,
                     triggered_canary, destinations, encoding_flag,
-                    risk_score, action, quarantine_id, source_tool, chunk_index, chunk_metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    risk_score, severity, action, quarantine_id, source_tool, chunk_index, chunk_metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     ctx.session_id,
                     "exfiltration.canary_leak" if triggered_canary else self._infer_category(verdict, source),
@@ -129,6 +129,7 @@ class ForensicLogger:
                     json.dumps(destinations) if destinations else None,
                     1 if verdict.details.get("encoding_flag", False) else 0,
                     risk_score,
+                    verdict.severity,
                     "blocked",
                     quarantine_id,
                     source_tool,
@@ -226,12 +227,15 @@ class ForensicLogger:
         session_id: str | None = None,
         category: str | None = None,
         since_id: int | None = None,
+        since_ts: str | None = None,
+        severity: str | None = None,
     ) -> list[dict[str, object]]:
         """Return a list of incident rows for the operator UX.
 
         Filters apply additively. `category` is a glob — matched with SQL LIKE
         after substituting `*` → `%`. `since_id` returns rows with `id > since_id`
-        (used by the long-poll tail).
+        (used by the long-poll tail). `since_ts` filters rows whose SQLite
+        timestamp is on or after the provided UTC timestamp string.
         """
         clauses: list[str] = []
         params: list[object] = []
@@ -244,11 +248,17 @@ class ForensicLogger:
         if since_id is not None:
             clauses.append("id > ?")
             params.append(since_id)
+        if since_ts:
+            clauses.append("ts >= ?")
+            params.append(since_ts)
+        if severity:
+            clauses.append("severity = ?")
+            params.append(severity)
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         sql = (
             "SELECT id, ts, session_id, attack_category, signal_id, action, "
-            "risk_score, triggered_canary, quarantine_id, source_tool, chunk_index, chunk_metadata "
+            "risk_score, severity, triggered_canary, quarantine_id, source_tool, chunk_index, chunk_metadata "
             f"FROM Incident {where} ORDER BY id ASC LIMIT ?"
         )
         params.append(limit)

@@ -23,7 +23,7 @@ The whitelist uses **exact-match semantics only** — no wildcards, no globbing,
 
 **Rationale for each choice:**
 
-- **Local TOML, not HTTP fetch**: Armor is designed to work air-gapped. Outbound network calls from the daemon are forbidden by the no-network invariant (see `CLAUDE.md` boundaries). The operator configures the whitelist once at deployment time, not dynamically.
+- **Local TOML, not HTTP fetch**: Armor is designed to work air-gapped. Outbound network calls from the daemon are forbidden by the no-network invariant. The operator configures the whitelist once at deployment time, not dynamically.
 
 - **Exact-match, not wildcard**: Exact-match keeps the whitelist small and predictable. Wildcard matching (e.g., `*.example.com`) would require prefix/suffix/glob logic and creates room for ambiguity (does `*.example.com` match `evil-prefix.example.com`?). If an operator needs fine-grained domain matching, they add specific entries (`api.example.com`, `auth.example.com`, etc.). Subdomain handling is deferred to v0.3+ if demand arises.
 

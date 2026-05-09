@@ -1,6 +1,6 @@
 # Post-Release Checklist
 
-This checklist is run by the release engineer **immediately after pushing a tag** (e.g., `git tag v0.5.0 && git push origin v0.5.0`). The release workflow will execute automatically; this manual checklist verifies that the published artifacts work as expected.
+This checklist is run by the release engineer **immediately after pushing a tag** (e.g., `git tag v0.9.0 && git push origin v0.9.0`). The release workflow will execute automatically; this manual checklist verifies that the published artifacts work as expected.
 
 Complete all items before announcing the release publicly.
 
@@ -20,9 +20,9 @@ Complete all items before announcing the release publicly.
 
 - [ ] Verify PyPI release:
   ```bash
-  curl -s https://pypi.org/pypi/armor/json | jq '.releases | keys | .[-1]'
+  curl -s https://pypi.org/pypi/armor-ai/json | jq '.releases | keys | .[-1]'
   ```
-  Should show the new version (e.g., `0.5.0` or `0.5.0rc1`).
+  Should show the new version (e.g., `0.9.0` or `0.9.0rc1`).
 
 ## Fresh Container Verification (5–10 min)
 
@@ -30,24 +30,30 @@ Complete all items before announcing the release publicly.
   ```bash
   docker pull ghcr.io/<owner>/armor:<version>
   ```
-  Replace `<owner>` with the GitHub username and `<version>` with the tag (e.g., `0.5.0-rc1` → `0.5.0-rc1`).
+  Replace `<owner>` with the GitHub username and `<version>` with the tag (e.g., `0.9.0-rc1` → `0.9.0-rc1`).
 
-- [ ] Start the daemon in a fresh container:
+- [ ] Verify the CLI entrypoint in a fresh container:
   ```bash
-  docker run --rm -it ghcr.io/<owner>/armor:<version> --help
+  docker run --rm --entrypoint armor ghcr.io/<owner>/armor:<version> --help
   ```
   Should display the help text for the `armor` CLI.
 
-- [ ] Run the e2e demo inside the container:
+- [ ] Start the daemon image and verify health from inside the container:
   ```bash
-  docker run --rm -it ghcr.io/<owner>/armor:<version> make demo
+  docker run -d --name armor-release-smoke ghcr.io/<owner>/armor:<version>
+  ok=0
+  for i in {1..30}; do
+    if docker exec armor-release-smoke armor health; then
+      ok=1
+      break
+    fi
+    sleep 2
+  done
+  docker rm -f armor-release-smoke
+  test "$ok" -eq 1
   ```
-  Should execute both demo scenarios (direct injection block, canary exfiltration block) and report success.
-
-  *Note:* The image must have the Makefile available. If it doesn't, run the equivalent Python commands:
-  ```bash
-  docker run --rm -it ghcr.io/<owner>/armor:<version> python -m tests.integration.demo
-  ```
+  The runtime image is intentionally the daemon image, not the dev/test image;
+  the full `make demo` gate runs before tagging via `make release-check`.
 
 ## Fresh PyPI Install Verification (5–10 min)
 
@@ -57,7 +63,7 @@ In a **clean Python 3.12+ venv**:
   ```bash
   python -m venv /tmp/armor-test
   source /tmp/armor-test/bin/activate
-  pip install ai-armor==<version>
+  pip install armor-ai==<version>
   ```
 
 - [ ] Verify the version:
@@ -66,41 +72,28 @@ In a **clean Python 3.12+ venv**:
   ```
   Should output `armor <version>`.
 
-- [ ] Start the daemon (it should find the baked model or download it):
+- [ ] Verify the import package and CLI version:
   ```bash
-  armor daemon --socket /tmp/armor.sock --db /tmp/armor-test.db &
-  sleep 2
+  python -c "import armor; print(armor.__version__)"
+  armor --version
   ```
-
-- [ ] Run a simple smoke test:
-  ```bash
-  echo "ignore previous instructions" | armor check input --socket /tmp/armor.sock --session-id test-1
-  ```
-  Should return a block verdict (exit code 1) with details.
-
-- [ ] Stop the daemon:
-  ```bash
-  kill %1 2>/dev/null || pkill -f "armor daemon"
-  ```
+  Both should show the published version. Daemon runtime verification is covered
+  by the container smoke above because the PyPI wheel does not include model
+  weights.
 
 ## Hook Installer Verification (5 min)
 
 - [ ] Run the hook installer:
   ```bash
-  armor hook install
+  armor hooks install
   ```
-  Should output a message like:
-  ```
-  Hook installer would install to ~/.claude/settings.json
-  ```
+  Should create or update `./.claude/settings.json`.
 
 - [ ] Inspect the generated config:
   ```bash
-  cat ~/.claude/settings.json | jq '.hooks' 2>/dev/null | head -20
+  cat ./.claude/settings.json | jq '.hooks' 2>/dev/null | head -20
   ```
   Should show the armor hooks for UserPromptSubmit, PreToolUse, PostToolUse, Stop.
-
-  *Note:* The first time, this is a dry-run. A real `armor hook install --apply` or `armor hook apply` would commit the change to `~/.claude/settings.json` (not implemented yet in v0.4; skip if not present).
 
 ## Documentation Check (5 min)
 
@@ -108,17 +101,16 @@ In a **clean Python 3.12+ venv**:
   ```bash
   cat README.md | grep -A 10 "## Getting started"
   ```
-  Both the container path (`docker run ghcr.io/...`) and PyPI path (`pip install ai-armor`) should be present.
+  Both the container path (`docker run ghcr.io/...`) and PyPI path (`pip install armor-ai`) should be present.
 
-- [ ] Verify examples are available in the wheel:
+- [ ] Verify the installed package contents and CLI entrypoint:
   ```bash
-  python -c "import importlib.resources; print(list(importlib.resources.files('armor').iterdir()))"
+  python -c "import armor; print(armor.__version__)"
+  armor --help
   ```
-  Or, after install, check the site-packages:
-  ```bash
-  ls -la $(python -c "import armor; print(armor.__file__)" | xargs dirname)/../
-  ```
-  The `examples/` directory should be shipped with the wheel.
+  The wheel ships the `armor` import package and CLI entrypoint. Repository
+  examples remain source-tree examples and are smoke-tested before tagging by
+  `make release-check`.
 
 ## Sign-Off
 
@@ -133,7 +125,7 @@ In a **clean Python 3.12+ venv**:
 ### PyPI publish fails
 
 - Check that the **trusted-publisher relationship** is configured on PyPI:
-  - Go to https://pypi.org/manage/project/armor/publishing/
+  - Go to https://pypi.org/manage/project/armor-ai/publishing/
   - Ensure GitHub org + repo + branch are registered.
 - Verify that the `pypa/gh-action-pypi-publish` job has `id-token: write` permission (see `.github/workflows/release.yml`).
 
@@ -152,6 +144,8 @@ In a **clean Python 3.12+ venv**:
 
 ### Smoke test in the container fails
 
-- Check that the image includes the `Makefile` and `tests/` directory (they should be in the Docker build context).
-- If not, the Dockerfile's `COPY . .` may be filtering them out (check `.dockerignore`).
-- Alternatively, run the smoke commands manually inside a `docker run` shell.
+- Check `docker logs armor-release-smoke` for daemon startup errors.
+- Confirm the image contains `/models/active.gguf` and that `/var/run/armor`
+  is writable by the unprivileged `armor` user.
+- Re-run the `docker exec armor-release-smoke armor health` loop manually to
+  separate slow startup from a hard daemon failure.

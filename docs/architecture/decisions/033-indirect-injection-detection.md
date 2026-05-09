@@ -3,11 +3,11 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §7 Category 2 (lines 295-301) *Indirect / Second-Order Injection*; ADR-031 (honeyfs); ADR-024 (session FSM).
+**References:** Internal design audit category *Indirect / Second-Order Injection*; ADR-031 (honeyfs); ADR-024 (session FSM).
 
 ## Context
 
-The current detector pipeline runs only on **first-party text payloads**: user input (`armor check input`) and model output (`armor check output`), plus tool-call shape/risk validation (`armor check tool`). It has no detection on **second-hand text** that enters the agent's context via tool results — the discussion's Category 2:
+The original detector pipeline ran only on **first-party text payloads**: user input (`armor check input`) and model output (`armor check output`), plus tool-call shape/risk validation (`armor check tool`). It had no detection on **second-hand text** that enters the agent's context via tool results:
 
 | Vector | Where it enters | Today's coverage |
 |---|---|---|
@@ -21,7 +21,7 @@ This is now arguably **the most important attack class** for a tool-using agent,
 
 ## Decision
 
-**Proposed.** Add a new check operation **`armor check fetched`** (working name) that runs the input-side detector pipeline against tool-call *results* before they reach the agent's context. The Claude Code integration wires this on `PostToolUse` for read-side tools (`Read`, `Grep`, `Glob`, `WebFetch`, MCP `read_*` patterns, …) — the daemon receives the tool result body and replays the input-side regex family against it (instruction-override, roleplay-hijack, system-prompt-extraction, encoding-request, authority-impersonation per Task 061), plus the validator LLM gated by session state.
+Add a check operation **`armor check fetched`** that runs the input-side detector pipeline against tool-call *results* before they reach the agent's context. The Claude Code integration wires this on `PostToolUse` for read-side tools (`Read`, `Grep`, `Glob`, `WebFetch`, MCP `read_*` patterns, …) — the daemon receives the tool result body and replays the input-side regex family against it (instruction-override, roleplay-hijack, system-prompt-extraction, encoding-request, authority-impersonation), plus the validator LLM gated by session state.
 
 ### Three integration shapes considered
 
@@ -71,6 +71,6 @@ Answered 2026-05-07.
 
 ## See also
 
-- `archive/discussion.md` §7 Category 2 lines 295-301: the threat-model rows this ADR addresses.
+- Internal design audit category *Indirect / Second-Order Injection*: the threat-model rows this ADR addresses.
 - ADR-031: honeyfs — the bait-placement counterpart; ADR-031 places the bait, ADR-033 catches the recon.
 - ADR-024: session FSM — the FSM-coupling decision in Q5 wires here.

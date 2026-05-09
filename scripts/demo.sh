@@ -1,5 +1,5 @@
 #!/bin/bash
-# End-to-end demo script for armor v0.2
+# End-to-end demo script for armor
 # Demonstrates:
 # 1. Input-side block on direct injection (system prompt extraction)
 # 2. Output-side block on canary exfiltration

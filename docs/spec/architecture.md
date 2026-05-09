@@ -39,7 +39,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 
 | Component | Source | Responsibility | Depends on |
 |-----------|--------|----------------|------------|
-| `daemon.server` | [src/armor/daemon/server.py](../../src/armor/daemon/server.py) | Unix-socket server; reads a check request, invokes `pipeline`, returns the verdict; persists FSM transitions on every check. Loads and injects LLM session into LLM-dependent detectors at boot via post-load loop (mechanism A per Task 088). | `pipeline`, `db/session_store`, `db/forensic`, `armor.logging`, `daemon.honeypot_gate`, `session.state_machine`, `llm.session` |
+| `daemon.server` | [src/armor/daemon/server.py](../../src/armor/daemon/server.py) | Unix-socket server; reads a check request, invokes `pipeline`, returns the verdict; persists FSM transitions on every check. Loads and injects LLM session into LLM-dependent detectors at boot via post-load loop (mechanism A). | `pipeline`, `db.migrations`, `db.session_store`, `db.forensic`, `db.quarantine`, `db.sweeper`, `armor.logging`, `daemon.honeypot_gate`, `session.state_machine`, `llm.session`, `canaries.catalogue`, `canaries.scanner`, `detectors.canary_scanner`, `detectors.destination_extractor`, `detectors.instruction_burial`, `detectors.conversation_hijack` |
 | `armor.logging` | [src/armor/logging.py](../../src/armor/logging.py) | Structured logging for daemon-side events; substitutes `canary_id` for canary values before persisting | `types` |
 | `daemon.honeypot_gate` | [src/armor/daemon/honeypot_gate.py](../../src/armor/daemon/honeypot_gate.py) | Decides when to invoke the honeypot LLM path (gated by session state and per-path budget) | `llm.honeypot`, `session.state_machine` |
 
@@ -60,13 +60,13 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 | `detectors.instruction_burial` | [src/armor/detectors/instruction_burial.py](../../src/armor/detectors/instruction_burial.py) | static | Detects instruction-override and system-prompt-extraction patterns buried in the tail (last 25%) of long inputs; reuses patterns from `regex.instruction_override` and `regex.system_prompt_extraction` per ADR-037 | `regex_instruction_override.get_compiled_patterns`, `regex_system_prompt_extraction.get_compiled_patterns`, `types` |
 | `detectors.cmd_injection_bash` | [src/armor/detectors/cmd_injection_bash.py](../../src/armor/detectors/cmd_injection_bash.py) | static | Denylist scanner for `Bash` tool calls (filesystem destruction, credential reads, container escape) | `types` |
 | `detectors.tool_param_schema` | [src/armor/detectors/tool_param_schema.py](../../src/armor/detectors/tool_param_schema.py) | static | Schema-driven parameter-tampering check for tool calls; uses the bundled `tool_schemas.json` per ADR-016 | `types` |
-| `detectors.topic_coherence` | [src/armor/detectors/topic_coherence.py](../../src/armor/detectors/topic_coherence.py) | static | Cosine-distance against a per-session EMA of MiniLM embeddings; advisory only; soft-fails on budget exceedance per ADR-026 | `embeddings.ema_cache`, `embeddings.onnx_embedder`, `types` |
+| `detectors.topic_coherence` | [src/armor/detectors/topic_coherence.py](../../src/armor/detectors/topic_coherence.py) | semantic | Cosine-distance against a per-session EMA of MiniLM embeddings; advisory only; soft-fails on budget exceedance per ADR-026 | `embeddings.ema_cache`, `embeddings.onnx_embedder`, `types` |
 | `detectors.token_count_anomaly` | [src/armor/detectors/token_count_anomaly.py](../../src/armor/detectors/token_count_anomaly.py) | static | Running mean/std-dev of input lengths per session; advisory on z-score > threshold or absolute-cap exceedance per ADR-037 | `types` |
 | `detectors.tool_rate_anomaly` | [src/armor/detectors/tool_rate_anomaly.py](../../src/armor/detectors/tool_rate_anomaly.py) | static | Sliding-window per-tool call-rate tracking per session; advisory when burst detected per ADR-040 | `types` |
 | `detectors.tool_chain` | [src/armor/detectors/tool_chain.py](../../src/armor/detectors/tool_chain.py) | static | Detects multi-turn attack chains (e.g., Read .env → WebFetch); per-session history tracking with strict/loose matching per ADR-040 | `types` |
 | `detectors.conversation_hijack` | [src/armor/detectors/conversation_hijack.py](../../src/armor/detectors/conversation_hijack.py) | static | Detects claims of prior agreement without corroboration; reads `SessionContext.signal_history` to calibrate confidence per ADR-037 | `types` |
-| `detectors.jailbreak_template` | [src/armor/detectors/jailbreak_template.py](../../src/armor/detectors/jailbreak_template.py) | static + llm | Static templates (DAN, developer-mode, fictional framing) plus optional validator-LLM judgment. LLM session injected at daemon boot (mechanism A, Task 088). | `llm.validator`, `types` |
-| `detectors.llm_validator` | [src/armor/detectors/llm_validator.py](../../src/armor/detectors/llm_validator.py) | llm | Calls `llm.validator` with a structured-output prompt; emits `advisory` with confidence; gated by `session.state ≥ Watching`. LLM session injected at daemon boot (mechanism A, Task 088). | `llm.validator`, `types` |
+| `detectors.jailbreak_template` | [src/armor/detectors/jailbreak_template.py](../../src/armor/detectors/jailbreak_template.py) | llm | Static templates (DAN, developer-mode, fictional framing) plus optional validator-LLM judgment. Cost tier reflects highest invocation path. LLM session injected at daemon boot (mechanism A). | `llm.validator`, `types` |
+| `detectors.llm_validator` | [src/armor/detectors/llm_validator.py](../../src/armor/detectors/llm_validator.py) | llm | Calls `llm.validator` with a structured-output prompt; emits `advisory` with confidence; gated by `session.state ≥ Watching`. LLM session injected at daemon boot (mechanism A). | `llm.validator`, `types` |
 
 ## Components — session
 
@@ -98,6 +98,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 | `canaries.catalogue` | [src/armor/canaries/catalogue.py](../../src/armor/canaries/catalogue.py) | Loads the bundled canary catalogue (`default_catalogue.json`) and any user-provided extras | `_generate` |
 | `canaries.scanner` | [src/armor/canaries/scanner.py](../../src/armor/canaries/scanner.py) | Builds the Aho-Corasick automaton from catalogue values; provides `scan(text) -> list[hit]` | `catalogue` |
 | `canaries._generate` | [src/armor/canaries/_generate.py](../../src/armor/canaries/_generate.py) | Install-time canary-value generation per ADR-010 (rewritten); writes the per-installation values file | (leaf) |
+| `canaries.activation` | [src/armor/canaries/activation.py](../../src/armor/canaries/activation.py) | Evaluates per-canary activation rules (path/intent context); decides which canaries are active for a given check per ADR-038 | `catalogue`, `types` |
 
 ## Components — `armor-store` (db layer)
 
@@ -106,9 +107,9 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 | `db.migrations` | [src/armor/db/migrations.py](../../src/armor/db/migrations.py) | Applies `schema.sql` and any future schema bumps idempotently | (leaf) |
 | `db.session_store` | [src/armor/db/session_store.py](../../src/armor/db/session_store.py) | Persists per-session risk state, FSM fields (`current_state`, `risk_score`, `last_signal_at`), and the `session_rolling_buffer` table | `migrations`, `types` |
 | `db.forensic` | [src/armor/db/forensic.py](../../src/armor/db/forensic.py) | Writes blocked-attack incident records — input, attempted output, `canary_id` (never the value), destination | `migrations`, `types` |
-| `db.operator_audit` | [src/armor/db/operator_audit.py](../../src/armor/db/operator_audit.py) | Appends operator audit-log rows when the session-state machine's `clear_blocked()` unblocks a session | `migrations` |
-| `db.quarantine` | [src/armor/db/quarantine.py](../../src/armor/db/quarantine.py) | Encrypted quarantine of high-risk artifacts gated by `ARMOR_QUARANTINE_KEY` | `migrations` |
-| `db.sweeper` | [src/armor/db/sweeper.py](../../src/armor/db/sweeper.py) | Periodic cleanup — TTL eviction of old session rows and forensic records past retention | `session_store`, `forensic` |
+| `db.operator_audit` | [src/armor/db/operator_audit.py](../../src/armor/db/operator_audit.py) | Appends operator audit-log rows; called from `session.state_machine` when `clear_blocked()` unblocks a session | `migrations` |
+| `db.quarantine` | [src/armor/db/quarantine.py](../../src/armor/db/quarantine.py) | Encrypted quarantine of high-risk artifacts; key sourced from `--quarantine-key-path` (or `<db_dir>/.key` fallback) per ADR-011 | `migrations` |
+| `db.sweeper` | [src/armor/db/sweeper.py](../../src/armor/db/sweeper.py) | Periodic cleanup — TTL eviction of expired quarantine rows | `quarantine` |
 
 ---
 

@@ -3,11 +3,11 @@
 **Date:** 2026-05-07
 **Status:** Accepted
 **Decision date:** 2026-05-07
-**References:** `archive/discussion.md` §7 Category 6 lines 332-338 *Context Window Attacks*; ADR-024 (session FSM); ADR-026 (topic-coherence).
+**References:** Internal design audit category *Context Window Attacks*; ADR-024 (session FSM); ADR-026 (topic-coherence).
 
 ## Context
 
-The audit of `archive/discussion.md` §7 Category 6 surfaced an entire detector category with no current coverage:
+The design audit surfaced an entire detector category with no current coverage:
 
 | Vector (discussion §7 Category 6) | Description | Today's coverage |
 |---|---|---|
@@ -21,7 +21,7 @@ These attacks share a common axis: they exploit the **shape of the context windo
 
 ## Decision
 
-**Proposed.** Add a small family of detectors under a shared category `meta.context_window`. Each is independent and can land in a separate task; this ADR establishes the category and the integration pattern.
+Add a small family of detectors under a shared category `meta.context_window`. Each is independent and can land separately; this ADR establishes the category and the integration pattern.
 
 ### Detectors in scope
 
@@ -93,6 +93,6 @@ Answered 2026-05-07.
 
 ## See also
 
-- `archive/discussion.md` §7 Category 6 lines 332-338.
+- Internal design audit category *Context Window Attacks*.
 - ADR-026: topic-coherence (the closest existing detector; complements but does not subsume context-window attacks).
 - ADR-024: session FSM (the aggregation substrate for these advisory signals).
