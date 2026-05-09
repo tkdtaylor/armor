@@ -69,7 +69,7 @@ Python 3.12 (uv) · Docker · llama.cpp via `llama-cpp-python` (Qwen3-0.6B-Q4_K_
 
 ## Getting started
 
-### Container path (build locally)
+### Container path
 
 ```bash
 docker compose -f docker/docker-compose.yml build dev
@@ -78,20 +78,34 @@ docker compose -f docker/docker-compose.yml run --rm dev armor --help
 
 The Dockerfile bundles the validator and honeypot weights and the topic-coherence ONNX embedding model so the running container is offline-capable. A no-cache build verified on 2026-05-09 usually completes in under 3 minutes on the benchmark host and produces a local `armor-dev` image of about 990 MiB. The public Hugging Face model downloads do not require `HF_TOKEN`; unauthenticated builds may print a rate-limit warning. See [docker/](docker/) for the Compose definition and Docker-specific commands.
 
-The release workflow that publishes a multi-arch image to GHCR on tag is in [`.github/workflows/release.yml`](.github/workflows/release.yml); the image is not yet published — build locally for now. The full workflow set is [`ci.yml`](.github/workflows/ci.yml) (per-PR lint + tests; described in [CONTRIBUTING.md](CONTRIBUTING.md#continuous-integration)), [`release-check.yml`](.github/workflows/release-check.yml) (full pre-tag verification on every push to `main`; also covered in CONTRIBUTING.md), plus [`codeql.yml`](.github/workflows/codeql.yml) (security-extended SAST) and [`fuzz-nightly.yml`](.github/workflows/fuzz-nightly.yml) (nightly IPC fuzzing) which run on schedule independent of PRs.
+The release workflow in [`.github/workflows/release.yml`](.github/workflows/release.yml) publishes the tagged multi-arch image to GHCR. The full workflow set is [`ci.yml`](.github/workflows/ci.yml) (per-PR lint + tests; described in [CONTRIBUTING.md](CONTRIBUTING.md#continuous-integration)), [`release-check.yml`](.github/workflows/release-check.yml) (full pre-tag verification on every push to `main`; also covered in CONTRIBUTING.md), plus [`codeql.yml`](.github/workflows/codeql.yml) (security-extended SAST) and [`fuzz-nightly.yml`](.github/workflows/fuzz-nightly.yml) (nightly IPC fuzzing) which run on schedule independent of PRs.
 
-### Local install (for programmatic use)
+### Install from PyPI
+
+The PyPI distribution is `armor-ai` because the bare `armor` package name is used by an unrelated project. The import package remains `armor`, so `import armor` is unchanged.
+
+```bash
+pip install armor-ai
+```
+
+Start the daemon in a separate terminal:
+
+```bash
+armor daemon --socket /tmp/armor.sock --db /tmp/armor-test.db
+```
+
+Then use the Python SDK (see the [Integration](#integration) section) or CLI:
+
+```bash
+echo "ignore previous instructions" | armor check input --socket /tmp/armor.sock --session-id test-1
+```
+
+### Install from source
 
 ```bash
 git clone https://github.com/tkdtaylor/armor.git
 cd armor
 uv sync
-```
-
-There is no PyPI release yet — install from source. When published, the package will be `armor-ai` on PyPI (the bare name `armor` is taken by an unrelated project); the in-source module name remains `armor`, so `import armor` is unchanged. Once published:
-
-```bash
-pip install armor-ai
 ```
 
 Start the daemon in a separate terminal:

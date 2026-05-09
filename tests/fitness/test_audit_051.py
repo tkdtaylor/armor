@@ -30,6 +30,7 @@ def test_tc_051_02_readme_canary_location_corrected():
 def test_tc_051_03_readme_no_unguarded_ghcr_image():
     """TC-051-03: README does not promise the unpublished GHCR image without a guard."""
     text = (REPO_ROOT / "README.md").read_text()
+    assert "image is not yet published" not in text, "README still says the release image is unpublished"
     lines = text.splitlines()
     guard_phrases = ("coming with", "v0.3", "not yet published")
 
@@ -41,6 +42,21 @@ def test_tc_051_03_readme_no_unguarded_ghcr_image():
                 violations.append(f"README.md:{i + 1}: unguarded GHCR image reference")
 
     assert violations == [], violations
+
+
+def test_readme_pypi_install_path_is_current():
+    """README/PyPI long description must not describe the package as unreleased."""
+    text = (REPO_ROOT / "README.md").read_text()
+    stale_phrases = (
+        "There is no PyPI release yet",
+        "When published, the package will be",
+        "Once published:",
+    )
+
+    for phrase in stale_phrases:
+        assert phrase not in text, f"README still contains stale PyPI wording: {phrase!r}"
+
+    assert "pip install armor-ai" in text, "README missing current PyPI install command"
 
 
 def test_tc_051_05_readme_smoke_test_includes_socket():

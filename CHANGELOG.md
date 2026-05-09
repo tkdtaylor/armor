@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-05-09
+
 ### Changed
 
 - **Claude Code hook commands now parse real hook JSON from stdin** (task 096). `armor check tool --hook-mode` accepts `tool_name`/`tool_input` payloads, `armor check fetched --hook-mode` accepts `tool_name` plus tool-result payloads, and Codex-style `tool_input.command` payloads are treated as Bash tool checks for the local integration path.
@@ -14,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PyPI long description now reflects the published package.** README install instructions no longer say that the `armor-ai` PyPI release is pending, and the project ships a patch release so PyPI renders the corrected text as the latest package page.
 - **Detector allowlist config now affects daemon runtime behavior** (task 108). `pipeline.input_detectors`, `pipeline.output_detectors`, and `pipeline.tool_detectors` now select detectors for their matching check operations, and the spec no longer documents an unused telemetry env var.
 - **Incident filters are now applied instead of merely accepted** (task 107). `incidents list --since`, `incidents tail --filter`, and `incidents export --since/--severity` now flow through daemon-side forensic queries, and incident rows persist verdict severity for export filtering.
 - **Root release checklist now verifies the current publish paths** (task 106). The pre-tag checklist no longer treats GHCR or PyPI publishing as future work, and it names the `armor-ai` PyPI artifact directly.
