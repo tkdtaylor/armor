@@ -118,7 +118,7 @@ When `ARMOR_DISABLE_LLM=true`:
 
 **Invariant enforced:** The daemon code path (`src/armor/daemon/`) must never
 import `requests`, `httpx`, `urllib3`, or similar networking libraries. A
-mechanical fitness check (`tests/fitness/no_outbound_network.py`) is part of
+mechanical fitness check (`tests/fitness/test_no_outbound_network.py`) is part of
 the CI gate.
 
 **Rationale:** armor is a security layer. If the daemon ever exfiltrates data

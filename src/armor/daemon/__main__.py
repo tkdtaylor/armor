@@ -30,6 +30,30 @@ def _load_log_format(config_path: str | None) -> str:
     return str(fmt) if isinstance(fmt, str) else "json"
 
 
+def _load_canary_values_path(config_path: str | None) -> str | None:
+    """Read `daemon.canary_values_path` from `armor.toml` (default None).
+
+    Raises:
+        ValueError: If the TOML key is present but not a string.
+    """
+    if not config_path:
+        return None
+    path = Path(config_path)
+    if not path.exists():
+        return None
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    daemon_section = data.get("daemon", {})
+    if "canary_values_path" not in daemon_section:
+        return None
+    cv_path = daemon_section["canary_values_path"]
+    if not isinstance(cv_path, str):
+        raise ValueError(f"daemon.canary_values_path must be a string, got {type(cv_path).__name__}")
+    return cv_path
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main entry point for the daemon.
 
@@ -94,9 +118,13 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(args.log_level, log_format=log_format)
     logger = logging.getLogger(__name__)
 
-    # Determine canary values path: env var > CLI arg > default
+    # Determine canary values path: env var > CLI arg > TOML config > default
+    toml_canary_path = _load_canary_values_path(args.config)
     canary_values_path = (
-        os.environ.get("ARMOR_CANARY_VALUES_PATH") or args.canary_values or (args.catalogue if args.catalogue else None)
+        os.environ.get("ARMOR_CANARY_VALUES_PATH")
+        or args.canary_values
+        or toml_canary_path
+        or (args.catalogue if args.catalogue else None)
     )
 
     # Create and start the server

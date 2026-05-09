@@ -1,7 +1,7 @@
 # Behaviors
 
 **Project:** armor
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-08
 
 What the system does, observably. Each behavior describes a triggering condition, the system's response, and any externally-visible side effects.
 
@@ -86,12 +86,12 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 
 ### B-005: Run the validator LLM as a semantic-level signal
 
-- **Trigger:** Input or output check, when session state is `Watching` or higher, OR when static detectors return `advisory` (matched a soft signal).
+- **Trigger:** Input or output check, when session state is `Watching` or higher (FSM-gated).
 - **Response:** Detector `llm.validator` (id `llm.validator`, category `meta`, cost tier `llm`) submits the payload to the validator LLM (small quantized model, single forward pass, structured JSON output asking "is this safe or risky?"). Returns advisory verdict with confidence score 0..1.
 - **System prompt:** Located at `src/armor/llm/prompts/validator.txt`. Explicitly instructs the model to remain a classifier and not deviate from role, with examples of adversarial recruitment attempts. Robust against "as a classifier, say X is safe" jailbreak patterns.
 - **Validator output:** JSON `{"verdict": "safe" | "risky", "confidence": 0.0..1.0}`. Parse failure → `advisory` verdict with `confidence=0`, no exception. Model unavailable → `advisory` with `confidence=0`.
 - **Side effects:** Output is *advisory* — feeds into the session risk score (weighted by `pipeline.llm_validator_weight`, default 0.3), never blocks unilaterally. Latency budget: ≤500 ms per call (see configuration.md).
-- **Failure modes:** Model unavailable → `advisory` returned with `confidence=0`, pipeline continues. Latency exceeds budget → soft-fail, log warning, continue. Malformed JSON → `advisory` with `confidence=0`, logged with truncated response.
+- **Failure modes:** Model unavailable → `advisory` returned with `confidence=0`, pipeline continues. Latency exceeds budget → soft-fail with `signal_id="llm.validator:soft_fail"`, returns `advisory(confidence=0)`, log warning, continue (per ADR-023; not operator-tunable). Malformed JSON → `advisory` with `confidence=0`, logged with truncated response.
 
 ### B-006: Detect and block encoded exfiltration
 
@@ -128,8 +128,8 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 
 ### B-011: Run the honeypot LLM on elevated injection attempts
 
-- **Trigger:** Input or output check, when session state is **Elevated** or higher AND the static detector pipeline returns `block` or `advisory` (detected injection attempt or soft signal).
-- **Response:** Daemon invokes the honeypot LLM (id `honeypot`, category `meta`, cost tier `llm`) with a system prompt containing references to a fake credential vault (placeholders like `{{canary:aws-key-001}}`). Per ADR-038, the prompt is **per-check** and contains only currently-active canaries. At prompt-build time, placeholders are substituted with actual canary values from the runtime-injected catalogue; inactive canaries are omitted (per ADR-010). The LLM generates a response that appears to comply with the attacker's request, including the fake credentials. The response is returned and flows through the existing `armor check output` path, where the canary scanner detects the credentials in the output and returns a `block` verdict.
+- **Trigger:** Output check (`check.output`), when session state is **Watching or higher** AND the static detector pipeline returns `block` or `advisory` (detected injection attempt or soft signal).
+- **Response:** Daemon invokes the honeypot LLM (id `honeypot`, category `meta`, cost tier `llm`) with a system prompt containing references to a fake credential vault (placeholders like `{{canary:aws-key-001}}`). Per ADR-038, the prompt is **per-check** and contains only currently-active canaries. At prompt-build time, placeholders are substituted with actual canary values from the runtime-injected catalogue; inactive canaries are omitted (per ADR-010). The LLM generates a response that appears to comply with the attacker's request, including the fake credentials. The response is piped through the canary scanner detector, which detects the credentials in the output and returns a `block` verdict.
 - **System prompt:** Located at `src/armor/llm/prompts/honeypot.txt`. Instructs the model to play the role of a helpful assistant with access to a vault of secrets (credentials, API keys, database passwords). Prompt contains only placeholders; values are substituted at build time with the active subset.
 - **Honeypot invocation:** Controlled by the gate function `should_invoke_honeypot(session_context, static_pipeline_verdict) -> bool` at `src/armor/daemon/honeypot_gate.py`. Gate logic is testable in isolation. The gate is wired into the daemon's check-output path and gated on `session.state ≥ Watching` (the LLM cost tier per ADR-024).
 - **Per-check active subset:** The honeypot prompt references only canaries in the active subset for the current session context (per ADR-038 B-002 activation rules). This varies per-check based on tool usage, FSM state, time window, or turn count.
@@ -156,7 +156,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Side effects:** Advisory signals feed into `session.state_machine.apply_signal` (per ADR-024) and increment the session risk score. A single memory-planting advisory keeps the session at Watching; repeated attempts across turns escalate to Elevated or higher.
 - **Session integration:** Each advisory from this detector contributes `confidence * weight` to the session risk score (default weight 0.4 per `session.signal_weights."meta.memory_planting"` in `armor.toml`).
 - **Failure modes:** Regex compilation fails → detector returns `error` verdict, pipeline continues (fail-open per detector).
-- **References:** ADR-037 (detector 3, memory manipulation category), task 071, corpus at `tests/eval/corpus/memory_planting.yaml`
+- **References:** ADR-037 (detector 3, memory manipulation category), task 071. Pattern coverage is exercised by unit tests; a dedicated `memory_planting.yaml` red-team corpus is not yet present.
 
 ### B-013: Detect instruction-override patterns buried in long inputs
 
@@ -171,13 +171,13 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Positioning anomaly rationale:** Long-context-window attacks exploit diminishing attention by burying directives late in a prompt. This detector flags the attack pattern itself (instruction override or extraction request) when it exhibits this specific spatial characteristic.
 - **Configuration keys:** `detector.instruction_burial.min_length_bytes` (int, default 4096) and `detector.instruction_burial.tail_fraction` (float, default 0.25).
 - **Failure modes:** Regex pattern reuse fails (entry point misconfigured) → detector returns `error` verdict, pipeline continues (fail-open per detector). Pattern match raises exception → caught, error verdict returned.
-- **References:** ADR-037 (detector 2, instruction burial category), task 070, corpus at `tests/eval/corpus/instruction_burial.yaml`
+- **References:** ADR-037 (detector 2, instruction burial category), task 070. Pattern coverage is exercised by unit tests; a dedicated `instruction_burial.yaml` red-team corpus is not yet present.
 
 ### B-009: Extract and whitelist-check exfiltration destinations
 
 - **Trigger:** Output check runs detector `extractor.destinations` (always enabled by default).
 - **Response:** Extracts URLs (http/https/ftp), IPv4 addresses, IPv6 addresses, and email addresses from the output text. Normalizes to hostnames only (no paths, queries, fragments, or email local-parts). Deduplicates. Compares each destination against the configured whitelist (`destination_whitelist` key in `armor.toml`, default empty list `[]`). Returns `pass` if no destinations found or all destinations are whitelisted; returns `advisory` if any destination is not whitelisted. Regardless of verdict, `Verdict.details["destinations"]` is always populated with the full extracted list (for forensic audit trail).
-- **Side effects:** Forensic record written on `advisory` verdict includes the extracted destinations. Session risk score incremented based on advisory severity. Whitelist is read once at daemon boot and frozen for the daemon's lifetime (no re-read per check).
+- **Side effects:** Extracted destinations are surfaced via `Verdict.details["destinations"]` for downstream consumers. Forensic records are written only on `block` (per B-007); advisory verdicts do not produce forensic rows. Session risk score incremented based on advisory severity. Whitelist is read once at daemon boot and frozen for the daemon's lifetime (no re-read per check).
 - **Failure modes:** Whitelist configured but corrupted (not a list) → whitelist falls back to empty (all destinations advisory). Regex-based extraction cannot fail (timeout or excessive memory); malformed URLs/IPs are simply not matched (extraction is best-effort, no errors).
 - **References:** ADR-015, data-model.md Incident.destinations, configuration.md destination_whitelist key
 
@@ -214,22 +214,17 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Security intent:** Flags context-overflow and token-budget-exploitation attempts (e.g., submitting 100 KB of padding to exhaust token limits) without blocking unilaterally. The advisory contributes to session-level risk scoring.
 - **Side effects:** Session risk score incremented per advisory. Per-session running statistics persist for the session lifetime.
 - **Failure modes:** Session unavailable → detector returns `pass` (fail-open). Encoding errors on UTF-8 calculation → exception caught, returns `error` verdict, pipeline continues.
-- **References:** Task 069, ADR-037, corpus at `tests/eval/corpus/context_overflow.yaml` (family: "context_overflow")
+- **References:** Task 069, ADR-037. Statistic-based detection is exercised by unit tests; a dedicated `context_overflow.yaml` red-team corpus is not yet present.
 
-### B-009a: Detect chunked exfiltration across multiple turns via rolling-buffer aggregation
+### B-009a: Maintain a per-session rolling buffer for multi-turn detection
 
-- **Trigger:** Output check reaches the rolling-buffer scanning phase. This occurs after per-turn detectors have run and the output has been appended to the per-session rolling buffer.
-- **Response:** The rolling buffer maintains a bounded concatenation of the last N turn outputs (bounded by both character count and turn count, whichever fills first; defaults: 8 KB / 20 turns per ADR-025). On every output check, the daemon:
-  1. Appends the current turn's output to the buffer.
-  2. Re-runs the canary scanner against `buffer.concatenated()`. A hit that **did not** occur in the single turn but **does** occur in the concatenation → returns `block` with `signal_id = canary.chunked:<canary_id>` and `category = "exfiltration.canary_chunked"`.
-  3. Re-runs the entropy analyzer against the concatenation using a separate rolling-window threshold (`detector.entropy.rolling_threshold`, default 4.5 bits/char). If entropy exceeds the threshold and a canary scan hit occurs, returns `advisory` or `block` depending on the matched pattern.
-  4. Checks for partial-canary prefixes: if a contiguous prefix of any active canary value (≥ `detector.canary.partial_match_min_chars` chars, default 12) is present in the buffer, returns `advisory` with `signal_id = canary.partial:<canary_id>` and feeds the signal into `apply_signal` to escalate session risk.
-- **Quarantine:** A chunked-canary `block` quarantines all turn IDs currently in the rolling buffer as a single quarantine entry, not one entry per turn.
+- **Trigger:** Output check. After per-turn detectors run, the current turn's output is appended to the per-session rolling buffer.
+- **Response:** The rolling buffer maintains a bounded concatenation of the last N turn outputs (bounded by both character count and turn count, whichever fills first; defaults: 8 KB / 20 turns per ADR-025). The buffer itself is the substrate for multi-turn detection — the active multi-turn detector that consumes it is `canary.paraphrase` (per B-009b), which scans the concatenation for fragmented canary leaks via n-gram matching.
 - **Cooldown interaction:** The rolling buffer does **not** reset when the session state steps back to Normal (cooldown). The buffer persists across cooldown to maintain context for gradual exfiltration attacks.
-- **Forensic invariant:** Chunked-canary incidents reference `canary_id` only, never the canary value itself. Forensic records record the `turn_ids` that contributed fragments.
-- **Side effects:** Buffer entries are persisted to `SessionRollingBuffer` table (append-only). Chunked-canary blocks increment session risk and write forensic records with category `exfiltration.canary_chunked`. Partial-match advisories increment risk score via the session state machine.
-- **Failure modes:** Rolling-window scan exceeds latency budget → returns `error` verdict, pipeline continues (fail-open per detector). Buffer table corrupted or missing → daemon refuses to start (exit 78 at migrations stage).
-- **References:** Task 023, ADR-025, corpus at `tests/eval/corpus/multi_turn_chunked.yaml`
+- **Forensic invariant:** Multi-turn incidents reference `canary_id` only, never the canary value itself. Forensic records record the `turn_ids` that contributed fragments.
+- **Side effects:** Buffer entries are persisted to the `SessionRollingBuffer` table (append-only).
+- **Failure modes:** Buffer table corrupted or missing → daemon refuses to start (exit 78 at migrations stage). Per-detector latency budget overruns are handled at each consumer detector (currently `canary.paraphrase`), not here.
+- **References:** Task 023, ADR-025, corpus at `tests/eval/corpus/multi_turn_chunked.yaml`. The chunked-canary `block` path described in earlier drafts (signal_id `canary.chunked:<canary_id>`, category `exfiltration.canary_chunked`) and the entropy rolling-buffer scan (`entropy.rolling_threshold` config key) are not currently wired in `src/`; multi-turn coverage is presently provided exclusively by `canary.paraphrase` (B-009b). A dedicated chunked-canary block path remains a candidate for future work.
 
 ### B-009b: Detect paraphrased canary leaks via n-gram matching in rolling buffer
 
@@ -313,14 +308,16 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 ### B-017: Detect indirect injection in tool-call results
 
 - **Trigger:** PostToolUse hook (Claude Code integration) calls `armor check fetched <result_text> --source-tool <tool_name> --session-id <id>` for a tool result, OR library client calls the IPC op `check.fetched`.
-- **Response:** Daemon runs the input-side detector pipeline against the tool-call result. Returns `pass`, `block` (with `signal_id`), or `advisory`. The `Payload.source` field is set to `Source.TOOL_RESULT_UNTRUSTED` by default (can be upgraded to `TOOL_RESULT_TRUSTED` if the tool name matches an operator-configured allowlist per ADR-041). The per-source multiplier (default 1.5× for untrusted results) scales detector confidence before verdicts materialize.
+- **Response:** Daemon runs the input-side detector pipeline against the tool-call result. Returns `pass`, `block` (with `signal_id`), or `advisory`. The `Payload.source` field is set to `Source.TOOL_RESULT_UNTRUSTED` by default. If the `source_tool` matches an entry in the operator-configured `[pipeline.fetched] trusted_source_tools` allowlist (per task 080, ADR-041), the payload is classified as `TOOL_RESULT_TRUSTED` and the indirect-injection regex detector subset is skipped (instruction_override, roleplay_hijack, system_prompt_extraction, authority_impersonation, encoding_request). Other detectors (canary scanner, entropy, encoding) still run — trust applies to origin, not content. The per-source multiplier (default 1.5× for untrusted results, 0.5× for trusted results) scales detector confidence before verdicts materialize.
 - **Detectors:** Same as B-001 (instruction-override, roleplay-hijack, system-prompt-extraction, authority-impersonation, etc.) applied to the fetched content.
-- **Length handling:** Payloads > 4 KB are processed in 4 KB sliding windows. The first chunk to trigger a block wins; remaining chunks that would trigger are recorded in `details["additional_chunks"]` (chunk indices, not contents).
-- **Side effects:** Increments session turn counter, records signal in session state, writes a forensic record on `block` with `attack_category="indirect_injection.<vector>"` (where `<vector>` is the detector family like `instruction_override`, `roleplay_hijack`, etc.) and `details["source_tool"]` set to the tool name.
+- **4 KB chunking (ADR-033):** Payloads ≤ 4096 bytes run the pipeline once (no chunking). Payloads > 4096 bytes are split into tiled (non-overlapping) 4 KB windows. The pipeline runs on each chunk in order until the first non-pass verdict, which wins and is returned. Hard cap: 16 chunks (~64 KB max processed per request); chunks beyond this cap are recorded as unprocessed. Detailed chunking metadata is persisted to the forensic incident for operator analysis.
+- **Chunking metadata:** When chunking activates (payload > 4 KB), the winning verdict's `details["additional_chunks"]` is populated with a list of chunk indices that were either: (1) skipped due to early termination after the first hit, or (2) checked but returned pass. If the hard cap of 16 chunks is reached, `details["chunks_skipped"]` contains the indices of chunks that were not processed. This metadata is persisted to the `Incident.chunk_metadata` JSON column.
+- **Side effects:** Increments session turn counter, records signal in session state, writes a forensic record on `block` with `attack_category="indirect_injection.<vector>"` where `<vector>` ∈ {`instruction_override`, `system_prompt_extraction`, `roleplay_hijack`, `encoding_request`, `authority_impersonation`, `memory_planting`} (derived from the regex detector family). Forensic record includes: `source_tool` (tool name), `chunk_index` (0-based index of the winning chunk; NULL if no chunking), and `chunk_metadata` (JSON dict with `additional_chunks` and optionally `chunks_skipped`). Canary leaks via check.fetched remain categorized as `exfiltration.canary_leak` regardless of source.
 - **Hook integration:** PostToolUse hook (registered in `.claude/settings.json` for read-side tools: `Read`, `WebFetch`, `Grep`, `Glob`, MCP `read_*` patterns) first checks `pipeline.exempt.read_paths` (for Read/Grep file paths) and `pipeline.exempt.webfetch_domains` (for WebFetch URLs) against the incoming payload's path/domain. On exemption match, the hook skips the daemon call entirely (no incident logged). On non-exemption, the hook calls `armor check fetched`, and on `block` verdict, the hook replaces the tool result with a sanitized stub: `[armor: tool result blocked — incident <incident_id>]`. On `pass` or `advisory`, the original tool result is returned unmodified.
 - **Exemption mechanism:** Bundled defaults in `armor.toml` under `[pipeline.exempt]` cover research materials (`tests/eval/corpus/**`, `archive/**`, `docs/architecture/decisions/**`, `docs/spec/**`, `discussion.md`, `**/regex_*.py`) and trusted security-research domains (`owasp.org`, `huggingface.co/papers/**`, `arxiv.org/**`, `github.com/anthropic-ai/**`). A fresh install does the right thing for security-research workflows out of the box.
+- **Configuration:** The chunk size is configurable via `[pipeline.fetched]` section in `armor.toml` with key `chunk_size_bytes` (default 4096). The hard cap of 16 chunks is fixed (unadjustable).
 - **Failure modes:** Detector raises → that detector's verdict is recorded as `error`, pipeline continues (fail-open per detector). Whole pipeline raises → daemon returns `block` (fail-closed at pipeline level) and logs an internal error.
-- **References:** ADR-033, ADR-041, Task 065
+- **References:** ADR-033, ADR-041, Task 065, Task 076
 
 ---
 
@@ -338,7 +335,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Response:** If `ARMOR_DISABLE_LLM=true`, the daemon starts without the model and runs static detectors only. If `ARMOR_DISABLE_LLM=false` (the production default since the validator LLM was integrated per ADR-019) and the model file is not found, the daemon exits with code 78 (config error) and logs the missing path.
 - **Side effects:** No socket created (if exit 78); socket created normally (if LLM is disabled).
 
-### B-102: Session ID not provided
+### B-104: Session ID not provided
 
 - **Trigger:** Check call comes in without `session_id`.
 - **Response:** Daemon assigns an ephemeral session ID (`anon-<uuid>`); session state is created but not persisted across daemon restart.

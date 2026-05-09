@@ -399,7 +399,7 @@ class TestHooksInstallCommand:
     """Tests for 'armor hooks install' command."""
 
     def test_hooks_install_creates_file(self) -> None:
-        """Test hooks install creates settings file."""
+        """Test hooks install creates settings file with correct structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = os.path.join(tmpdir, "settings.json")
 
@@ -413,16 +413,12 @@ class TestHooksInstallCommand:
             with open(settings_path) as f:
                 settings = json.load(f)
             assert "hooks" in settings
-            assert len(settings["hooks"]) == 4
-
-            # Verify hook names
-            hook_names = {h["name"] for h in settings["hooks"]}
-            assert hook_names == {
-                "armor-check-input",
-                "armor-check-output",
-                "armor-check-tool",
-                "armor-session-close",
-            }
+            hooks = settings["hooks"]
+            # Should be dict with event names as keys
+            assert isinstance(hooks, dict)
+            assert set(hooks.keys()) == {"UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"}
+            # PostToolUse should have 2 entries (read-tool matcher + generic)
+            assert len(hooks["PostToolUse"]) == 2
 
     def test_hooks_install_idempotent(self) -> None:
         """Test hooks install is idempotent."""
@@ -432,30 +428,37 @@ class TestHooksInstallCommand:
             # First install
             exit_code1 = main(["hooks", "install", "--settings", settings_path])
             assert exit_code1 == 0
+            with open(settings_path) as f:
+                first = json.load(f)
 
             # Second install
             exit_code2 = main(["hooks", "install", "--settings", settings_path])
             assert exit_code2 == 0
-
-            # Verify no duplicates
             with open(settings_path) as f:
-                settings = json.load(f)
-            assert len(settings["hooks"]) == 4
+                second = json.load(f)
+
+            # Should be identical
+            assert first == second
 
     def test_hooks_install_preserves_existing_hooks(self) -> None:
         """Test hooks install preserves existing unrelated hooks."""
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = os.path.join(tmpdir, "settings.json")
 
-            # Create existing settings with custom hook
+            # Create existing settings with custom event
             existing = {
-                "hooks": [
-                    {
-                        "name": "my-custom-hook",
-                        "event": "SomeEvent",
-                        "handler": "some command",
-                    }
-                ]
+                "hooks": {
+                    "MyCustomEvent": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "some command",
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
             with open(settings_path, "w") as f:
                 json.dump(existing, f)
@@ -467,10 +470,9 @@ class TestHooksInstallCommand:
             # Verify both old and new hooks exist
             with open(settings_path) as f:
                 settings = json.load(f)
-            hook_names = {h["name"] for h in settings["hooks"]}
-            assert "my-custom-hook" in hook_names
-            assert "armor-check-input" in hook_names
-            assert len(settings["hooks"]) == 5
+            hooks = settings["hooks"]
+            assert "MyCustomEvent" in hooks
+            assert "UserPromptSubmit" in hooks
 
     def test_hooks_install_malformed_json_error(self) -> None:
         """Test hooks install handles malformed JSON gracefully."""

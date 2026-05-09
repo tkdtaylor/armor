@@ -22,6 +22,15 @@ def temp_db(tmp_path: Path) -> str:
     return str(tmp_path / "test.db")
 
 
+@pytest.fixture(autouse=True)
+def disable_llm_for_tests(monkeypatch) -> None:
+    """Disable LLM for all daemon tests to avoid exit 78 on missing LLM.
+
+    Tests that specifically need an LLM should mock it separately.
+    """
+    monkeypatch.setenv("ARMOR_DISABLE_LLM", "true")
+
+
 class TestDaemonServer:
     """Tests for the daemon server."""
 
@@ -160,3 +169,22 @@ class TestDaemonServer:
             finally:
                 # Restore permissions for cleanup
                 os.chmod(tmpdir, 0o755)
+
+    def test_session_state_enum_coercion(self) -> None:
+        """TC-087-11: SessionState enum coercion from persisted strings.
+
+        Verifies that state strings from SQLite ("Elevated", "Normal", etc.)
+        can be converted to SessionState enums, and that invalid strings raise ValueError.
+        """
+        from armor.session.state_machine import SessionState
+
+        # Valid state strings should convert to enums
+        assert SessionState("Elevated") == SessionState.ELEVATED
+        assert SessionState("Normal") == SessionState.NORMAL
+        assert SessionState("Watching") == SessionState.WATCHING
+        assert SessionState("High") == SessionState.HIGH
+        assert SessionState("Blocked") == SessionState.BLOCKED
+
+        # Invalid state should raise ValueError (fail loudly)
+        with pytest.raises(ValueError):
+            SessionState("InvalidState")  # type: ignore

@@ -413,8 +413,3 @@ def check_llm_p95_latency() -> bool:
 
     finally:
         llm_session.close()
-
-
-if __name__ == "__main__":
-    if not check_llm_p95_latency():
-        sys.exit(1)

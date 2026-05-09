@@ -135,7 +135,8 @@ def _evaluate_fsm_state(rule: dict[str, Any], ctx: SessionContext) -> bool:
     # Check current state first (if it's at or above the threshold)
     if ctx.state:
         try:
-            current_idx = state_order.index(ctx.state)
+            # ctx.state is SessionState enum, convert to string for comparison
+            current_idx = state_order.index(str(ctx.state))
             if current_idx >= required_idx:
                 return True
         except ValueError:

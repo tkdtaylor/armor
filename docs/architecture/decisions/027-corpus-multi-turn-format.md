@@ -170,7 +170,7 @@ New test module that:
 
 Uses the subprocess pattern from ADR-013 and task 007 (`test_e2e_demo.py`).
 
-### Fitness function: `tests/fitness/transition_coverage.py`
+### Fitness function: `tests/fitness/test_transition_coverage.py`
 
 Enumerates all `apply_signal`-reachable state transitions:
 ```
@@ -187,7 +187,7 @@ Walks `scenarios_multi_turn.yaml`, builds the set of observed transitions, and a
 ## Spec updates (same commit)
 
 1. **`behaviors.md`** — Add a note that the eval corpus now includes multi-turn scenarios for testing session-level attacks and state-machine determinism.
-2. **`fitness-functions.md`** — Add row: "Per-state-transition coverage — every apply_signal-reachable edge is exercised by ≥1 corpus row" with status `implemented (tests/fitness/transition_coverage.py)`.
+2. **`fitness-functions.md`** — Add row: "Per-state-transition coverage — every apply_signal-reachable edge is exercised by ≥1 corpus row" with status `implemented (tests/fitness/test_transition_coverage.py)`.
 
 ## Consequences
 

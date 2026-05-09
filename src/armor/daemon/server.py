@@ -12,11 +12,13 @@ import signal
 import sys
 import time
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from armor.canaries.catalogue import Catalogue
 from armor.canaries.scanner import CanaryScanner
+from armor.daemon.honeypot_gate import should_invoke_honeypot
 from armor.db.forensic import ForensicLogger
 from armor.db.migrations import run_migrations
 from armor.db.quarantine import QuarantineStore
@@ -170,6 +172,16 @@ class DaemonServer:
             except Exception as e:
                 logger.error(f"Failed to load configuration: {e}")
 
+        # Load trusted source tools allowlist from config at daemon-init time (per task 080, ADR-041)
+        # Read once at daemon-init, not per-request
+        self.trusted_source_tools: list[str] = []
+        if self.config and "pipeline" in self.config and "fetched" in self.config["pipeline"]:
+            fetched_config = self.config["pipeline"]["fetched"]
+            trusted_tools = fetched_config.get("trusted_source_tools", [])
+            if isinstance(trusted_tools, list):
+                self.trusted_source_tools = trusted_tools
+                logger.info(f"Loaded trusted source tools: {self.trusted_source_tools}")
+
         # Load per-source multipliers from config (per ADR-041)
         if self.config and "pipeline" in self.config and "source_multipliers" in self.config["pipeline"]:
             from armor.pipeline import Pipeline
@@ -243,7 +255,49 @@ class DaemonServer:
             f"Injected conversation_hijack detector (unsupported_confidence={unsupported_confidence}, supported_confidence={supported_confidence})"
         )
 
+        # Inject LLM session into detectors that depend on it (post-load loop, mechanism A)
+        self._inject_llm_session()
+
         logger.info(f"Loaded {len(self.registry)} detector(s)")
+
+    def _inject_llm_session(self) -> None:
+        """Inject LLM session into detectors that depend on it (post-load loop).
+
+        Detectors that require an LLM session declare self._llm_session: LLMSession | None.
+        This method (mechanism A) iterates all registered detectors and injects the loaded
+        session if available. If a detector that requires the LLM is registered but no
+        LLM was loaded (and ARMOR_DISABLE_LLM is not true), exits with code 78.
+
+        Raises:
+            SystemExit: If LLM-dependent detector is registered but no LLM available.
+        """
+        disable_llm = os.environ.get("ARMOR_DISABLE_LLM", "false").lower() in ("true", "1", "yes")
+
+        # Detector IDs that require an LLM session
+        llm_dependent_ids = {
+            "llm.validator",
+            "jailbreak.template",
+        }
+
+        # Check which LLM-dependent detectors are registered
+        registered_llm_detectors = [detector for detector in self.registry.all() if detector.id in llm_dependent_ids]
+
+        # Validate: if any LLM-dependent detector is registered but no LLM was loaded
+        # and ARMOR_DISABLE_LLM is not true, this is a configuration error
+        if registered_llm_detectors and not self.llm_session and not disable_llm:
+            registered_ids = [d.id for d in registered_llm_detectors]
+            logger.error(
+                f"LLM-dependent detector(s) registered but no LLM session available: {registered_ids}. "
+                f"Either load an LLM model or set ARMOR_DISABLE_LLM=true to skip these detectors."
+            )
+            sys.exit(78)
+
+        # Inject the LLM session into all registered LLM-dependent detectors
+        if self.llm_session:
+            for detector in registered_llm_detectors:
+                if hasattr(detector, "_llm_session"):
+                    detector._llm_session = self.llm_session
+                    logger.debug(f"Injected LLM session into detector {detector.id}")
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Handle a single client connection.
@@ -386,6 +440,8 @@ class DaemonServer:
         - check.output → MODEL_OUTPUT
         - check.tool → TOOL_PARAMS
         - check.fetched → TOOL_RESULT_UNTRUSTED (default; can be overridden)
+
+        For check.fetched, implements 4 KB chunking per ADR-033 when payload > chunk_size_bytes.
         """
         try:
             payload_data = request.get("payload", {})
@@ -409,15 +465,38 @@ class DaemonServer:
             elif operation == "check.fetched":
                 text = payload_data.get("text", "")
                 source_tool = payload_data.get("source_tool", "unknown")
-                # Default to TOOL_RESULT_UNTRUSTED; can be overridden in payload
-                source = Source(payload_data.get("source", Source.TOOL_RESULT_UNTRUSTED))
+                # Check if source_tool is in the trusted allowlist (case-sensitive match)
+                # Per task 080, trust upgrade: if tool is in allowlist, use TOOL_RESULT_TRUSTED
+                if source_tool in self.trusted_source_tools:
+                    # Trust upgrade: source_tool is in allowlist
+                    source = Source(payload_data.get("source", Source.TOOL_RESULT_TRUSTED))
+                else:
+                    # Default to TOOL_RESULT_UNTRUSTED
+                    source = Source(payload_data.get("source", Source.TOOL_RESULT_UNTRUSTED))
                 payload = Payload(text=text, source=source)
             else:
                 return {"v": 1, "verdict": "error", "message": "Unknown operation"}
 
-            ctx = SessionContext(session_id=session_id, signal_history=[])
+            # Build full SessionContext from session store
+            ctx = await self._build_session_context(session_id)
+
             detectors = self.registry.all()
-            verdict = await Pipeline.run(detectors, payload, ctx)
+
+            # Special handling for check.fetched: implement 4 KB chunking (ADR-033)
+            if operation == "check.fetched":
+                verdict, chunk_index, chunk_metadata = await self._run_fetched_with_chunking(detectors, payload, ctx)
+            else:
+                verdict = await Pipeline.run(detectors, payload, ctx)
+                chunk_index = None
+                chunk_metadata = None
+
+            # Honeypot invocation (B-011): check if honeypot should be invoked for check.output
+            # Gate is invoked after static pipeline, and only for check.output operations
+            if operation == "check.output" and should_invoke_honeypot(ctx, verdict):
+                honeypot_verdict = await self._invoke_honeypot(payload, ctx)
+                # If honeypot returns a non-pass verdict, use it instead of static verdict
+                if honeypot_verdict.decision != "pass":
+                    verdict = honeypot_verdict
 
             response: dict[str, Any] = {
                 "v": 1,
@@ -427,7 +506,16 @@ class DaemonServer:
             }
 
             if self.session_store:
-                await self.session_store.update_after_check(session_id, verdict)
+                # Apply the verdict to the session state machine and persist atomically
+                await self.session_store.apply_and_persist(session_id, verdict, self.config)
+
+                # Append current check's payload to the rolling buffer for multi-turn detection
+                if ctx.rolling_buffer is not None and payload.text:
+                    # Use turn_id format: turn-{turn_count} for this check
+                    turn_id = f"turn-{ctx.turn_count + 1}"
+                    ctx.rolling_buffer.append(turn_id, payload.text)
+                    # Persist the rolling buffer
+                    await asyncio.to_thread(self.session_store.save_rolling_buffer, session_id, ctx.rolling_buffer)
 
             if verdict.blocked and self.forensic_logger and self.quarantine_store:
                 quarantine_id = None
@@ -437,19 +525,15 @@ class DaemonServer:
                     logger.warning(f"Failed to write quarantine: {e}")
 
                 try:
-                    # For check.fetched, add source_tool to incident details
+                    # For check.fetched, add source_tool, chunk_index, and chunk_metadata to incident details
                     incident_details = dict(verdict.details) if verdict.details else {}
                     if operation == "check.fetched":
                         source_tool = payload_data.get("source_tool", "unknown")
                         incident_details["source_tool"] = source_tool
-                        # Convert attack_category to indirect_injection format if needed
-                        if (
-                            verdict.signal_id
-                            and not str(verdict.signal_id).startswith("indirect_injection.")
-                            and "attack_category" not in incident_details
-                        ):
-                            # Prepend category prefix for consistency
-                            incident_details["attack_category"] = f"indirect_injection.{verdict.signal_id}"
+                        if chunk_index is not None:
+                            incident_details["chunk_index"] = chunk_index
+                        if chunk_metadata is not None:
+                            incident_details["chunk_metadata"] = chunk_metadata
 
                     # Update verdict with modified details
                     verdict_with_details = Verdict(
@@ -460,8 +544,11 @@ class DaemonServer:
                         details=incident_details,
                     )
 
+                    # Pass source to forensic logger for category inference
+                    source_str = str(payload.source)
+
                     incident_id = await self.forensic_logger.write_incident(
-                        verdict_with_details, ctx, payload.text, quarantine_id=quarantine_id
+                        verdict_with_details, ctx, payload.text, quarantine_id=quarantine_id, source=source_str
                     )
                     response["incident_id"] = incident_id
                 except Exception as e:
@@ -476,6 +563,281 @@ class DaemonServer:
                 "verdict": "error",
                 "message": str(e),
             }
+
+    async def _invoke_honeypot(self, payload: Payload, ctx: SessionContext) -> Verdict:
+        """Invoke the honeypot LLM and scan its response for canaries (B-011).
+
+        Calls the honeypot LLM with a system prompt containing active canary values,
+        receives a response (expected to contain canary credentials), and pipes the
+        response through the canary scanner detector to detect canary leaks.
+
+        Per B-011 and ADR-021, the honeypot's response is evaluated by the same
+        canary_scanner that audits real output — if the honeypot response contains
+        a canary value, it returns block + canary_id.
+
+        Args:
+            payload: The original payload (user input that triggered the injection attempt).
+            ctx: The SessionContext with active canaries for substitution.
+
+        Returns:
+            Verdict: The verdict from scanning the honeypot response (block if canary leaked,
+                    pass if honeypot generated no response or canary not detected).
+        """
+        from armor.llm.honeypot import respond
+
+        # If no catalogue, return pass (honeypot requires canary catalogue)
+        if not self.catalogue:
+            logger.warning("Honeypot invoked but no canary catalogue available")
+            return Verdict(
+                decision="pass",
+                signal_id="",
+                severity="low",
+                message="Canary catalogue unavailable",
+                details={},
+            )
+
+        # Invoke honeypot LLM (safe to call with llm_session=None; returns empty string)
+        honeypot_response = respond(
+            text=payload.text,
+            session_context=ctx,
+            catalogue=self.catalogue,
+            llm_session=self.llm_session,
+            budget_ms=None,  # Uses default from llm_session if available
+            active_canaries=ctx.active_canaries,  # Per-check active subset (ADR-038)
+        )
+
+        # If honeypot returned no response, return pass (soft-fail path)
+        if not honeypot_response:
+            return Verdict(
+                decision="pass",
+                signal_id="",
+                severity="low",
+                message="Honeypot LLM returned empty response",
+                details={},
+            )
+
+        # Create a synthetic payload with the honeypot's response
+        honeypot_payload = Payload(
+            text=honeypot_response,
+            source=Source.MODEL_OUTPUT,  # Honeypot output is model-like
+        )
+
+        # Scan the honeypot response with the canary scanner
+        # Get the canary scanner detector from the registry
+        canary_scanner_detector = self.registry.get("canary.scanner")
+        if canary_scanner_detector and hasattr(canary_scanner_detector, "check"):
+            verdict = canary_scanner_detector.check(honeypot_payload, ctx)
+        else:
+            # Fallback: no canary scanner (should not happen in production)
+            logger.warning("Honeypot invoked but canary scanner not available")
+            verdict = Verdict(
+                decision="pass",
+                signal_id="",
+                severity="low",
+                message="Canary scanner unavailable",
+                details={},
+            )
+
+        return verdict
+
+    async def _run_fetched_with_chunking(
+        self,
+        detectors: list[Any],
+        payload: Payload,
+        ctx: SessionContext,
+    ) -> tuple[Verdict, int | None, dict[str, Any] | None]:
+        """Run the pipeline on a fetched payload with 4 KB chunking (ADR-033).
+
+        Splits the payload into non-overlapping 4 KB chunks, runs the pipeline
+        on each chunk, and returns the first non-pass verdict. Records chunk metadata
+        (indices run, indices skipped due to early termination, etc.).
+
+        Args:
+            detectors: Detector list.
+            payload: The Payload (text is the fetched content).
+            ctx: SessionContext.
+
+        Returns:
+            Tuple of (verdict, chunk_index, chunk_metadata).
+            - verdict: The first blocking verdict, or pass if all chunks pass.
+            - chunk_index: The 0-based index of the chunk that produced the verdict (None if no chunking).
+            - chunk_metadata: A dict with keys:
+              - additional_chunks: list of indices that were either skipped (due to early termination)
+                                  or ran but didn't trip.
+              - chunks_skipped: list of indices that were not processed (hard cap).
+        """
+        text = payload.text
+        text_bytes = text.encode("utf-8")
+
+        # Get chunk size from config (default 4096)
+        chunk_size_bytes = 4096
+        if self.config and "pipeline" in self.config and "fetched" in self.config["pipeline"]:
+            chunk_size_bytes = self.config["pipeline"]["fetched"].get("chunk_size_bytes", 4096)
+
+        # If payload fits in one chunk, run once (no chunking active)
+        if len(text_bytes) <= chunk_size_bytes:
+            verdict = await Pipeline.run(detectors, payload, ctx)
+            return (verdict, None, None)
+
+        # Chunking active: split into tiled (non-overlapping) 4 KB windows
+        chunks: list[str] = []
+        offset = 0
+        while offset < len(text_bytes):
+            end = min(offset + chunk_size_bytes, len(text_bytes))
+            # Decode the chunk (may have partial UTF-8 sequences at boundaries)
+            try:
+                chunk_text = text_bytes[offset:end].decode("utf-8")
+            except UnicodeDecodeError:
+                # Backtrack to find a valid UTF-8 boundary
+                for i in range(end - 1, offset, -1):
+                    try:
+                        chunk_text = text_bytes[offset:i].decode("utf-8")
+                        end = i
+                        break
+                    except UnicodeDecodeError:
+                        pass
+                else:
+                    # If we can't find a boundary, skip this chunk
+                    chunk_text = ""
+                    end = offset + 1
+
+            if chunk_text:
+                chunks.append(chunk_text)
+            offset = end
+
+        # Hard cap at 16 chunks (~64 KB max processed per check.fetched)
+        hard_cap = 16
+        chunks_skipped_indices: list[int] = []
+        if len(chunks) > hard_cap:
+            chunks_skipped_indices = list(range(hard_cap, len(chunks)))
+            chunks = chunks[:hard_cap]
+
+        # Run pipeline on each chunk until first hit
+        winning_verdict: Verdict | None = None
+        winning_chunk_index: int | None = None
+        additional_chunks_set: set[int] = set()
+
+        for idx, chunk_text in enumerate(chunks):
+            chunk_payload = Payload(text=chunk_text, source=payload.source)
+            verdict = await Pipeline.run(detectors, chunk_payload, ctx)
+
+            if verdict.decision != "pass":
+                # First hit wins
+                winning_verdict = verdict
+                winning_chunk_index = idx
+                # Record all subsequent chunks as skipped (not run)
+                for skip_idx in range(idx + 1, len(chunks)):
+                    additional_chunks_set.add(skip_idx)
+                break
+            else:
+                # This chunk passed; record it as checked but didn't trip
+                additional_chunks_set.add(idx)
+
+        # If no verdict hit but we ran all chunks, return pass
+        if winning_verdict is None:
+            winning_verdict = Verdict(
+                decision="pass",
+                signal_id="",
+                severity="low",
+                message="All chunks passed",
+                details={},
+            )
+
+        # Build chunk_metadata dict
+        chunk_metadata = {}
+        if winning_chunk_index is not None or len(chunks) > 1:
+            # Only populate if chunking was active
+            sorted_additional = sorted(additional_chunks_set)
+            chunk_metadata["additional_chunks"] = sorted_additional
+            if chunks_skipped_indices:
+                chunk_metadata["chunks_skipped"] = chunks_skipped_indices
+
+        return (winning_verdict, winning_chunk_index, chunk_metadata if chunk_metadata else None)
+
+    async def _build_session_context(self, session_id: str) -> SessionContext:
+        """Build a full SessionContext from persisted session state.
+
+        Loads the session from the store (or creates if new), populates the rolling buffer,
+        retrieves the FSM state, turn count, and computes the active canaries per activation rules.
+
+        Args:
+            session_id: The session ID.
+
+        Returns:
+            SessionContext with all fields populated from session store and catalogue.
+
+        Raises:
+            ValueError: If the persisted state string is not a valid SessionState value.
+        """
+        from armor.session.state_machine import SessionState
+        from armor.types import Signal
+
+        # Get or create the session
+        if self.session_store is None:
+            # Fallback: no session store, return minimal context
+            return SessionContext(
+                session_id=session_id,
+                signal_history=[],
+                state=None,
+                rolling_buffer=None,
+                turn_count=0,
+                active_canaries=[],
+            )
+
+        session_row = await self.session_store.get_or_create(session_id)
+
+        # Coerce persisted state string to SessionState enum
+        # Raises ValueError on unknown state (fail loudly per task 087 spec)
+        try:
+            state_enum: SessionState | None = SessionState(session_row.current_state)
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid session state '{session_row.current_state}' for session {session_id}: {e}"
+            ) from e
+
+        # Load rolling buffer from DB
+        rolling_buffer = await asyncio.to_thread(self.session_store.load_rolling_buffer, session_id)
+
+        # Convert signal_history to Signal objects
+        signal_list: list[Signal] = []
+        for sig_dict in session_row.signal_history:
+            ts_val = sig_dict.get("ts", 0.0)
+            kind_val = sig_dict.get("kind", "")
+            signal_id_val = sig_dict.get("signal_id", "")
+            severity_val = sig_dict.get("severity", "low")
+
+            signal_list.append(
+                Signal(
+                    timestamp=(ts_val if isinstance(ts_val, (int, float)) else 0.0),
+                    kind=(kind_val if isinstance(kind_val, str) else ""),
+                    signal_id=(signal_id_val if isinstance(signal_id_val, str) else ""),
+                    severity=(severity_val if isinstance(severity_val, str) else "low"),
+                )
+            )
+
+        # Get active canaries based on activation rules
+        active_canaries = []
+        if self.catalogue:
+            # Create a temporary context just for evaluating activation rules
+            temp_ctx = SessionContext(
+                session_id=session_id,
+                signal_history=signal_list,
+                state=state_enum,
+                rolling_buffer=rolling_buffer,
+                turn_count=session_row.turn_count,
+                active_canaries=[],
+            )
+            active_canaries = self.catalogue.active_for(temp_ctx, now=datetime.now(UTC))
+
+        # Build and return the full context
+        return SessionContext(
+            session_id=session_id,
+            signal_history=signal_list,
+            state=state_enum,
+            rolling_buffer=rolling_buffer,
+            turn_count=session_row.turn_count,
+            active_canaries=active_canaries,
+        )
 
     async def _handle_config_show(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handle config.show operation (per task 065 — expose config to hooks).

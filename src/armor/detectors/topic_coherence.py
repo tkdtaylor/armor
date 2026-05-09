@@ -36,7 +36,7 @@ class TopicCoherence:
     Attributes:
         id: Detector identifier.
         category: Attack category ("meta" for system-level).
-        cost_tier: "static" (embedding is local and fast).
+        cost_tier: "semantic" (ONNX embedding inference, ~50ms per ADR-026).
         _vectorize: Callable to compute embeddings (injected for test isolation).
         threshold: Cosine distance threshold for advisory.
         margin: Confidence scaling margin.
@@ -46,7 +46,7 @@ class TopicCoherence:
 
     id: str = "meta.topic_coherence"
     category: str = "meta"
-    cost_tier: str = "static"
+    cost_tier: str = "semantic"
 
     def __init__(
         self,

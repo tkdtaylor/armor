@@ -23,6 +23,15 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Read|WebFetch|Grep|Glob|mcp__.*__read.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "armor check fetched --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}"
+          }
+        ]
+      },
+      {
         "hooks": [
           {
             "type": "command",

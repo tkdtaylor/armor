@@ -56,7 +56,7 @@ The substituted prompt is then passed to the LLM. **This substitution happens on
 
 The validator LLM (`src/armor/llm/validator.py`) continues to work as before: it receives text payloads (never including secret values) and returns a semantic classification ("safe" or "risky"). The validator has zero knowledge of the honeypot or the canary catalogue.
 
-A fitness function (`tests/fitness/validator_no_value_access.py`) enforces this invariant via AST scanning — any reference to `catalogue.values()` or `.value` field access in `validator.py` will fail the fitness check.
+A fitness function (`tests/fitness/test_validator_no_value_access.py`) enforces this invariant via AST scanning — any reference to `catalogue.values()` or `.value` field access in `validator.py` will fail the fitness check.
 
 ### 4. Single Weight Set, Two Prompts
 
@@ -135,8 +135,8 @@ Forensic records written after honeypot invocation contain `canary_id` (the plac
 3. **Honeypot gate:** `src/armor/daemon/honeypot_gate.py` is testable now; invocation wiring deferred to task 022.
 
 4. **Fitness functions:** Two new checks enforce canary isolation:
-   - `tests/fitness/no_canary_in_prompts.py` — no literal values in prompt files.
-   - `tests/fitness/validator_no_value_access.py` — validator module has no canary-value code paths.
+   - `tests/fitness/test_no_canary_in_prompts.py` — no literal values in prompt files.
+   - `tests/fitness/test_validator_no_value_access.py` — validator module has no canary-value code paths.
 
 5. **Corpus scenarios:** `tests/eval/corpus/scenarios.yaml` includes honeypot trigger scenarios (marked `honeypot_trigger` category) documenting the expected attack flow.
 

@@ -50,8 +50,10 @@ class JailbreakTemplate:
             JailbreakTemplate._patterns = self._load_patterns()
         self.patterns = JailbreakTemplate._patterns
 
-        # LLM session injected for testing or provided by daemon
-        self._llm_session: Any = None
+        # LLM session injected by the daemon after registry initialization (mechanism A).
+        # Can be set to None for testing; in production, the daemon will fail to start if
+        # this detector is registered but no LLM was loaded.
+        self._llm_session: Any = None  # Will be injected by daemon via setattr()
 
     @staticmethod
     def _load_patterns() -> dict[str, list[PatternDict]]:

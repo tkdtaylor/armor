@@ -10,7 +10,7 @@
 1. **As Claude Code hooks** — primary integration, via `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`
 2. **As an importable Python library** — secondary integration for custom agents wrapping the Anthropic / OpenAI / LangChain SDKs
 
-The full design discussion that motivated this architecture is in [discussion.md](../../discussion.md) at the project root (gitignored, kept locally).
+The full design discussion that motivated this architecture is in `discussion.md` (operator-private, gitignored — kept locally as a reference at the project root, or in `archive/`).
 
 ## High-level design
 

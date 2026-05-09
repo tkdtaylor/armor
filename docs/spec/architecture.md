@@ -1,7 +1,7 @@
 # Architecture — System Structure
 
 **Project:** armor
-**Last updated:** 2026-05-06
+**Last updated:** 2026-05-08
 
 This file is the **catalog** that pairs with [`docs/architecture/diagrams.md`](../architecture/diagrams.md). The diagram shows the model visually; this file lists every container, component, and edge in tabular form so a drift audit can mechanically verify the model against the code.
 
@@ -28,7 +28,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 
 | Component | Source | Responsibility | Depends on |
 |-----------|--------|----------------|------------|
-| `pipeline` | [src/armor/pipeline.py](../../src/armor/pipeline.py) | Composes detectors into a single pass; accepts a payload + `SessionContext`, returns the composed `Verdict`. Gates the `llm` cost tier on session state per ADR-024. | `types`, `detectors/*`, `db/session_store`, `session.state_machine` |
+| `pipeline` | [src/armor/pipeline.py](../../src/armor/pipeline.py) | Composes detectors into a single pass; accepts a payload + `SessionContext`, returns the composed `Verdict`. LLM cost-tier gating per ADR-024 lives inside each LLM detector (`detectors/llm_validator`, `detectors/jailbreak_template`), not in the pipeline. | `types`, `detectors/*`, `db/session_store` |
 | `types` | [src/armor/types.py](../../src/armor/types.py) | `Verdict`, `SessionContext`, payload types — the shared vocabulary the rest of the system speaks | (leaf) |
 | `client` | [src/armor/client.py](../../src/armor/client.py) | Low-level transport — `DaemonClient` that opens a Unix socket to a running daemon and sends a check request | `types` |
 | `armor.sdk.client` | [src/armor/sdk/client.py](../../src/armor/sdk/client.py) | Public SDK wrapper — `ArmorClient` class re-exports daemon health and incident queries via the low-level client | `client`, `types` |
@@ -39,7 +39,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 
 | Component | Source | Responsibility | Depends on |
 |-----------|--------|----------------|------------|
-| `daemon.server` | [src/armor/daemon/server.py](../../src/armor/daemon/server.py) | Unix-socket server; reads a check request, invokes `pipeline`, returns the verdict; persists FSM transitions on every check | `pipeline`, `db/session_store`, `db/forensic`, `armor.logging`, `daemon.honeypot_gate`, `session.state_machine` |
+| `daemon.server` | [src/armor/daemon/server.py](../../src/armor/daemon/server.py) | Unix-socket server; reads a check request, invokes `pipeline`, returns the verdict; persists FSM transitions on every check. Loads and injects LLM session into LLM-dependent detectors at boot via post-load loop (mechanism A per Task 088). | `pipeline`, `db/session_store`, `db/forensic`, `armor.logging`, `daemon.honeypot_gate`, `session.state_machine`, `llm.session` |
 | `armor.logging` | [src/armor/logging.py](../../src/armor/logging.py) | Structured logging for daemon-side events; substitutes `canary_id` for canary values before persisting | `types` |
 | `daemon.honeypot_gate` | [src/armor/daemon/honeypot_gate.py](../../src/armor/daemon/honeypot_gate.py) | Decides when to invoke the honeypot LLM path (gated by session state and per-path budget) | `llm.honeypot`, `session.state_machine` |
 
@@ -47,7 +47,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 
 | Component | Source | Cost tier | Responsibility | Depends on |
 |-----------|--------|-----------|----------------|------------|
-| `detectors.canary_scanner` | [src/armor/detectors/canary_scanner.py](../../src/armor/detectors/canary_scanner.py) | static | Aho-Corasick scan for canary values in payload; emits `block` + `canary_id` on hit. Also re-scans `RollingBuffer.concatenated()` for chunked exfiltration per ADR-025. | `canaries.catalogue`, `canaries.scanner`, `types`, `session.rolling_buffer` |
+| `detectors.canary_scanner` | [src/armor/detectors/canary_scanner.py](../../src/armor/detectors/canary_scanner.py) | static | Aho-Corasick scan for canary values in the payload; emits `block` + `canary_id` on full match, `advisory` + `canary_id` on partial-prefix match (≥ `detector.canary.partial_match_min_chars` chars) per ADR-025. The rolling-buffer scan for chunked exfiltration lives in `detectors.canary_paraphrase` (n-gram coverage), not here. | `canaries._generate`, `canaries.catalogue`, `canaries.scanner`, `types` |
 | `detectors.canary_paraphrase` | [src/armor/detectors/canary_paraphrase.py](../../src/armor/detectors/canary_paraphrase.py) | static | N-gram coverage detector for paraphrased canary leaks (Approach A per ADR-034); scans rolling buffer for ≥ K distinct n-grams of same canary; emits `advisory` with confidence formula | `canaries.catalogue`, `types`, `session.rolling_buffer` |
 | `detectors.regex_authority_impersonation` | [src/armor/detectors/regex_authority_impersonation.py](../../src/armor/detectors/regex_authority_impersonation.py) | static | Regex matches for authority-impersonation injection attacks | `types` |
 | `detectors.regex_instruction_override` | [src/armor/detectors/regex_instruction_override.py](../../src/armor/detectors/regex_instruction_override.py) | static | Regex matches for "ignore previous instructions" family attacks | `types` |
@@ -55,7 +55,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 | `detectors.regex_system_prompt_extraction` | [src/armor/detectors/regex_system_prompt_extraction.py](../../src/armor/detectors/regex_system_prompt_extraction.py) | static | Regex matches for system-prompt extraction attempts | `types` |
 | `detectors.regex_encoding_request` | [src/armor/detectors/regex_encoding_request.py](../../src/armor/detectors/regex_encoding_request.py) | static | Regex matches for "encode this in base64/hex/rot13" exfiltration-prep requests | `types` |
 | `detectors.memory_planting` | [src/armor/detectors/memory_planting.py](../../src/armor/detectors/memory_planting.py) | static | Regex matches for memory-planting injection patterns ("remember this rule", "from now on always", "permanent instruction", etc.) | `types` |
-| `detectors.entropy_decode` | [src/armor/detectors/entropy_decode.py](../../src/armor/detectors/entropy_decode.py) | static | Shannon-entropy substring scan + opportunistic decode-and-rescan; runs against single-turn output AND the rolling buffer (separate threshold) | `canaries._generate`, `canaries.catalogue`, `canaries.scanner`, `types` |
+| `detectors.entropy_decode` | [src/armor/detectors/entropy_decode.py](../../src/armor/detectors/entropy_decode.py) | static | Shannon-entropy substring scan + opportunistic decode-and-rescan against single-turn output. Multi-turn coverage of canary fragments is handled by `detectors.canary_paraphrase` (n-gram on the rolling buffer), not here. | `canaries._generate`, `canaries.catalogue`, `canaries.scanner`, `types` |
 | `detectors.destination_extractor` | [src/armor/detectors/destination_extractor.py](../../src/armor/detectors/destination_extractor.py) | static | Extracts URLs / IPs / emails from output; flags non-whitelisted destinations | `types` |
 | `detectors.instruction_burial` | [src/armor/detectors/instruction_burial.py](../../src/armor/detectors/instruction_burial.py) | static | Detects instruction-override and system-prompt-extraction patterns buried in the tail (last 25%) of long inputs; reuses patterns from `regex.instruction_override` and `regex.system_prompt_extraction` per ADR-037 | `regex_instruction_override.get_compiled_patterns`, `regex_system_prompt_extraction.get_compiled_patterns`, `types` |
 | `detectors.cmd_injection_bash` | [src/armor/detectors/cmd_injection_bash.py](../../src/armor/detectors/cmd_injection_bash.py) | static | Denylist scanner for `Bash` tool calls (filesystem destruction, credential reads, container escape) | `types` |
@@ -65,15 +65,15 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 | `detectors.tool_rate_anomaly` | [src/armor/detectors/tool_rate_anomaly.py](../../src/armor/detectors/tool_rate_anomaly.py) | static | Sliding-window per-tool call-rate tracking per session; advisory when burst detected per ADR-040 | `types` |
 | `detectors.tool_chain` | [src/armor/detectors/tool_chain.py](../../src/armor/detectors/tool_chain.py) | static | Detects multi-turn attack chains (e.g., Read .env → WebFetch); per-session history tracking with strict/loose matching per ADR-040 | `types` |
 | `detectors.conversation_hijack` | [src/armor/detectors/conversation_hijack.py](../../src/armor/detectors/conversation_hijack.py) | static | Detects claims of prior agreement without corroboration; reads `SessionContext.signal_history` to calibrate confidence per ADR-037 | `types` |
-| `detectors.jailbreak_template` | [src/armor/detectors/jailbreak_template.py](../../src/armor/detectors/jailbreak_template.py) | static + llm | Static templates (DAN, developer-mode, fictional framing) plus optional validator-LLM judgment | `llm.validator`, `types` |
-| `detectors.llm_validator` | [src/armor/detectors/llm_validator.py](../../src/armor/detectors/llm_validator.py) | llm | Calls `llm.validator` with a structured-output prompt; emits `advisory` with confidence; gated by `session.state ≥ Watching` | `llm.validator`, `types` |
+| `detectors.jailbreak_template` | [src/armor/detectors/jailbreak_template.py](../../src/armor/detectors/jailbreak_template.py) | static + llm | Static templates (DAN, developer-mode, fictional framing) plus optional validator-LLM judgment. LLM session injected at daemon boot (mechanism A, Task 088). | `llm.validator`, `types` |
+| `detectors.llm_validator` | [src/armor/detectors/llm_validator.py](../../src/armor/detectors/llm_validator.py) | llm | Calls `llm.validator` with a structured-output prompt; emits `advisory` with confidence; gated by `session.state ≥ Watching`. LLM session injected at daemon boot (mechanism A, Task 088). | `llm.validator`, `types` |
 
 ## Components — session
 
 | Component | Source | Responsibility | Depends on |
 |-----------|--------|----------------|------------|
 | `session.state_machine` | [src/armor/session/state_machine.py](../../src/armor/session/state_machine.py) | Pure `apply_signal(state, score, signal, now) -> (state, score)`; FSM rules per ADR-024 (forward by signal, backward by linear cooldown, Blocked terminal) | `types` |
-| `session.rolling_buffer` | [src/armor/session/rolling_buffer.py](../../src/armor/session/rolling_buffer.py) | Per-session bounded output buffer (`capacity_chars` / `capacity_turns`); fed by output checks; consumed by canary + entropy scanners per ADR-025 | (leaf) |
+| `session.rolling_buffer` | [src/armor/session/rolling_buffer.py](../../src/armor/session/rolling_buffer.py) | Per-session bounded output buffer (`capacity_chars` / `capacity_turns`); fed by output checks; consumed by `detectors.canary_paraphrase` (n-gram coverage per B-009b) | (leaf) |
 
 ## Components — embeddings
 

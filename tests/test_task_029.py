@@ -18,8 +18,8 @@ Markers:
   TC-029-13: pyproject.toml final metadata
 """
 
+import os
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -155,15 +155,20 @@ class TestCHANGELOGFitness:
     """TC-029-08, TC-029-09, TC-029-10: CHANGELOG update fitness."""
 
     def test_changelog_fitness_skip_mode(self):
-        """TC-029-10: Honors SKIP_CHANGELOG env var."""
+        """TC-029-10: Honors SKIP_CHANGELOG env var.
+
+        Post-task-091 the CHANGELOG check is a pytest test
+        (`tests/fitness/test_changelog_updated.py`); under SKIP_CHANGELOG=1
+        it must skip cleanly (pytest exit code 0; "1 skipped").
+        """
         result = subprocess.run(
-            [sys.executable, "tests/fitness/changelog_updated.py"],
-            env={"SKIP_CHANGELOG": "1"},
+            ["uv", "run", "pytest", "tests/fitness/test_changelog_updated.py", "-v", "-p", "no:cacheprovider"],
+            env={**os.environ, "SKIP_CHANGELOG": "1"},
             capture_output=True,
             text=True,
         )
-        assert result.returncode == 0, f"Skip mode failed: {result.stderr}"
-        assert "skipping" in result.stdout.lower() and "changelog" in result.stdout.lower()
+        assert result.returncode == 0, f"Skip mode failed: {result.stderr}\n{result.stdout}"
+        assert "skipped" in result.stdout.lower() and "changelog" in result.stdout.lower()
 
     def test_changelog_file_exists(self):
         """Verify CHANGELOG.md exists."""
@@ -234,12 +239,12 @@ class TestProjectMetadata:
     """TC-029-13: pyproject.toml final metadata."""
 
     def test_project_name_locked(self):
-        """Verify name == 'armor'."""
+        """Verify PyPI distribution name is `ai-armor` (the bare `armor` is taken on PyPI)."""
         pyproject_path = Path("pyproject.toml")
         with open(pyproject_path) as f:
             content = f.read()
 
-        assert 'name = "armor"' in content, "Project name is not 'armor'"
+        assert 'name = "ai-armor"' in content, "PyPI distribution name is not 'ai-armor'"
 
     def test_classifiers_present(self):
         """Verify classifiers list is non-empty."""

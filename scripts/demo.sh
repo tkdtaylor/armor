@@ -44,9 +44,9 @@ uv run armor canary generate --out "$VALUES_PATH" --seed 0xCAFEBABE >/dev/null 2
 
 echo "Using canary values: $VALUES_PATH"
 
-# Start the daemon
+# Start the daemon (static-only mode; demo does not require the validator/honeypot LLM)
 echo "Starting daemon..."
-uv run armor daemon --socket "$SOCKET_PATH" --db "$DB_PATH" --canary-values "$VALUES_PATH" --quarantine-key-path "$KEY_PATH" >/dev/null 2>&1 &
+ARMOR_DISABLE_LLM=true uv run armor daemon --socket "$SOCKET_PATH" --db "$DB_PATH" --canary-values "$VALUES_PATH" --quarantine-key-path "$KEY_PATH" >/dev/null 2>&1 &
 DAEMON_PID=$!
 
 # Wait for socket to appear (with timeout)

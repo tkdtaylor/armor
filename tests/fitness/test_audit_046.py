@@ -11,7 +11,7 @@ def test_tc_046_01_single_canonical_honeypot_budget():
     files = [
         "src/armor/llm/loader.py",
         "src/armor/llm/honeypot.py",
-        "tests/fitness/llm_p95_latency.py",
+        "tests/fitness/_llm_p95_helpers.py",
         "docs/spec/configuration.md",
         "docs/spec/fitness-functions.md",
         "armor.toml",

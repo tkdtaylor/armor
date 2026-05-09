@@ -42,6 +42,7 @@ class ForensicLogger:
         ctx: SessionContext,
         payload_text: str,
         quarantine_id: int | None = None,
+        source: str | None = None,
     ) -> int:
         """Write an incident record to the forensic log.
 
@@ -50,13 +51,14 @@ class ForensicLogger:
             ctx: Session context.
             payload_text: The input or output text (for hashing).
             quarantine_id: FK to QuarantinedPayload row (optional).
+            source: Payload source for category inference (e.g., "tool_result_untrusted").
 
         Returns:
             The incident ID.
         """
         import asyncio
 
-        return await asyncio.to_thread(self._write_incident_sync, verdict, ctx, payload_text, quarantine_id)
+        return await asyncio.to_thread(self._write_incident_sync, verdict, ctx, payload_text, quarantine_id, source)
 
     def _write_incident_sync(
         self,
@@ -64,6 +66,7 @@ class ForensicLogger:
         ctx: SessionContext,
         payload_text: str,
         quarantine_id: int | None = None,
+        source: str | None = None,
     ) -> int:
         """Synchronous implementation of write_incident.
 
@@ -72,6 +75,7 @@ class ForensicLogger:
             ctx: Session context.
             payload_text: The input or output text (for hashing).
             quarantine_id: FK to QuarantinedPayload row (optional).
+            source: Payload source for category inference (e.g., "tool_result_untrusted").
 
         Returns:
             The incident ID.
@@ -98,15 +102,27 @@ class ForensicLogger:
         try:
             cursor = conn.cursor()
 
+            # Extract source_tool, chunk_index, and chunk_metadata from verdict details
+            source_tool = None
+            chunk_index = None
+            chunk_metadata = None
+
+            if verdict.details:
+                source_tool = verdict.details.get("source_tool")
+                chunk_index = verdict.details.get("chunk_index")
+                chunk_metadata_obj = verdict.details.get("chunk_metadata")
+                if chunk_metadata_obj is not None:
+                    chunk_metadata = json.dumps(chunk_metadata_obj)
+
             cursor.execute(
                 """INSERT INTO Incident (
                     session_id, attack_category, signal_id, input_hash,
                     triggered_canary, destinations, encoding_flag,
-                    risk_score, action, quarantine_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    risk_score, action, quarantine_id, source_tool, chunk_index, chunk_metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     ctx.session_id,
-                    "exfiltration.canary_leak" if triggered_canary else self._infer_category(verdict),
+                    "exfiltration.canary_leak" if triggered_canary else self._infer_category(verdict, source),
                     verdict.signal_id,
                     payload_hash,
                     triggered_canary,
@@ -115,6 +131,9 @@ class ForensicLogger:
                     risk_score,
                     "blocked",
                     quarantine_id,
+                    source_tool,
+                    chunk_index,
+                    chunk_metadata,
                 ),
             )
             conn.commit()
@@ -229,7 +248,7 @@ class ForensicLogger:
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         sql = (
             "SELECT id, ts, session_id, attack_category, signal_id, action, "
-            "risk_score, triggered_canary, quarantine_id "
+            "risk_score, triggered_canary, quarantine_id, source_tool, chunk_index, chunk_metadata "
             f"FROM Incident {where} ORDER BY id ASC LIMIT ?"
         )
         params.append(limit)
@@ -261,7 +280,7 @@ class ForensicLogger:
             row = conn.execute(
                 "SELECT id, ts, session_id, attack_category, signal_id, action, "
                 "risk_score, triggered_canary, quarantine_id, input_hash, "
-                "output_hash, encoding_flag, destinations "
+                "output_hash, encoding_flag, destinations, source_tool, chunk_index, chunk_metadata "
                 "FROM Incident WHERE id = ?",
                 (normalized,),
             ).fetchone()
@@ -269,11 +288,15 @@ class ForensicLogger:
             conn.close()
         return dict(row) if row else None
 
-    def _infer_category(self, verdict: Verdict) -> str:
-        """Infer attack category from signal_id.
+    def _infer_category(self, verdict: Verdict, source: str | None = None) -> str:
+        """Infer attack category from signal_id and source.
+
+        For check.fetched requests (source=tool_result_untrusted or similar), regex signals
+        are categorized as indirect_injection.<vector>. For other sources, they're direct_injection.<vector>.
 
         Args:
             verdict: The verdict.
+            source: Payload source (e.g., "tool_result_untrusted", "user_input").
 
         Returns:
             Attack category string.
@@ -281,27 +304,42 @@ class ForensicLogger:
         if not verdict.signal_id:
             return "unknown"
 
-        # Try exact match first
-        category_map = {
-            "regex.instruction_override": "direct_injection.instruction_override",
-            "regex.roleplay_hijack": "direct_injection.roleplay_hijack",
-            "regex.system_prompt_extraction": "direct_injection.system_prompt_extraction",
-            "canary.scanner": "exfiltration.canary_leak",
+        signal_id = verdict.signal_id
+        prefix = signal_id.split(":")[0]
+
+        # Map of regex signal families to their vector names
+        regex_vector_map = {
+            "regex.instruction_override": "instruction_override",
+            "regex.roleplay_hijack": "roleplay_hijack",
+            "regex.system_prompt_extraction": "system_prompt_extraction",
+            "regex.encoding_request": "encoding_request",
+            "regex.authority_impersonation": "authority_impersonation",
+            "regex.memory_planting": "memory_planting",
         }
 
-        signal_id = verdict.signal_id
-        if signal_id in category_map:
-            return category_map[signal_id]
+        # Determine if this is an indirect injection (from fetched tool result)
+        is_indirect = source in ("tool_result_untrusted", "tool_result_trusted")
 
-        # Try prefix match (handle "regex.instruction_override:..." format)
-        prefix = signal_id.split(":")[0]
-        if prefix in category_map:
-            return category_map[prefix]
+        # Handle regex signals
+        if prefix in regex_vector_map:
+            vector = regex_vector_map[prefix]
+            if is_indirect:
+                return f"indirect_injection.{vector}"
+            else:
+                return f"direct_injection.{vector}"
 
-        # Construct from prefix
-        if prefix.startswith("regex."):
-            return f"direct_injection.{prefix[6:]}"
-        elif prefix.startswith("canary."):
+        # Handle other signal types
+        if prefix.startswith("canary."):
             return "exfiltration.canary_leak"
+        elif prefix.startswith("cmd_injection."):
+            return "tool_abuse.command_injection"
+        elif prefix.startswith("tool_param."):
+            return "tool_abuse.parameter_validation"
+        elif prefix.startswith("meta."):
+            return "meta.anomaly"
+        elif prefix.startswith("entropy."):
+            return "exfiltration.encoding"
+        elif prefix.startswith("extractor."):
+            return "exfiltration.destination"
         else:
             return f"{prefix}.unknown"

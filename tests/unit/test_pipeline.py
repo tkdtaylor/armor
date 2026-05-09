@@ -190,9 +190,9 @@ class TestPipelineTimeout:
 
     @pytest.mark.asyncio
     async def test_semantic_detector_timeout(self) -> None:
-        """Semantic detector uses 500ms timeout."""
-        # This test documents the timeout value
-        assert DEFAULT_TIMEOUTS["semantic"] == 0.5
+        """Semantic detector uses 100ms timeout (per pipeline.per_detector_budget_ms)."""
+        # This test documents the timeout value per Task 082
+        assert DEFAULT_TIMEOUTS["semantic"] == 0.1
 
     @pytest.mark.asyncio
     async def test_unknown_cost_tier_defaults_to_static(self) -> None:

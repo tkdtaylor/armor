@@ -17,10 +17,14 @@ from armor.types import Payload, SessionContext, Source, Verdict
 
 logger = logging.getLogger(__name__)
 
-# Default timeouts per detector cost tier
+# Default timeouts per detector cost tier (seconds)
+# - static: pure regex/parsing (≤100ms typical)
+# - semantic: local non-LLM ML like ONNX embeddings (≤100ms typical, but budget set higher)
+# - llm: local LLM inference (≤500ms validator, ≤16s honeypot)
 DEFAULT_TIMEOUTS = {
     "static": 0.1,  # 100ms
-    "semantic": 0.5,  # 500ms
+    "semantic": 0.1,  # 100ms (per_detector_budget_ms from config)
+    "llm": 0.5,  # 500ms (validator_budget_ms from config)
 }
 
 # Default source multipliers (per ADR-041 §2)
@@ -93,10 +97,23 @@ class Pipeline:
         Returns:
             Aggregated Verdict.
         """
+        # Per task 080 (ADR-041), when source is TOOL_RESULT_TRUSTED, skip indirect-injection regex detectors
+        # (trust applies to origin, not content — canary/entropy detectors still run)
+        detectors_to_run = detectors
+        if payload.source == Source.TOOL_RESULT_TRUSTED:
+            indirect_injection_detectors = {
+                "regex.instruction_override",
+                "regex.roleplay_hijack",
+                "regex.system_prompt_extraction",
+                "regex.authority_impersonation",
+                "regex.encoding_request",
+            }
+            detectors_to_run = [d for d in detectors if d.id not in indirect_injection_detectors]
+
         try:
             verdicts: list[Verdict] = []
 
-            for detector in detectors:
+            for detector in detectors_to_run:
                 try:
                     timeout = DEFAULT_TIMEOUTS.get(detector.cost_tier, DEFAULT_TIMEOUTS["static"])
                     verdict = await Pipeline._run_detector_with_timeout(detector, payload, ctx, timeout)

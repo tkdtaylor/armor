@@ -131,8 +131,22 @@ PRE_REWRITE_TAG = "pre-public-rewrite"
 
 
 def test_tc_032_02_author_email_clean() -> None:
-    """TC-032-02 / TC-038-02: every commit author email equals the canonical address."""
-    out = subprocess.check_output(["git", "log", "--all", "--format=%ae"], cwd=ROOT, text=True)
+    """TC-032-02 / TC-038-02: every commit author email equals the canonical address.
+
+    Excludes ``refs/remotes/origin/dependabot/*`` — those branches are authored by the
+    dependabot bot and never merge as-is; checking them flags noise, not a real leak.
+    """
+    out = subprocess.check_output(
+        [
+            "git",
+            "log",
+            "--exclude=refs/remotes/origin/dependabot/*",
+            "--all",
+            "--format=%ae",
+        ],
+        cwd=ROOT,
+        text=True,
+    )
     unique = sorted({line for line in out.splitlines() if line})
     assert unique == [CANONICAL_AUTHOR_EMAIL], (
         f"expected exactly [{CANONICAL_AUTHOR_EMAIL!r}] across --all history, got {unique}"

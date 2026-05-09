@@ -255,17 +255,23 @@ class TestLLMValidatorDetector:
         assert result.decision == "pass"
 
     def test_detector_gating_with_prior_advisory(self) -> None:
-        """TC-018-05: Detector invokes validate() when prior advisory exists."""
+        """TC-018-05: Detector invokes validate() when session state >= Watching.
+
+        Per task 085, the detector is now gated by FSM state (>= Watching),
+        not by signal_history. This test creates a session with Watching state
+        to trigger the validator.
+        """
         from armor.detectors.llm_validator import LLMValidator
-        from armor.types import Payload, Signal
+        from armor.session.state_machine import SessionState
+        from armor.types import Payload
 
         detector = LLMValidator()
         payload = Payload(text="test input")
 
-        # Create context with prior advisory signal
+        # Create context with Watching state (the new gating mechanism)
         ctx = SessionContext(
             session_id="test",
-            signal_history=[Signal(timestamp=0.0, kind="advisory", signal_id="regex.test:001", severity="medium")],
+            state=SessionState.WATCHING,
         )
 
         # Mock LLMSession and inject it

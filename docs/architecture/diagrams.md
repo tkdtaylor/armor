@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-05-07 (v1.5 — added §7 tool-call validation flow and §8 canary value generation + runtime use; v1.4 added the top-of-doc capability overview; v1.3 fixed the §5 Mermaid parse error)
+**Last updated:** 2026-05-09 (v1.7 — refreshed fitness-function path reference for task 091 consolidation; no diagram-content changes)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -45,11 +45,11 @@ flowchart LR
 **Reading the diagram**
 
 - **Solid arrows** are the happy path (the request flows through). **Dotted arrows** are the unhappy path (a check fired, the request is blocked, the incident is written to the forensic log).
-- **Three intercept points** map to the three `armor check` subcommands and the three Claude Code lifecycle hooks (see §6 for the deployment topology). Every detector runs at exactly one point — there's no shared mutable state between them.
+- **Three intercept points** map to the three `armor check` subcommands. They are wired through four Claude Code lifecycle hooks (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop` — see §6 for the deployment topology). Every detector runs at exactly one point — there's no shared mutable state between them.
 - **The canary trap** is the loop on the right: the honeypot LLM (same model weights as the validator, different system prompt) seeds canary credentials into the agent's context when a session reaches `Watching` and an injection signal fires. Any later output containing one of those values trips the canary scanner at the output check. The honeypot is not a detector — it's a bait generator that makes exfiltration *visible* downstream.
 - **Forensic log discipline.** The forensic log records `canary_id` (e.g. `aws-key-042`) and not the canary value. Two reasons: (1) the log itself must not become an exfiltration channel if an attacker ever gains read access to it, and (2) canary values are expected to be regenerated and rotated; pinning a value into the audit history would couple the audit trail to a transient secret. See ADR-010 for the storage contract and the unit test that enforces it.
 
-The five diagrams below zoom into individual aspects of this overview: §1 component layout, §2 input flow, §3 output / canary-trip flow, §4 multi-turn risk escalation, §5 operator-clear path, §6 Claude Code deployment topology.
+The eight diagrams below zoom into individual aspects of this overview: §1 component layout, §2 input flow, §3 output / canary-trip flow, §4 multi-turn risk escalation, §5 operator-clear path, §6 Claude Code deployment topology, §7 tool-call validation flow, §8 canary value generation and runtime use.
 
 ---
 
@@ -73,7 +73,7 @@ flowchart TB
             Validator["Validator LLM<br/>(Qwen3-0.6B-Q4_K_M)"]
             Topic["Topic-coherence detector<br/>(MiniLM ONNX embedding, per-session EMA)"]
             CmdGuard["Command-injection guard<br/>(shell denylist, tool params)"]
-            Rolling["Rolling-buffer scan<br/>(per-session, 8 KB / 20 turns)"]
+            Rolling["canary.paraphrase n-gram scan<br/>(rolling buffer, 8 KB / 20 turns; advisory only)"]
         end
 
         HoneypotGate["HoneypotGate<br/>(state ≥ Watching ∧ block/advisory → honeypot)"]
@@ -81,24 +81,23 @@ flowchart TB
         FSM["Session state machine<br/>(Normal → Watching → Elevated → High → Blocked)"]
         Session["Session tracker<br/>(SQLite — sessions + rolling buffer)"]
         Forensic["Forensic logger<br/>(blocked-attack records, canary_id only)"]
-        Honeypot["Honeypot context<br/>(canary credentials, URLs, paths)"]
+        Honeypot["Honeypot LLM<br/>(shared model session, canary-bearing prompt per ADR-038)"]
         Logger["Structured logger (armor.logging)<br/>(event sink, ADR-029)"]
     end
 
     CC --> Hook
     Hook -->|Unix socket| Daemon
-    Lib -->|HTTP / Unix socket| Daemon
+    Lib -->|Unix socket| Daemon
     Daemon --> PipelineOrch
     PipelineOrch --> Static
     PipelineOrch --> Validator
     PipelineOrch --> Topic
     PipelineOrch --> CmdGuard
     PipelineOrch --> Rolling
-    Validator -.uses.-> Honeypot
-    HoneypotGate -.invokes.-> Validator
+    HoneypotGate -.invokes.-> Honeypot
     Topic -.advisory feeds.-> FSM
     Static -.advisory/block feeds.-> FSM
-    Rolling -.advisory/block feeds.-> FSM
+    Rolling -.advisory feeds.-> FSM
     FSM -.gates LLM tier.-> HoneypotGate
     Daemon --> Session
     Daemon --> Forensic
@@ -114,10 +113,10 @@ flowchart TB
 - The validator LLM and the honeypot share one model weight; they differ only by system prompt. Loaded once at daemon start.
 - The topic-coherence embedder (`armor.embeddings.onnx_embedder.Embedder`) loads `all-MiniLM-L6-v2` ONNX once at daemon start; the detector maintains a rolling EMA via `armor.embeddings.ema_cache.EMACache`. The detector emits `advisory` only — never `block` on its own — and feeds the session state machine (ADR-026). Input checks run the topic-coherence detector per B-008a.
 - The session state machine sits between the pipeline and per-detector cost decisions: it gates the LLM cost tier (skipped at `Normal`, run at ≥ `Watching`), accumulates risk from advisory verdicts, and short-circuits all detectors at `Blocked` while still writing the forensic incident (ADR-024).
-- The rolling-buffer scan re-runs the canary scanner (from `armor.canaries.scanner.CanaryScanner`) and entropy analyzer against the per-session concatenation on every output check; a chunked match that did not trip on a single turn produces `exfiltration.canary_chunked` with all turns currently in the buffer quarantined together (per B-009a, ADR-025).
+- The rolling buffer (per-session concatenation, 8 KB / 20 turns per ADR-025) is consumed by `detectors.canary_paraphrase`, which scans for ≥ K distinct n-grams of any active canary and emits an `advisory` (per B-009a / B-009b). A standalone chunked-canary `block` path on the rolling buffer is not currently wired.
 - The canaries module (`armor.canaries.catalogue.Catalogue`, `armor.canaries._generate.write_values_file`) manages the injected credential catalogue — placeholders are substituted at honeypot LLM prompt-build time.
 - The structured logger (`armor.logging`) is the event sink for all daemon operations: verdicts, state transitions, honeypot invocations, and forensic incidents. Event schema is defined in ADR-029.
-- The SDK (`armor.sdk.client.ArmorClient`, `armor.sdk.async_client.AsyncArmorClient`) provides importable clients for third-party integrations; daemon communication is via HTTP/Unix socket, never in-process.
+- The SDK (`armor.sdk.client.ArmorClient`, `armor.sdk.async_client.AsyncArmorClient`) provides importable clients for third-party integrations; daemon communication is via Unix socket, never in-process.
 - Session state is process-local (SQLite file in a mounted volume). A daemon restart preserves session history, FSM fields (`current_state`, `risk_score`, `last_signal_at`), and the rolling buffer.
 
 ---
@@ -191,8 +190,8 @@ sequenceDiagram
     D->>CS: scan for canary tokens (per-turn)
     D->>DS: extract URLs / IPs / emails
     D->>ES: high-entropy substring scan
-    D->>RB: scan rolling buffer (B-009a)
-    alt canary tripped (per-turn or chunked)
+    D->>RB: canary.paraphrase n-gram scan over rolling buffer (B-009b)
+    alt canary tripped (per-turn full match)
         CS-->>D: HIT (canary_id, position)
         alt state ≥ Watching ∧ block detected
             D->>HG: should_invoke_honeypot?
@@ -203,11 +202,9 @@ sequenceDiagram
         D->>FL: write incident<br/>(input + attempted output + destination)
         D-->>H: BLOCK
         H-->>CC: replace output with safe message
-    else rolling buffer hit (chunked exfiltration)
-        RB-->>D: HIT (canary_id, chunked match)
-        D->>FL: write incident (chunked, all turns in buffer)
-        D-->>H: BLOCK
-        H-->>CC: replace output with safe message
+    else multi-turn paraphrase advisory (B-009b)
+        RB-->>D: ADVISORY (canary_id, ngram_count)
+        D->>FL: feed advisory into FSM; risk score increases
     else clean
         CS-->>D: clean
         RB-->>D: clean
@@ -329,14 +326,15 @@ flowchart LR
 
 Wire-up reference: [examples/claude_code/settings.json](../../examples/claude_code/settings.json) is the drop-in `.claude/settings.json` that establishes this topology. The Python SDK path (`examples/anthropic_sdk.py`, `examples/openai_sdk.py`, `examples/langchain.py`, `examples/custom_agent.py`) bypasses the hook layer and calls the daemon directly via `ArmorClient`; the topology is otherwise the same.
 
-The four lifecycle hooks map to three armor check kinds plus session bookkeeping:
+The four lifecycle hooks map to four armor check kinds plus session bookkeeping. `PostToolUse` is wired twice with different tool-name matchers — read-style tools (Read/WebFetch/Grep/Glob/MCP-readers) feed `check fetched` for indirect-injection scanning, all other tool results feed `check output` for canary-leak detection:
 
-| Lifecycle event | armor command | Defends against |
-|---|---|---|
-| `UserPromptSubmit` | `armor check input` | direct injection, jailbreak templates, encoding-request patterns |
-| `PreToolUse` | `armor check tool` | parameter tampering, dangerous bash, schema violations |
-| `PostToolUse` | `armor check output` | canary exfiltration, encoded payloads, partial-canary aggregation |
-| `Stop` | `armor session close` | per-session state flush (rolling buffer, risk score) |
+| Lifecycle event | Tool matcher | armor command | Defends against |
+|---|---|---|---|
+| `UserPromptSubmit` | (any) | `armor check input` | direct injection, jailbreak templates, encoding-request patterns |
+| `PreToolUse` | (any) | `armor check tool` | parameter tampering, dangerous bash, schema violations |
+| `PostToolUse` | `Read\|WebFetch\|Grep\|Glob\|mcp__.*__read.*` | `armor check fetched` | indirect injection in retrieved content (B-017) |
+| `PostToolUse` | (any) | `armor check output` | canary exfiltration, encoded payloads, partial-canary aggregation |
+| `Stop` | — | `armor session close` | per-session state flush (rolling buffer, risk score) |
 
 ---
 
@@ -433,7 +431,7 @@ flowchart TB
 - `write_values_file()` writes the merged schema + values atomically with mode `0o600` via `os.open(O_CREAT|O_WRONLY|O_TRUNC, 0o600)` — readable only by the owning user. Each install therefore has a different value set; cloning a public dump tells an attacker nothing about a target deployment.
 - The `Catalogue` object is daemon-process-local. There is no network read; the values file path is operator-controlled and lives outside the Docker image (per ADR-010).
 - `CanaryScanner` builds its automaton once at daemon start from the in-memory values. Substring matching is O(n) in the input length regardless of catalogue size, which keeps the per-output cost flat.
-- `armor.llm.honeypot.respond` is the *only* code path that reads `Catalogue.value`. The validator path never touches values — enforced by the `tests/fitness/validator_no_value_access.py` fitness function that AST-scans `validator.py` for any `catalogue.values()` call or `.value` field access (per ADR-021).
+- `armor.llm.honeypot.respond` is the *only* code path that reads `Catalogue.value`. The validator path never touches values — enforced by the `tests/fitness/test_validator_no_value_access.py` fitness function that AST-scans `validator.py` for any `catalogue.values()` call or `.value` field access (per ADR-021).
 - The forensic log records `triggered_canary = canary_id` (e.g. `aws-key-042`), not the value. Test `test_triggered_canary_id_not_value` in `tests/unit/db/test_forensic.py` asserts the substitution at write time; the log itself can never become an exfiltration channel.
 - A successful injection that causes the honeypot LLM to emit its substituted prompt content routes back through the same output-check path (because every honeypot response is itself an output) — closing the loop deterministically: prompt-injection → honeypot bait → canary value in output → Aho-Corasick match → block + forensic incident.
 

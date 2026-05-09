@@ -666,7 +666,14 @@ def _health(socket_path: str) -> int:
 
 
 def _install_hooks(settings_path: str | None = None) -> int:
-    """Install the four Claude Code hooks to .claude/settings.json.
+    """Install the five Claude Code hooks to .claude/settings.json.
+
+    Wires the lifecycle hooks per B-017 and diagrams.md §6:
+    - UserPromptSubmit → armor check input
+    - PreToolUse → armor check tool
+    - PostToolUse (generic matcher) → armor check output
+    - PostToolUse (read-tool matcher) → armor check fetched
+    - Stop → armor session close
 
     Args:
         settings_path: Path to settings file (default: ./.claude/settings.json)
@@ -690,43 +697,82 @@ def _install_hooks(settings_path: str | None = None) -> int:
     else:
         settings = {}
 
-    # Ensure hooks list exists
+    # Ensure hooks dict exists
     if "hooks" not in settings:
-        settings["hooks"] = []
+        settings["hooks"] = {}
 
-    # Define the four armor hooks
-    armor_hooks = [
-        {
-            "name": "armor-check-input",
-            "event": "UserPromptSubmit",
-            "handler": 'armor check input --hook-mode --session-id "$CLAUDE_SESSION_ID"',
-        },
-        {
-            "name": "armor-check-output",
-            "event": "PreToolUse",
-            "handler": 'armor check output --hook-mode --session-id "$CLAUDE_SESSION_ID"',
-        },
-        {
-            "name": "armor-check-tool",
-            "event": "PostToolUse",
-            "handler": 'armor check tool "$ARMOR_TOOL_NAME" --params \'$ARMOR_TOOL_PARAMS\' --hook-mode --session-id "$CLAUDE_SESSION_ID"',
-        },
-        {
-            "name": "armor-session-close",
-            "event": "Stop",
-            "handler": 'armor session close --session-id "$CLAUDE_SESSION_ID"',
-        },
-    ]
+    # Define the five armor hooks organized by event
+    # Per B-017 and diagrams.md §6:
+    # - UserPromptSubmit → check input
+    # - PreToolUse → check tool
+    # - PostToolUse (read tools) → check fetched
+    # - PostToolUse (other tools) → check output
+    # - Stop → session close
+    armor_hooks_by_event = {
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "armor check input --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}",
+                    }
+                ]
+            }
+        ],
+        "PreToolUse": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "armor check tool --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}",
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Read|WebFetch|Grep|Glob|mcp__.*__read.*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "armor check fetched --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}",
+                    }
+                ],
+            },
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "armor check output --hook-mode --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}",
+                    }
+                ]
+            },
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "armor session close --socket ${ARMOR_SOCKET:-/var/run/armor.sock} --session-id ${CLAUDE_SESSION_ID:-default}",
+                    }
+                ]
+            }
+        ],
+    }
 
-    # Merge hooks: remove duplicates by name, then add armor hooks
-    existing_hooks = settings.get("hooks", [])
-    armor_hook_names = {h["name"] for h in armor_hooks}
+    # Merge hooks: preserve non-armor events, replace armor events
+    armor_event_names = set(armor_hooks_by_event.keys())
 
-    # Keep non-armor hooks
-    non_armor_hooks = [h for h in existing_hooks if h.get("name") not in armor_hook_names]
+    # Keep non-armor events
+    existing_hooks = settings.get("hooks", {})
+    if isinstance(existing_hooks, dict):
+        non_armor_hooks = {k: v for k, v in existing_hooks.items() if k not in armor_event_names}
+    else:
+        # Handle legacy list format by discarding it
+        non_armor_hooks = {}
 
     # Combine
-    settings["hooks"] = non_armor_hooks + armor_hooks
+    settings["hooks"] = {**non_armor_hooks, **armor_hooks_by_event}
 
     # Write back
     try:

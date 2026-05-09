@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "armor"
+name = "ai-armor"
 version = "1.0.0"
 description = "A defense-in-depth security layer for LLM agents"
 readme = "README.md"
@@ -72,15 +72,25 @@ regex_memory_planting = "armor.detectors.memory_planting:RegexMemoryPlanting"
 regex_roleplay_hijack = "armor.detectors.regex_roleplay_hijack:RegexRoleplayHijack"
 regex_system_prompt_extraction = "armor.detectors.regex_system_prompt_extraction:RegexSystemPromptExtraction"
 regex_encoding_request = "armor.detectors.regex_encoding_request:RegexEncodingRequest"
+tool_chain = "armor.detectors.tool_chain:ToolChain"
 tool_param_schema = "armor.detectors.tool_param_schema:ToolParamSchema"
 tool_rate_anomaly = "armor.detectors.tool_rate_anomaly:ToolRateAnomaly"
+token_count_anomaly = "armor.detectors.token_count_anomaly:TokenCountAnomaly"
 topic_coherence = "armor.detectors.topic_coherence:TopicCoherence"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/armor"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=armor --cov-report=term-missing --cov-fail-under=0"
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+markers = [
+    "smoke: fast fitness checks (<5s each); included in `make fitness-smoke`",
+    "slow: long-running fitness checks (full LLM corpus, encryption round-trip); excluded from default `make fitness`",
+    "requires_llm: needs model weights present; cleanly skips otherwise",
+]
 
 [tool.mypy]
 python_version = "3.12"

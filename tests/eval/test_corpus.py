@@ -69,8 +69,8 @@ async def test_corpus_verdict(row: "corpus_loader.CorpusRow") -> None:
     # Build payload based on row type
     payload = Payload(tool=row.tool, params=row.tool_params) if row.tool is not None else Payload(text=row.input)
 
-    # Build session context
-    ctx = SessionContext(session_id="test", signal_history=[])
+    # Build session context — use unique session ID per row to isolate detector state
+    ctx = SessionContext(session_id=row.id, signal_history=[])
 
     # Run pipeline with timing
     start_ns = time.perf_counter_ns()

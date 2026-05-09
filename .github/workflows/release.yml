@@ -135,5 +135,5 @@ jobs:
           generateReleaseNotes: true
           body: |
             Multi-arch image: ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }}
-            PyPI: pip install armor==${{ steps.meta.outputs.version }}
+            PyPI: pip install ai-armor==${{ steps.meta.outputs.version }}
             See post-release checklist: docs/release/post-release-checklist.md

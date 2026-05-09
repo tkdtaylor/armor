@@ -17,6 +17,10 @@ input_detectors = ["*"]
 output_detectors = ["*"]
 per_detector_budget_ms = 100
 
+# Fetched-content chunking (per ADR-033)
+[pipeline.fetched]
+chunk_size_bytes = 4096
+
 # Per-source multipliers (per ADR-041) — scale detector strictness by payload provenance
 [pipeline.source_multipliers]
 user_input            = 1.0   # baseline
@@ -71,7 +75,6 @@ advisory_weight = 0.5
 
 [entropy]
 threshold = 4.5
-rolling_threshold = 4.5
 min_length = 40
 max_decode_depth = 3
 no_progress_margin_bits = 0.5

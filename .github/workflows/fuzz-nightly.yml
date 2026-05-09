@@ -59,7 +59,7 @@ jobs:
         run: |
           # Verify encrypted payloads are not greppable for canary values
           # TC-027-07
-          uv run python tests/fitness/quarantine_at_rest.py
+          uv run pytest tests/fitness/test_quarantine_at_rest.py -v --tb=short
         timeout-minutes: 10
 
   network-isolation:

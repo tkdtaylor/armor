@@ -1,110 +1,55 @@
-"""Fitness check: every IPC op constructs Payload with correct default source per ADR-041.
+"""Fitness check: every IPC op constructs ``Payload`` with the correct default source.
 
-Exit code 0 if all ops set correct default sources, non-zero if violations found.
+Per ADR-041 §1, the daemon's IPC routing must assign ``Payload.source`` from
+the op name without expecting clients to supply it:
 
-This is a standalone script (not a pytest test) that verifies the daemon's IPC
-routing assigns Payload.source correctly per the defaults table in ADR-041 §1:
-  - check.input → USER_INPUT
-  - check.output → MODEL_OUTPUT
-  - check.tool → TOOL_PARAMS
-  - check.fetched → TOOL_RESULT_UNTRUSTED
+    check.input    → USER_INPUT
+    check.output   → MODEL_OUTPUT
+    check.tool     → TOOL_PARAMS
+    check.fetched  → TOOL_RESULT_UNTRUSTED
+
+Spec markers:
+    TC-065-24 — Payload.source defaults match ADR-041 §1.
+    TC-091-17 — propagation check still fires after the consolidation.
 """
 
-import sys
+from __future__ import annotations
+
 from pathlib import Path
 
+import pytest
 
-def check_payload_source_defaults() -> bool:
-    """Check that all IPC ops assign correct Payload.source defaults.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SERVER_PATH = REPO_ROOT / "src" / "armor" / "daemon" / "server.py"
 
-    Expected mapping per ADR-041 §1:
-      - check.input → USER_INPUT
-      - check.output → MODEL_OUTPUT
-      - check.tool → TOOL_PARAMS
-      - check.fetched → TOOL_RESULT_UNTRUSTED
-
-    Returns:
-        True if all ops are correct, False otherwise.
-    """
-    server_path = Path(__file__).parent.parent.parent / "src" / "armor" / "daemon" / "server.py"
-
-    if not server_path.exists():
-        print(f"Error: daemon/server.py not found: {server_path}", file=sys.stderr)
-        return False
-
-    with open(server_path) as f:
-        server_content = f.read()
-
-    # Expected source assignments per ADR-041 §1
-    expected = {
-        "check.input": "USER_INPUT",
-        "check.output": "MODEL_OUTPUT",
-        "check.tool": "TOOL_PARAMS",
-        "check.fetched": "TOOL_RESULT_UNTRUSTED",
-    }
-
-    # For each op, search for the pattern in the source code
-    violations = []
-
-    for op_name, expected_source in expected.items():
-        # Search for a pattern like:
-        # source=Source.USER_INPUT or similar within the op handler
-        if _check_op_has_source(server_content, op_name, expected_source):
-            continue
-        violations.append((op_name, expected_source))
-
-    if violations:
-        print(
-            "ERROR: Found ops with incorrect or missing Payload.source defaults:",
-            file=sys.stderr,
-        )
-        for op_name, expected_source in violations:
-            print(
-                f"  {op_name} should set source=Source.{expected_source}",
-                file=sys.stderr,
-            )
-        return False
-
-    print("OK: All IPC ops set correct Payload.source defaults per ADR-041 §1.")
-    return True
+EXPECTED_SOURCES: dict[str, str] = {
+    "check.input": "USER_INPUT",
+    "check.output": "MODEL_OUTPUT",
+    "check.tool": "TOOL_PARAMS",
+    "check.fetched": "TOOL_RESULT_UNTRUSTED",
+}
 
 
-def _check_op_has_source(source_code: str, op_name: str, expected_source: str) -> bool:
-    """Check if an op handler assigns the expected Payload.source value.
-
-    Args:
-        source_code: Contents of server.py
-        op_name: Operation name (e.g., "check.input")
-        expected_source: Expected Source enum value (e.g., "USER_INPUT")
-
-    Returns:
-        True if the op correctly assigns the source, False otherwise.
-    """
-    # Find the handler function for this op
-    # Pattern: usually there's a function that handles this op and constructs Payload
-
-    # Look for any mention of Payload(..., source=Source.EXPECTED_SOURCE)
-    # near the op_name string in the source code
-
-    # Simple heuristic: search for the pattern in a context window around op_name
-    lines = source_code.split("\n")
-
+def _op_assigns_expected_source(server_text: str, op_name: str, expected_source: str) -> bool:
+    """Return True if a Payload(..., source=Source.EXPECTED) appears near the op handler."""
+    lines = server_text.splitlines()
     for i, line in enumerate(lines):
         if f'"{op_name}"' in line or f"'{op_name}'" in line or f"`{op_name}`" in line:
-            # Found a line mentioning the op; search in the surrounding context
-            # for Payload with correct source
-            context_start = max(0, i - 10)
-            context_end = min(len(lines), i + 30)
-            context = "\n".join(lines[context_start:context_end])
-
-            # Check if this context contains Payload construction with the right source
-            if f"source=Source.{expected_source}" in context or (
-                "Payload(" in context and f"Source.{expected_source}" in context
-            ):
+            context = "\n".join(lines[max(0, i - 10) : min(len(lines), i + 30)])
+            if f"source=Source.{expected_source}" in context:
                 return True
-
+            if "Payload(" in context and f"Source.{expected_source}" in context:
+                return True
     return False
 
 
-if __name__ == "__main__":
-    sys.exit(0 if check_payload_source_defaults() else 1)
+@pytest.mark.smoke
+def test_ipc_ops_assign_expected_payload_source() -> None:
+    """TC-065-24 / TC-091-17: every IPC op sets the ADR-041 default source."""
+    assert SERVER_PATH.is_file(), f"daemon/server.py not found: {SERVER_PATH}"
+    server_text = SERVER_PATH.read_text(encoding="utf-8")
+    violations: list[str] = []
+    for op_name, expected_source in EXPECTED_SOURCES.items():
+        if not _op_assigns_expected_source(server_text, op_name, expected_source):
+            violations.append(f"{op_name} should set source=Source.{expected_source}")
+    assert not violations, "Payload.source default mismatches:\n  " + "\n  ".join(violations)

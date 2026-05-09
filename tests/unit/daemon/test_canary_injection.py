@@ -10,6 +10,12 @@ from armor.canaries._generate import write_values_file
 from armor.daemon.server import DaemonServer
 
 
+@pytest.fixture(autouse=True)
+def disable_llm_for_tests(monkeypatch) -> None:
+    """Disable LLM for all daemon tests to avoid exit 78 on missing LLM."""
+    monkeypatch.setenv("ARMOR_DISABLE_LLM", "true")
+
+
 class TestDaemonBootWithCanaryValues:
     """Tests for daemon boot with canary values injection. TC-015-05"""
 

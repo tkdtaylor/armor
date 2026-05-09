@@ -98,7 +98,7 @@ This document enumerates the trust boundaries, attacker capabilities, and defend
 
 ## Defended-Against Scenarios
 
-(Cross-references [discussion.md](../../discussion.md) attack taxonomy; see sections 1–6 for rationale.)
+(Cross-references the `discussion.md` attack taxonomy — operator-private, gitignored. See sections 1–6 for rationale.)
 
 ### P0: Direct Instruction Override
 

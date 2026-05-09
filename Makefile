@@ -1,4 +1,4 @@
-.PHONY: lint format typecheck test check eval sync demo fitness release-check help
+.PHONY: lint format typecheck test check eval sync demo fitness fitness-smoke fitness-full release-check help
 
 sync:
 	uv sync
@@ -25,6 +25,12 @@ check: lint typecheck test eval
 
 fitness:
 	@bash scripts/fitness.sh
+
+fitness-smoke:
+	@ARMOR_FITNESS_SELECTOR='smoke' bash scripts/fitness.sh
+
+fitness-full:
+	@ARMOR_FITNESS_SELECTOR='' bash scripts/fitness.sh
 
 demo:
 	@bash scripts/demo.sh
@@ -65,6 +71,8 @@ help:
 	@echo "  test           - Run tests"
 	@echo "  eval           - Run eval corpus tests"
 	@echo "  check          - Run lint + typecheck + test + eval"
-	@echo "  fitness        - Run fitness checks (architecture invariants)"
+	@echo "  fitness        - Run fitness checks (architecture invariants; default: skip slow checks)"
+	@echo "  fitness-smoke  - Run only @pytest.mark.smoke fitness checks (fast pre-push gate)"
+	@echo "  fitness-full   - Run all fitness checks including @pytest.mark.slow"
 	@echo "  demo           - Run end-to-end demo"
 	@echo "  release-check  - Pre-tag verification: check + fitness + demo + offline-smoke examples (set DOCKER=1 to add the Docker stage)"

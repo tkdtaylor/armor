@@ -1,90 +1,89 @@
-"""Tests for the session state machine transition coverage fitness check.
+"""Fitness check: session state machine transition coverage.
 
-TC-025-12: Every apply_signal-reachable transition appears in ≥1 corpus row
-TC-025-13: Failing fitness when a transition is uncovered
+Per ADR-024, every reachable transition of the session state machine must
+appear in at least one row of ``tests/eval/corpus/scenarios_multi_turn.yaml``.
+This guards against the multi-turn corpus drifting away from the state machine
+as new rungs or step-back edges are added.
+
+Spec markers:
+    TC-025-12 — every apply_signal-reachable transition appears in ≥1 corpus row.
+    TC-025-13 — failing fitness when a transition is uncovered.
 """
 
-import subprocess
-import sys
+from __future__ import annotations
+
+import importlib.util
 from pathlib import Path
 
+import pytest
 
-class TestTransitionCoverage:
-    """TC-025-12 & TC-025-13: Verify transition coverage fitness check."""
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
-    def test_transition_coverage_script_exists(self):
-        """Verify that the transition coverage script exists."""
-        script_path = Path(__file__).parent / "transition_coverage.py"
-        assert script_path.exists(), f"Transition coverage script not found at {script_path}"
 
-    def test_transition_coverage_runs_and_exits_clean(self):
-        """TC-025-12: Run the transition coverage check and verify it exits 0."""
-        script_path = Path(__file__).parent / "transition_coverage.py"
+def _load_corpus_loader():
+    """Import the corpus loader by file path (it lives outside any package)."""
+    loader_path = REPO_ROOT / "tests" / "eval" / "corpus" / "_loader.py"
+    spec = importlib.util.spec_from_file_location("corpus_loader", loader_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
 
-        # Should exit with 0 (all transitions covered)
-        assert result.returncode == 0, (
-            f"Transition coverage check failed with exit code {result.returncode}\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
+def _reachable_transitions() -> set[tuple[str, str]]:
+    """Return the set of state transitions reachable from ``apply_signal``.
 
-        # Output should mention "OK"
-        assert "OK" in result.stdout, f"Expected 'OK' in output, got:\n{result.stdout}"
+    Source: ADR-024 transition table.
+    """
+    return {
+        # Forward single-rung
+        ("Normal", "Watching"),
+        ("Watching", "Elevated"),
+        ("Elevated", "High"),
+        # Multi-rung forward (high-confidence advisories)
+        ("Normal", "Elevated"),
+        ("Normal", "High"),
+        ("Watching", "High"),
+        # Cooldown step-back (one rung per call)
+        ("Watching", "Normal"),
+        ("Elevated", "Watching"),
+        ("High", "Elevated"),
+        # Block jumps from any non-Blocked state
+        ("Normal", "Blocked"),
+        ("Watching", "Blocked"),
+        ("Elevated", "Blocked"),
+        ("High", "Blocked"),
+        # Blocked is sticky
+        ("Blocked", "Blocked"),
+    }
 
-    def test_transition_coverage_detects_missing_transitions(self):
-        """TC-025-13: Verify the script can detect uncovered transitions.
 
-        This test validates the failure reporting by checking that the script
-        can identify missing transitions (when they exist).
-        """
-        script_path = Path(__file__).parent / "transition_coverage.py"
+def _observed_transitions() -> set[tuple[str, str]]:
+    """Walk ``scenarios_multi_turn.yaml`` and collect ``(prev_state, post_state)`` pairs."""
+    loader = _load_corpus_loader()
+    rows = loader.load_corpus("scenarios_multi_turn")
 
-        # The script should be able to detect transitions
-        # We verify this by checking that it runs without error and produces output
-        result = subprocess.run(
-            [sys.executable, str(script_path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+    observed: set[tuple[str, str]] = set()
+    for row in rows:
+        if not row.is_multi_turn() or not row.turns:
+            continue
+        previous_state = "Normal"
+        for turn in row.turns:
+            current_state = turn.expected_session_state
+            observed.add((previous_state, current_state))
+            previous_state = current_state
+    return observed
 
-        # Either passes (all covered) or reports uncovered
-        assert result.returncode in [0, 1], f"Unexpected exit code: {result.returncode}"
 
-        # If it fails, it should report transitions and exit 1
-        if result.returncode == 1:
-            assert "Uncovered transitions" in result.stderr, (
-                "Expected 'Uncovered transitions' in error output when test fails"
-            )
-            # Should show transition arrows
-            assert "→" in result.stderr, "Expected transition arrows in output"
-
-    def test_transition_coverage_has_reachable_transitions_list(self):
-        """Verify that the script defines all reachable transitions.
-
-        This is a meta-test that validates the transition enumeration logic.
-        """
-        script_path = Path(__file__).parent / "transition_coverage.py"
-
-        # Read the script to verify it defines transitions
-        content = script_path.read_text()
-
-        # Should mention the key transitions
-        assert "Normal" in content
-        assert "Watching" in content
-        assert "Elevated" in content
-        assert "High" in content
-        assert "Blocked" in content
-
-        # Should mention cooldown step-back
-        assert "step-back" in content.lower() or "cooldown" in content.lower()
-
-        # Should have function to get transitions
-        assert "get_all_reachable_transitions" in content
+@pytest.mark.smoke
+def test_every_reachable_transition_is_exercised_by_corpus() -> None:
+    """TC-025-12 / TC-025-13: every reachable transition shows up in the multi-turn corpus."""
+    reachable = _reachable_transitions()
+    observed = _observed_transitions()
+    uncovered = reachable - observed
+    assert not uncovered, (
+        f"{len(uncovered)} reachable transition(s) absent from "
+        f"scenarios_multi_turn.yaml:\n  "
+        + "\n  ".join(f"{src} → {dst}" for src, dst in sorted(uncovered))
+        + f"\nObserved {len(observed)} / {len(reachable)} transitions."
+    )

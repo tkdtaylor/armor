@@ -22,7 +22,9 @@ class Detector(Protocol):
     Attributes:
         id: Unique detector identifier (e.g., "regex.instruction_override").
         category: Attack category (e.g., "direct_injection").
-        cost_tier: "static" (≤100ms) or "semantic" (≤500ms, uses LLM).
+        cost_tier: One of "static" (pure regex/parsing, ≤100ms),
+            "semantic" (local non-LLM ML like ONNX embeddings, ≤100ms budget),
+            or "llm" (local LLM inference, 500ms validator budget).
     """
 
     id: str

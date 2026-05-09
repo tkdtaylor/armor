@@ -37,6 +37,27 @@ def run_migrations(db_path: str) -> None:
         # Execute schema file (contains multiple statements)
         cursor.executescript(schema_sql)
 
+        # Migration v0.2: Add source_tool, chunk_index, chunk_metadata columns to Incident
+        # for check.fetched chunking (ADR-033, task 076).
+        # NOTE: Fresh installs from schema.sql already have these columns (task 089).
+        # This migration is idempotent and ensures v0.1 databases are upgraded to v0.2.
+        cursor.execute(
+            "PRAGMA table_info(Incident)",
+        )
+        columns = {row[1] for row in cursor.fetchall()}
+
+        if "source_tool" not in columns:
+            cursor.execute("ALTER TABLE Incident ADD COLUMN source_tool TEXT NULL")
+            logger.info("Added source_tool column to Incident")
+
+        if "chunk_index" not in columns:
+            cursor.execute("ALTER TABLE Incident ADD COLUMN chunk_index INTEGER NULL")
+            logger.info("Added chunk_index column to Incident")
+
+        if "chunk_metadata" not in columns:
+            cursor.execute("ALTER TABLE Incident ADD COLUMN chunk_metadata TEXT NULL")
+            logger.info("Added chunk_metadata column to Incident")
+
         conn.commit()
         logger.info(f"Migrations applied to {db_path}")
 

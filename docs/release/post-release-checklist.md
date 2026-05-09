@@ -57,7 +57,7 @@ In a **clean Python 3.12+ venv**:
   ```bash
   python -m venv /tmp/armor-test
   source /tmp/armor-test/bin/activate
-  pip install armor==<version>
+  pip install ai-armor==<version>
   ```
 
 - [ ] Verify the version:
@@ -108,7 +108,7 @@ In a **clean Python 3.12+ venv**:
   ```bash
   cat README.md | grep -A 10 "## Getting started"
   ```
-  Both the container path (`docker run ghcr.io/...`) and PyPI path (`pip install armor`) should be present.
+  Both the container path (`docker run ghcr.io/...`) and PyPI path (`pip install ai-armor`) should be present.
 
 - [ ] Verify examples are available in the wheel:
   ```bash

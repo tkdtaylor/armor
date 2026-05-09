@@ -14,14 +14,6 @@ from armor.types import Verdict
 
 logger = logging.getLogger(__name__)
 
-# Severity to risk score increment mapping
-SEVERITY_WEIGHTS = {
-    "low": 1,
-    "medium": 3,
-    "high": 5,
-    "critical": 10,
-}
-
 
 @dataclass
 class SessionRow:
@@ -165,56 +157,6 @@ class SessionStore:
             await asyncio.to_thread(self._persist_to_db, row)
 
             return (new_state.value, new_score)
-
-    async def update_after_check(self, session_id: str, verdict: Verdict) -> None:
-        """Update session after a check (legacy method for forensic logging).
-
-        This method is kept for backward compatibility. New code should use
-        apply_and_persist() instead to also update session state via the FSM.
-
-        Args:
-            session_id: The session ID.
-            verdict: The verdict from the check.
-        """
-        if session_id not in self._locks:
-            self._locks[session_id] = asyncio.Lock()
-
-        async with self._locks[session_id]:
-            # Get or create session
-            if session_id in self._cache:
-                row = self._cache[session_id]
-            else:
-                row = await asyncio.to_thread(self._load_or_create_from_db, session_id)
-                self._cache[session_id] = row
-                self._update_lru(session_id)
-
-            # Update turn count
-            row.turn_count += 1
-
-            # Update last_seen_at
-            row.last_seen_at = time.strftime("%Y-%m-%d %H:%M:%S")
-
-            # Add signal to history
-            if verdict.signal_id:
-                signal = {
-                    "ts": time.time(),
-                    "kind": verdict.signal_id.split(":")[0],  # Category before colon
-                    "signal_id": verdict.signal_id,
-                    "severity": verdict.severity,
-                }
-                row.signal_history.append(signal)
-
-                # Keep only last 50 signals
-                if len(row.signal_history) > 50:
-                    row.signal_history = row.signal_history[-50:]
-
-            # Update risk score on block (monotone non-decreasing)
-            if verdict.blocked:
-                increment = SEVERITY_WEIGHTS.get(verdict.severity, 1)
-                row.risk_score = min(100, row.risk_score + increment)
-
-            # Persist to DB
-            await asyncio.to_thread(self._persist_to_db, row)
 
     async def close_session(self, session_id: str) -> None:
         """Mark a session as closed.

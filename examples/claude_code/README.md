@@ -11,13 +11,14 @@ mkdir -p .claude
 cp /path/to/armor/examples/claude_code/settings.json .claude/settings.json
 ```
 
-The four hooks fire at four lifecycle points:
+The five hooks fire at four lifecycle points (PostToolUse has two entries with different tool matchers):
 
 | Hook | Fires when | What armor checks | Defends against |
 |---|---|---|---|
 | `UserPromptSubmit` | user submits a prompt | the user's text | direct injection, jailbreak templates, encoding-request patterns, instruction-override |
 | `PreToolUse` | model decides to invoke a tool | the tool name + parameters | parameter tampering, dangerous bash commands (`rm -rf /`, `curl https://…`), schema violations |
-| `PostToolUse` | tool execution finishes | the tool output (which becomes model input on the next turn) | exfiltration via canary tokens in tool output, encoded payloads, partial-canary aggregation across turns |
+| `PostToolUse` (read-tool matcher) | read-style tools finish (`Read`, `WebFetch`, `Grep`, `Glob`, MCP readers) | the retrieved content | indirect injection in tool results (B-017) |
+| `PostToolUse` (generic matcher) | any other tool finishes | the tool output (which becomes model input on the next turn) | exfiltration via canary tokens in tool output, encoded payloads, partial-canary aggregation across turns |
 | `Stop` | the session ends | (no check — flushes per-session state) | persists rolling-buffer + risk score so the next session starts cleanly |
 
 If any check returns a block verdict, Claude Code halts at that lifecycle point and the user sees a safe error message — never the offending payload.

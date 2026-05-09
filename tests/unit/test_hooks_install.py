@@ -11,7 +11,7 @@ class TestHooksInstaller:
     """Tests for the hooks installer function."""
 
     def test_install_hooks_creates_file_with_hooks(self) -> None:
-        """Test that install_hooks creates a file with all four hooks."""
+        """Test that install_hooks creates a file with five hooks (PostToolUse split into two matchers)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = os.path.join(tmpdir, "settings.json")
 
@@ -27,37 +27,21 @@ class TestHooksInstaller:
 
             assert "hooks" in data
             hooks = data["hooks"]
-            assert len(hooks) == 4
+            # Should have 5 hooks: UserPromptSubmit, PreToolUse, PostToolUse (2), Stop
+            assert isinstance(hooks, dict), "hooks should be a dict organized by event"
+            assert set(hooks.keys()) == {"UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"}
 
-            # Verify all four hooks are present
-            hook_names = {h["name"] for h in hooks}
-            assert hook_names == {
-                "armor-check-input",
-                "armor-check-output",
-                "armor-check-tool",
-                "armor-session-close",
-            }
-
-            # Verify hooks have correct structure
-            for hook in hooks:
-                assert "name" in hook
-                assert "event" in hook
-                assert "handler" in hook
+            # PostToolUse should have 2 entries (one with matcher, one without)
+            assert len(hooks["PostToolUse"]) == 2
 
     def test_install_hooks_adds_to_existing_hooks(self) -> None:
-        """Test that install_hooks adds armor hooks to existing hooks."""
+        """Test that install_hooks handles existing non-armor hooks."""
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = os.path.join(tmpdir, "settings.json")
 
-            # Create existing settings with a different hook
+            # Create existing settings with a different hook event
             existing_data = {
-                "hooks": [
-                    {
-                        "name": "existing-hook",
-                        "event": "CustomEvent",
-                        "handler": "existing command",
-                    }
-                ]
+                "hooks": {"CustomEvent": [{"hooks": [{"type": "command", "command": "existing command"}]}]}
             }
 
             with open(settings_path, "w") as f:
@@ -72,11 +56,9 @@ class TestHooksInstaller:
                 data = json.load(f)
 
             hooks = data["hooks"]
-            assert len(hooks) == 5
-
-            hook_names = {h["name"] for h in hooks}
-            assert "existing-hook" in hook_names
-            assert "armor-check-input" in hook_names
+            assert "CustomEvent" in hooks
+            user_prompt_cmd = hooks["UserPromptSubmit"][0]["hooks"][0]["command"]
+            assert "armor check input" in user_prompt_cmd
 
     def test_install_hooks_idempotent_no_duplicates(self) -> None:
         """Test that running install twice doesn't create duplicates."""
@@ -87,36 +69,41 @@ class TestHooksInstaller:
             result1 = _install_hooks(settings_path)
             assert result1 == 0
 
-            # Get first count
+            # Get first content
             with open(settings_path) as f:
                 data1 = json.load(f)
-            first_count = len(data1["hooks"])
+            first_content = json.dumps(data1, sort_keys=True)
 
             # Second install
             result2 = _install_hooks(settings_path)
             assert result2 == 0
 
-            # Verify no new hooks added
+            # Verify identical
             with open(settings_path) as f:
                 data2 = json.load(f)
-            second_count = len(data2["hooks"])
+            second_content = json.dumps(data2, sort_keys=True)
 
-            assert first_count == second_count == 4
+            assert first_content == second_content
 
     def test_install_hooks_updates_existing_armor_hooks(self) -> None:
         """Test that re-installing updates existing armor hooks."""
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = os.path.join(tmpdir, "settings.json")
 
-            # Create settings with old armor hook (different handler)
+            # Create settings with old-format armor hook
             old_data = {
-                "hooks": [
-                    {
-                        "name": "armor-check-input",
-                        "event": "UserPromptSubmit",
-                        "handler": "old command",
-                    }
-                ]
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "old command",
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
 
             with open(settings_path, "w") as f:
@@ -130,10 +117,10 @@ class TestHooksInstaller:
             with open(settings_path) as f:
                 data = json.load(f)
 
-            armor_input_hooks = [h for h in data["hooks"] if h["name"] == "armor-check-input"]
-            assert len(armor_input_hooks) == 1
-            assert "old command" not in armor_input_hooks[0]["handler"]
-            assert "--hook-mode" in armor_input_hooks[0]["handler"]
+            user_prompt_hooks = data["hooks"]["UserPromptSubmit"]
+            hook_cmd = user_prompt_hooks[0]["hooks"][0]["command"]
+            assert "armor check input" in hook_cmd
+            assert "--hook-mode" in hook_cmd
 
     def test_install_hooks_creates_parent_directory_not_needed(self) -> None:
         """Test that install_hooks works with existing directory."""
@@ -175,7 +162,7 @@ class TestHooksInstaller:
 
             # Create settings with other config
             existing_data = {
-                "hooks": [],
+                "hooks": {},
                 "other_setting": "value",
                 "nested": {"key": "value"},
             }
@@ -193,7 +180,7 @@ class TestHooksInstaller:
 
             assert data["other_setting"] == "value"
             assert data["nested"]["key"] == "value"
-            assert len(data["hooks"]) == 4
+            assert "hooks" in data
 
     def test_install_hooks_hook_handlers_have_hook_mode(self) -> None:
         """Test that installed hook handlers include --hook-mode flag."""
@@ -207,11 +194,11 @@ class TestHooksInstaller:
                 data = json.load(f)
 
             # Find check input hook
-            input_hook = next(h for h in data["hooks"] if h["name"] == "armor-check-input")
-            assert "--hook-mode" in input_hook["handler"]
-            assert "armor check input" in input_hook["handler"]
-            assert "--session-id" in input_hook["handler"]
-            assert "$CLAUDE_SESSION_ID" in input_hook["handler"]
+            user_prompt_hooks = data["hooks"]["UserPromptSubmit"]
+            hook_cmd = user_prompt_hooks[0]["hooks"][0]["command"]
+            assert "--hook-mode" in hook_cmd
+            assert "armor check input" in hook_cmd
+            assert "--session-id" in hook_cmd
 
     def test_install_hooks_malformed_json_error(self) -> None:
         """Test that install_hooks returns error on malformed JSON."""
@@ -245,7 +232,7 @@ class TestHooksInstaller:
             assert content == original_content
 
     def test_install_hooks_event_mappings(self) -> None:
-        """Test that hooks have correct event mappings per spec."""
+        """Test that hooks have correct event mappings per spec (B-017)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = os.path.join(tmpdir, "settings.json")
 
@@ -255,10 +242,25 @@ class TestHooksInstaller:
             with open(settings_path) as f:
                 data = json.load(f)
 
-            hooks_by_name = {h["name"]: h for h in data["hooks"]}
+            hooks = data["hooks"]
 
-            # Verify event mappings per spec
-            assert hooks_by_name["armor-check-input"]["event"] == "UserPromptSubmit"
-            assert hooks_by_name["armor-check-output"]["event"] == "PreToolUse"
-            assert hooks_by_name["armor-check-tool"]["event"] == "PostToolUse"
-            assert hooks_by_name["armor-session-close"]["event"] == "Stop"
+            # Verify event structure
+            assert "UserPromptSubmit" in hooks
+            assert "PreToolUse" in hooks
+            assert "PostToolUse" in hooks
+            assert "Stop" in hooks
+
+            # Verify UserPromptSubmit has "armor check input"
+            user_prompt_cmd = hooks["UserPromptSubmit"][0]["hooks"][0]["command"]
+            assert "armor check input" in user_prompt_cmd
+
+            # Verify PreToolUse has "armor check tool"
+            pre_tool_cmd = hooks["PreToolUse"][0]["hooks"][0]["command"]
+            assert "armor check tool" in pre_tool_cmd
+
+            # Verify PostToolUse has two entries
+            assert len(hooks["PostToolUse"]) == 2
+
+            # Verify Stop has "armor session close"
+            stop_cmd = hooks["Stop"][0]["hooks"][0]["command"]
+            assert "armor session close" in stop_cmd

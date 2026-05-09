@@ -44,8 +44,9 @@ def catalogue():
 
 
 @pytest.fixture
-def daemon_server(temp_dir, catalogue):
+def daemon_server(temp_dir, catalogue, monkeypatch):
     """Create a daemon server with temporary paths."""
+    monkeypatch.setenv("ARMOR_DISABLE_LLM", "true")
     socket_path = str(Path(temp_dir) / "test.sock")
     db_path = str(Path(temp_dir) / "test.db")
     key_path = str(Path(temp_dir) / ".key")

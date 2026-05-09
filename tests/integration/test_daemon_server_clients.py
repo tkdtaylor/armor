@@ -10,6 +10,7 @@ Reference: ADR-013 (subprocess-based daemon integration tests)
 
 import asyncio
 import json
+import os
 import socket
 import subprocess
 import tempfile
@@ -39,6 +40,7 @@ def start_daemon(socket_path: str, db_path: str, timeout: float = 10.0) -> subpr
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env={**os.environ, "ARMOR_DISABLE_LLM": "true"},
     )
 
     # Wait for socket to be created
@@ -195,6 +197,7 @@ class TestDaemonServerClients:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env={**os.environ, "ARMOR_DISABLE_LLM": "true"},
         )
 
         # Wait for socket

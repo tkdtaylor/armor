@@ -10,7 +10,12 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    from armor.canaries.catalogue import CanaryEntry
     from armor.session.rolling_buffer import RollingBuffer
+    from armor.session.state_machine import SessionState
+
+# Cost tier for detector budget allocation
+CostTier = Literal["static", "semantic", "llm"]
 
 
 class Decision(StrEnum):
@@ -210,20 +215,47 @@ class SessionContext:
     Attributes:
         session_id: Unique session identifier.
         signal_history: Rolling history of signals (list of Signal objects).
-        state: Session state level (v0.3 placeholder; task 022 will populate with enum).
-               "elevated" enables honeypot invocation. None (default) disables it.
+        state: Session state enum level per FSM (SessionState.NORMAL, WATCHING, ELEVATED, HIGH, BLOCKED).
+               Used for gating detector cost tiers and honeypot invocation (see ADR-024, B-011).
+               None (default) is equivalent to NORMAL. Type-narrowed to SessionState | None
+               to enforce compile-time type safety.
         rolling_buffer: Multi-turn rolling buffer for exfiltration detection across turns.
                         See ADR-025. None if not initialized.
         turn_count: Number of turns in this session (increments on each check).
                    Used for activation rules like session_turn_min. Inferred from
                    signal_history length if not set explicitly. (Per ADR-038.)
+        active_canaries: List of canary entries active for this session per ADR-038.
+                        Subset of the full catalogue based on activation rules.
     """
 
     session_id: str
     signal_history: list[Signal] = field(default_factory=list)
-    state: str | None = None
+    state: SessionState | None = None
     rolling_buffer: RollingBuffer | None = None
     turn_count: int = 0
+    active_canaries: list[CanaryEntry] = field(default_factory=list)
+
+    @classmethod
+    def empty(cls, session_id: str) -> SessionContext:
+        """Create an empty SessionContext for backward-compatible test construction.
+
+        Returns a context with all fields zero/empty for use in tests that
+        construct SessionContext directly.
+
+        Args:
+            session_id: The session ID for the context.
+
+        Returns:
+            SessionContext with empty defaults.
+        """
+        return cls(
+            session_id=session_id,
+            signal_history=[],
+            state=None,
+            rolling_buffer=None,
+            turn_count=0,
+            active_canaries=[],
+        )
 
 
 @dataclass

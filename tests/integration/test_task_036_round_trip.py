@@ -18,6 +18,7 @@ Spec markers covered:
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sqlite3
 import subprocess
@@ -46,6 +47,7 @@ def _start_daemon(socket_path: str, db_path: str, timeout: float = 15.0) -> subp
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env={**os.environ, "ARMOR_DISABLE_LLM": "true"},
     )
     deadline = time.time() + timeout
     while time.time() < deadline:

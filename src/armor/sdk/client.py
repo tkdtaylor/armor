@@ -159,6 +159,50 @@ class ArmorClient:
         )
         return self._parse_verdict(response)
 
+    def check_fetched(
+        self,
+        text: str,
+        source_tool: str,
+        session_id: str | None = None,
+    ) -> Verdict:
+        """Check a tool-call result for indirect injection signals.
+
+        Analyzes the result text from a tool execution (e.g., from Read,
+        WebFetch, or similar) for prompt injection attempts embedded in
+        the tool's output. This is the post-tool-use counterpart to
+        check_input and helps detect indirect injection attacks where
+        untrusted tool results contain malicious instructions.
+
+        Parameters:
+            text (str): The tool-call result text to check.
+            source_tool (str): The name of the tool that returned this result
+                (e.g., "Read", "WebFetch", "WebSearch"). Required.
+            session_id (str | None): Session identifier for correlating
+                multi-turn checks.
+
+        Returns:
+            Verdict: The security verdict.
+
+        Raises:
+            DaemonUnreachableError: If the daemon socket is unreachable.
+            TypeError: If source_tool is not provided or is None.
+
+        Example:
+            >>> result = web_fetch("https://example.com")
+            >>> verdict = client.check_fetched(result, source_tool="WebFetch")
+            >>> if verdict.blocked:
+            ...     return safe_response()
+        """
+        if source_tool is None:
+            raise TypeError("source_tool is required and cannot be None")
+
+        response = self._transport.request(
+            "check.fetched",
+            payload={"text": text, "source_tool": source_tool},
+            session_id=session_id,
+        )
+        return self._parse_verdict(response)
+
     def health(self) -> HealthReport:
         """Get the health status of the armor daemon.
 
@@ -368,3 +412,15 @@ class SessionContext:
             Verdict: The security verdict.
         """
         return self.client.check_tool_call(tool, params=params, session_id=self.session_id)
+
+    def check_fetched(self, text: str, source_tool: str) -> Verdict:
+        """Check a tool-call result with the bound session_id.
+
+        Parameters:
+            text (str): The tool-call result text.
+            source_tool (str): The tool that returned this result.
+
+        Returns:
+            Verdict: The security verdict.
+        """
+        return self.client.check_fetched(text, source_tool=source_tool, session_id=self.session_id)

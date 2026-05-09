@@ -217,7 +217,7 @@ Operators can tune the budgets per hardware:
 
 - Unit test: `tests/unit/llm/test_soft_fail.py` — mock slow LLM, assert timeout and advisory return.
 - Integration test: `tests/integration/test_soft_fail.py` — full pipeline with slow model, assert verdict is advisory and session state unchanged.
-- Fitness test: `tests/fitness/llm_p95_latency.py` — real model latency on corpus; fails if P95 exceeds budget.
+- Fitness test: `tests/fitness/test_llm_p95_latency.py` (helpers in `tests/fitness/_llm_p95_helpers.py`) — real model latency on corpus; fails if P95 exceeds budget.
 - Eval test: `tests/eval/test_corpus.py ARMOR_DISABLE_LLM=true` — static-only sufficiency.
 
 ## Deferred / Non-goals for v0.3
@@ -262,7 +262,7 @@ Per-path budgets cleanly map to the empirical reality: the validator is fast (48
 **Code and configuration changes:**
 - `src/armor/llm/loader.py:18`: `honeypot_budget_ms: int = 16000`
 - `src/armor/llm/honeypot.py:143,145`: Fallback defaults updated to 16000
-- `tests/fitness/llm_p95_latency.py`: `HONEYPOT_BUDGET_MS = 16000`
+- `tests/fitness/_llm_p95_helpers.py`: `HONEYPOT_BUDGET_MS = 16000`
 
 **CI promotion:**
 - `.github/workflows/ci.yml`: Remove `continue-on-error: true` from the `make-fitness` job, promoting fitness checks to blocking (critical path).

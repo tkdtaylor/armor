@@ -123,7 +123,7 @@ This ensures the detector degrades gracefully when the LLM is unavailable or mis
    - Static-only: `ARMOR_DISABLE_LLM=true`, checks `static_only_expected` verdicts.
    - With-LLM: Full harness with mocked LLM, checks `with_llm_expected` verdicts.
 
-6. **Fitness function:** `tests/fitness/jailbreak_counts.py` asserts family counts and TP/TN minimums.
+6. **Fitness function:** `tests/fitness/test_jailbreak_counts.py` asserts family counts and TP/TN minimums.
 
 7. **Spec updates:**
    - New behavior `B-NNN` in `docs/spec/behaviors.md` (jailbreak detection, families, hybrid escalation).
@@ -165,5 +165,5 @@ This ensures the detector degrades gracefully when the LLM is unavailable or mis
 - **Status:** Accepted
 - **Task:** 020
 - **Implementation:** `src/armor/detectors/jailbreak_template.py`, `src/armor/detectors/jailbreak_patterns.yaml`
-- **Tests:** `tests/unit/detectors/test_jailbreak_template.py`, `tests/eval/corpus/jailbreak.yaml`, `tests/fitness/jailbreak_counts.py`
+- **Tests:** `tests/unit/detectors/test_jailbreak_template.py`, `tests/eval/corpus/jailbreak.yaml`, `tests/fitness/test_jailbreak_counts.py`
 - **Spec:** `docs/spec/behaviors.md`, `docs/spec/data-model.md`, `docs/spec/fitness-functions.md`

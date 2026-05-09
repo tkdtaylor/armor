@@ -30,7 +30,10 @@ CREATE TABLE IF NOT EXISTS Incident (
     encoding_flag BOOLEAN DEFAULT 0,
     risk_score INTEGER DEFAULT 0,
     action TEXT DEFAULT 'blocked' CHECK(action IN ('blocked', 'advisory_only', 'passed_with_warning')),
-    quarantine_id INTEGER REFERENCES QuarantinedPayload(id)
+    quarantine_id INTEGER REFERENCES QuarantinedPayload(id),
+    source_tool TEXT NULL,
+    chunk_index INTEGER NULL,
+    chunk_metadata TEXT NULL
 );
 
 -- Indices on Incident for common queries

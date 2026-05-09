@@ -8,14 +8,14 @@
 
 ## Context
 
-The daemon currently logs via the Python `logging` module with a JSON formatter (`src/armor/daemon/logging.py`). As the operator-facing surface matures (task 028 — Operator UX), we need a stable, machine-parseable log schema that allows operators to:
+The daemon currently logs via the Python `logging` module with a JSON formatter (`src/armor/logging.py`). As the operator-facing surface matures (task 028 — Operator UX), we need a stable, machine-parseable log schema that allows operators to:
 
 1. Filter and tail logs programmatically
 2. Export to SIEM / observability systems
 3. Correlate logs with operator actions (e.g., manual unblock via `armor sessions unblock`)
 4. Audit changes to session state
 
-The current JSON formatter in `daemon/logging.py` produces output with `timestamp`, `level`, `message`, and `logger` fields, but lacks the domain-specific fields needed for operator visibility (session_id, request_id, decision, latency, etc.).
+The current JSON formatter in `armor/logging.py` produces output with `timestamp`, `level`, `message`, and `logger` fields, but lacks the domain-specific fields needed for operator visibility (session_id, request_id, decision, latency, etc.).
 
 ## Decision
 

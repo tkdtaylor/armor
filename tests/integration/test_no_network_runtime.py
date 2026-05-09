@@ -14,6 +14,7 @@ Reference: TC-027-08, ADR-001 (no outbound network calls from daemon)
 """
 
 import json
+import os
 import socket
 import subprocess
 import tempfile
@@ -76,6 +77,7 @@ def start_daemon_no_network(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env={**os.environ, "ARMOR_DISABLE_LLM": "true"},
     )
 
     # Wait for socket to be created
@@ -102,6 +104,7 @@ def start_daemon_no_network(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env={**os.environ, "ARMOR_DISABLE_LLM": "true"},
         )
 
         # Wait again

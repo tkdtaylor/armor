@@ -61,7 +61,7 @@ Answered 2026-05-07.
 3. `docs/spec/behaviors.md` B-006 is rewritten — the "Recursive decode is not supported" sentence is removed; the bounded-recursion contract replaces it.
 4. New corpus rows under `tests/eval/corpus/exfiltration.yaml` family `multi_layer_encoding`: `b64(hex(canary))`, `hex(b64(canary))`, `urlencode(b64(canary))`, plus FP rows (`b64(b64(b64(benign)))` produces low-entropy intermediate at some depth and must not block).
 5. Updated forensic-record schema: `details["decode_chain"]` is a new optional field.
-6. **Latency regression target:** the existing `tests/fitness/llm_p95_latency.py` framework gains a per-detector budget assertion for `entropy.decode_rescan`, capping P95 at 30 ms.
+6. **Latency regression target:** the existing `tests/fitness/test_llm_p95_latency.py` framework (helpers in `tests/fitness/_llm_p95_helpers.py`) gains a per-detector budget assertion for `entropy.decode_rescan`, capping P95 at 30 ms.
 
 ## See also
 

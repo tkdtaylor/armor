@@ -22,6 +22,7 @@ from armor.canaries.scanner import CanaryScanner
 from armor.daemon.honeypot_gate import should_invoke_honeypot
 from armor.detectors.canary_scanner import CanaryScannerDetector
 from armor.llm.honeypot import respond
+from armor.session.state_machine import SessionState
 from armor.types import Payload, SessionContext, Verdict
 
 
@@ -30,7 +31,7 @@ class TestHoneypotChainIntegration:
 
     def test_gate_returns_true_when_conditions_met(self) -> None:
         """TC-019-11: Gate returns True when session elevated AND injection detected."""
-        ctx = SessionContext(session_id="test", state="elevated")
+        ctx = SessionContext(session_id="test", state=SessionState.ELEVATED)
         verdict = Verdict.block_verdict(
             signal_id="regex.instruction_override:override-001",
             message="Injection detected",
@@ -42,7 +43,7 @@ class TestHoneypotChainIntegration:
 
     def test_gate_returns_false_without_elevation(self) -> None:
         """TC-019-11: Gate returns False when session not elevated."""
-        ctx = SessionContext(session_id="test", state="normal")
+        ctx = SessionContext(session_id="test", state=SessionState.NORMAL)
         verdict = Verdict.block_verdict(
             signal_id="regex.instruction_override:override-001",
             message="Injection detected",
@@ -54,7 +55,7 @@ class TestHoneypotChainIntegration:
 
     def test_gate_returns_false_without_injection_signal(self) -> None:
         """TC-019-11: Gate returns False when injection not detected."""
-        ctx = SessionContext(session_id="test", state="elevated")
+        ctx = SessionContext(session_id="test", state=SessionState.ELEVATED)
         verdict = Verdict.pass_verdict(message="All checks passed")
 
         result = should_invoke_honeypot(ctx, verdict)
@@ -67,7 +68,7 @@ class TestHoneypotChainIntegration:
         This tests that the honeypot can generate a response with a canary value
         embedded in it, which downstream detectors (e.g., canary scanner) can detect.
         """
-        ctx = SessionContext(session_id="test-session", state="elevated")
+        ctx = SessionContext(session_id="test-session", state=SessionState.ELEVATED)
         entries = [
             CanaryEntry(
                 canary_id="aws-key-001",
@@ -105,7 +106,7 @@ class TestHoneypotChainIntegration:
         2. Canary scanner detects the value
         3. Verdict is block with canary.scanner:aws-key-001 signal
         """
-        ctx = SessionContext(session_id="test-session", state="elevated")
+        ctx = SessionContext(session_id="test-session", state=SessionState.ELEVATED)
         entries = [
             CanaryEntry(
                 canary_id="aws-key-001",
@@ -149,7 +150,7 @@ class TestHoneypotChainIntegration:
 
     def test_honeypot_chain_github_canary(self) -> None:
         """TC-019-13: End-to-end chain with GitHub PAT canary."""
-        ctx = SessionContext(session_id="test-session", state="elevated")
+        ctx = SessionContext(session_id="test-session", state=SessionState.ELEVATED)
         entries = [
             CanaryEntry(
                 canary_id="github-pat-001",
@@ -195,7 +196,7 @@ class TestHoneypotChainIntegration:
 
     def test_honeypot_chain_stripe_canary(self) -> None:
         """TC-019-13: End-to-end chain with Stripe key canary."""
-        ctx = SessionContext(session_id="test-session", state="elevated")
+        ctx = SessionContext(session_id="test-session", state=SessionState.ELEVATED)
         entries = [
             CanaryEntry(
                 canary_id="stripe-key-001",

@@ -1,7 +1,7 @@
 # Data Model
 
 **Project:** armor
-**Last updated:** 2026-05-06
+**Last updated:** 2026-05-08
 
 What data exists, how it's structured, where it lives, and what relationships hold between entities.
 
@@ -44,7 +44,7 @@ field             type        notes
 id                integer     PK autoinc
 ts                timestamp   UTC
 session_id        text        FK Session.session_id (nullable for boot-time errors)
-attack_category   text        e.g. "direct_injection", "exfiltration", "tool_abuse"
+attack_category   text        e.g. "direct_injection", "indirect_injection.<vector>", "exfiltration", "tool_abuse"
 signal_id         text        which detector + which rule fired (e.g. "regex.instruction_override:override-001", "cmd_injection.bash:fs-rm-rf-root")
 input_hash        text        sha256 of input
 output_hash       text        sha256 of output (nullable for input-side blocks)
@@ -54,11 +54,15 @@ encoding_flag     boolean     true if the block was triggered by the `entropy.de
 risk_score        integer     session risk score at time of block
 action            text        "blocked" | "advisory_only" | "passed_with_warning"
 quarantine_id     integer     FK QuarantinedPayload.id (nullable)
+source_tool       text        for check.fetched blocks, the source tool name (e.g. "WebFetch"); nullable for other sources
+chunk_index       integer     for check.fetched with 4 KB chunking, the 0-based chunk index that produced the verdict; nullable if no chunking
+chunk_metadata    blob (json) for check.fetched with chunking, a dict with keys: additional_chunks (list[int]): indices that were checked but passed or skipped due to early termination; chunks_skipped (list[int]): indices beyond the hard cap (16 chunks) that were not processed
 ```
 
 - **Lifecycle:** Append-only. Never updated. Never deleted.
 - **Indexes:** `(session_id, ts)`, `(attack_category, ts)`.
 - **Destinations note:** The `destinations` field is populated by the `extractor.destinations` detector (task 011) for exfiltration category checks. It stores hostnames only (no paths, queries, fragments, ports, or email local-parts). Always included in forensic records for audit trail, even if the verdict is `pass` (all whitelisted) or `advisory`.
+- **Fetched-specific columns (task 076):** For `check.fetched` operations, `source_tool` records the origin tool name (enables operator filtering by tool). `chunk_index` and `chunk_metadata` persist the chunking strategy: `chunk_index` identifies the winning chunk (0-based), and `chunk_metadata` describes chunks that were not run for verdict (either due to early termination after the first hit, or because the hard cap of 16 chunks was reached). For payloads ≤ 4096 bytes, chunking does not activate and these fields remain NULL. The `chunk_metadata` JSON is never populated with raw chunk text — only with index lists and must be redacted of any canary values.
 
 #### Entity: `QuarantinedPayload`
 
@@ -140,7 +144,7 @@ activation     object (optional) dict defining when the canary is active (per AD
 - Per-installation isolation: Each deployment generates its own values; no value is shared across installations.
 - Full catalogue immutable: The full catalogue is fixed at daemon boot. The active subset per-check varies by context.
 - Forensic safety: Forensic log references `canary_id`, never `value`. The values file itself is never logged or transmitted outside the daemon process.
-- Value isolation: Canary values are read only by the honeypot path (`src/armor/llm/honeypot.py`). The validator LLM (`src/armor/llm/validator.py`) never accesses `catalogue.values()` or reads the `value` field (enforced by fitness function `tests/fitness/validator_no_value_access.py`).
+- Value isolation: Canary values are read only by the honeypot path (`src/armor/llm/honeypot.py`). The validator LLM (`src/armor/llm/validator.py`) never accesses `catalogue.values()` or reads the `value` field (enforced by fitness function `tests/fitness/test_validator_no_value_access.py`).
 - Value transit: Canary values flow from the in-memory catalogue → honeypot.py (with active subset) → prompt substitution → LLM context window (volatile). Values never appear in prompt template files (only placeholders like `{{canary:id}}`), never in forensic logs, never in the validator path.
 - Activation consistency: For any session, an activated-then-deactivated canary, if reactivated, produces the same value (no regeneration mid-session). Enforced by fitness function `tests/fitness/test_canary_activation_consistency.py`.
 - Identity:** `canary_id`. Stable across catalogue rotations and installations.
@@ -252,7 +256,7 @@ TOOL_RESULT_UNTRUSTED  = "tool_result_untrusted"  # Tool result from external so
   "v": 1,
   "op": "check.input" | "check.output" | "check.tool" | "check.fetched" | "session.close" |
         "canary.list" | "config.show" |
-        "incidents.list" | "incidents.show" | "incidents.tail" | "incident.get" |
+        "incidents.list" | "incidents.show" | "incidents.tail" | "incidents.export" | "incident.get" |
         "sessions.list" | "sessions.show" | "sessions.unblock" |
         "health.full",
   "session_id": "claude-code-12345-abc",
@@ -299,6 +303,7 @@ TOOL_RESULT_UNTRUSTED  = "tool_result_untrusted"  # Tool result from external so
 | `config.show` | `{ "section": "pipeline.exempt" \| "pipeline.source_multipliers", "json"?: bool }` | `{ "verdict": "pass", "config": {...} }` (TOML format or JSON if `json=true`) |
 | `incidents.list` / `incidents.tail` | `{ "limit"?: 50, "session_id"?: str, "category"?: glob, "since_id"?: int }` | `{ "verdict": "pass", "incidents": [<incident row>...] }` |
 | `incidents.show` | `{ "incident_id": int\|str }` | `{ "verdict": "pass", "incident": <row>\|null }` |
+| `incidents.export` | `{ "since"?: str, "session_id"?: str, "severity"?: str }` | `{ "verdict": "pass", "incidents": [<incident row>...] }` (NDJSON framing applied client-side by `armor incidents export`) |
 | `incident.get` | `{ "id": int\|str }` | `{ "verdict": "pass", "incident": <row>\|null }` (SDK form) |
 | `sessions.list` | `{ "state"?: str }` | `{ "verdict": "pass", "sessions": [<session row>...] }` |
 | `sessions.show` | `{ "session_id": str }` | `{ "verdict": "pass", "session": <row>\|null }` |

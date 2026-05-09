@@ -6,6 +6,7 @@ from armor.canaries.activation import (
     evaluate,
     hash_canary_id,
 )
+from armor.session.state_machine import SessionState
 from armor.types import SessionContext, Signal
 
 
@@ -143,7 +144,7 @@ class TestActivationRuleEvaluation:
     def test_fsm_state_at_least_with_no_history(self):
         """Test fsm_state_at_least with no state history."""
         rule = {"type": "fsm_state_at_least", "state": "Watching"}
-        ctx = SessionContext(session_id="test", state="Normal")
+        ctx = SessionContext(session_id="test", state=SessionState.NORMAL)
         now = datetime.now(UTC)
 
         assert evaluate(rule, ctx, now) is False
@@ -151,7 +152,7 @@ class TestActivationRuleEvaluation:
     def test_fsm_state_at_least_with_matching_state(self):
         """Test fsm_state_at_least when current state matches."""
         rule = {"type": "fsm_state_at_least", "state": "Watching"}
-        ctx = SessionContext(session_id="test", state="Watching")
+        ctx = SessionContext(session_id="test", state=SessionState.WATCHING)
         now = datetime.now(UTC)
 
         assert evaluate(rule, ctx, now) is True
@@ -159,7 +160,7 @@ class TestActivationRuleEvaluation:
     def test_fsm_state_at_least_with_elevated_state(self):
         """Test fsm_state_at_least when current state is above threshold."""
         rule = {"type": "fsm_state_at_least", "state": "Watching"}
-        ctx = SessionContext(session_id="test", state="Elevated")
+        ctx = SessionContext(session_id="test", state=SessionState.ELEVATED)
         now = datetime.now(UTC)
 
         assert evaluate(rule, ctx, now) is True
@@ -167,7 +168,7 @@ class TestActivationRuleEvaluation:
     def test_fsm_state_at_least_missing_state_field(self):
         """Test fsm_state_at_least without 'state' field."""
         rule = {"type": "fsm_state_at_least"}
-        ctx = SessionContext(session_id="test", state="Normal")
+        ctx = SessionContext(session_id="test", state=SessionState.NORMAL)
         now = datetime.now(UTC)
 
         assert evaluate(rule, ctx, now) is False
@@ -175,7 +176,7 @@ class TestActivationRuleEvaluation:
     def test_fsm_state_at_least_unknown_state(self):
         """Test fsm_state_at_least with unknown state name."""
         rule = {"type": "fsm_state_at_least", "state": "UnknownState"}
-        ctx = SessionContext(session_id="test", state="Normal")
+        ctx = SessionContext(session_id="test", state=SessionState.NORMAL)
         now = datetime.now(UTC)
 
         assert evaluate(rule, ctx, now) is False
