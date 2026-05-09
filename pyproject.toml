@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "armor-ai"
-version = "0.9.1"
+version = "0.9.2"
 description = "A defense-in-depth security layer for LLM agents"
-readme = "README.md"
+readme = {file = "README_PYPI.md", content-type = "text/markdown"}
 requires-python = ">=3.12"
 license = {text = "PolyForm Noncommercial License 1.0.0"}
 authors = [{name = "Kevin Taylor", email = "tools@taylorguard.me"}]
@@ -86,6 +86,7 @@ packages = ["src/armor"]
 include = [
     "src/armor",
     "README.md",
+    "README_PYPI.md",
     "LICENSE",
     "CHANGELOG.md",
     "SECURITY.md",

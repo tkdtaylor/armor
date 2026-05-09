@@ -1,6 +1,7 @@
 """Fitness tests for task 051: README and public-doc fixes."""
 
 import re
+import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent.parent
@@ -57,6 +58,32 @@ def test_readme_pypi_install_path_is_current():
         assert phrase not in text, f"README still contains stale PyPI wording: {phrase!r}"
 
     assert "pip install armor-ai" in text, "README missing current PyPI install command"
+
+
+def test_pypi_readme_is_package_focused():
+    """PyPI long description uses a compact, PyPI-safe README."""
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
+    readme = pyproject["project"]["readme"]
+
+    assert readme["file"] == "README_PYPI.md"
+    assert readme["content-type"] == "text/markdown"
+
+    text = (REPO_ROOT / readme["file"]).read_text()
+    banned = (
+        "badge.svg",
+        "artifacts/demo.svg",
+        ".github/workflows",
+        "release-check.yml",
+        "fuzz-nightly.yml",
+        "```mermaid",
+        "There is no PyPI release yet",
+    )
+
+    for phrase in banned:
+        assert phrase not in text, f"PyPI README contains repo-page-only content: {phrase!r}"
+
+    assert "pip install armor-ai" in text
+    assert "https://github.com/tkdtaylor/armor" in text
 
 
 def test_tc_051_05_readme_smoke_test_includes_socket():

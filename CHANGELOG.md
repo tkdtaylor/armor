@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-05-09
+
+### Fixed
+
+- **PyPI now renders a package-specific README.** The package long description no longer embeds repository badges, relative demo assets, GitHub Actions details, or the full maintainer-oriented root README.
+
 ## [0.9.1] — 2026-05-09
 
 ### Changed
