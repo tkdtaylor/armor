@@ -125,3 +125,15 @@ def test_tc_060_11_pr_template_has_required_checklist() -> None:
     text = p.read_text().lower()
     for needle in ("test spec", "make check", "make fitness", "changelog"):
         assert needle in text, f"PR template missing checklist item: {needle}"
+
+
+def test_ci_fitness_jobs_fetch_release_tags() -> None:
+    """CI fitness jobs need release tags for the public-release fitness gate."""
+    data = _load_yaml(GH / "workflows" / "ci.yml")
+    jobs = data["jobs"]
+
+    for job_name in ("fitness", "make-fitness"):
+        steps = jobs[job_name]["steps"]
+        checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
+        assert checkout.get("with", {}).get("fetch-depth") == 0, f"{job_name} does not fetch full history"
+        assert checkout.get("with", {}).get("fetch-tags") is True, f"{job_name} does not fetch tags"

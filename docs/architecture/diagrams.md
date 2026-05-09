@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-05-09 (v1.7 — refreshed fitness-function path reference for task 091 consolidation; no diagram-content changes)
+**Last updated:** 2026-05-09 (v1.8 — fixed output-flow Mermaid sequence syntax)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -73,7 +73,7 @@ flowchart TB
             Validator["Validator LLM<br/>(Qwen3-0.6B-Q4_K_M)"]
             Topic["Topic-coherence detector<br/>(MiniLM ONNX embedding, per-session EMA)"]
             CmdGuard["Command-injection guard<br/>(shell denylist, tool params)"]
-            Rolling["canary.paraphrase n-gram scan<br/>(rolling buffer, 8 KB / 20 turns; advisory only)"]
+            Rolling["canary.paraphrase n-gram scan<br/>(rolling buffer, 8 KB / 20 turns, advisory only)"]
         end
 
         HoneypotGate["HoneypotGate<br/>(state ≥ Watching ∧ block/advisory → honeypot)"]
@@ -204,7 +204,7 @@ sequenceDiagram
         H-->>CC: replace output with safe message
     else multi-turn paraphrase advisory (B-009b)
         RB-->>D: ADVISORY (canary_id, ngram_count)
-        D->>FL: feed advisory into FSM; risk score increases
+        D->>FL: feed advisory into FSM and increase risk score
     else clean
         CS-->>D: clean
         RB-->>D: clean
@@ -249,7 +249,7 @@ stateDiagram-v2
     end note
 
     note right of Blocked
-        All detectors short-circuit; the
+        All detectors short-circuit, and the
         forensic incident is still written.
     end note
 ```
@@ -276,12 +276,12 @@ sequenceDiagram
     FSM->>DB: BEGIN, UPDATE Session SET current_state=Watching, INSERT OperatorAuditLog, COMMIT
     alt session not Blocked
         FSM-->>D: raise InvalidStateTransition
-        D->>Log: emit { event: "sessions.unblock", decision: "error" }
-        D-->>CLI: { verdict: "error", message }
+        D->>Log: emit sessions.unblock error event
+        D-->>CLI: error verdict with message
     else success
         FSM-->>D: SessionState.WATCHING
-        D->>Log: emit { event: "sessions.unblock", decision: "pass", session_id }
-        D-->>CLI: { verdict: "pass", new_state: "Watching" }
+        D->>Log: emit sessions.unblock pass event
+        D-->>CLI: pass verdict with new state Watching
     end
 ```
 
@@ -408,7 +408,7 @@ flowchart TB
 
     subgraph Consumers["Two runtime consumers (B-002 + B-011, ADR-021)"]
         C1["CanaryScanner<br/>(builds Aho-Corasick automaton<br/>from the value strings —<br/>O(n) substring scan)"]
-        C2["honeypot.respond()<br/>(substitutes {{canary:id}}<br/>in honeypot.txt template at<br/>inference time only)"]
+        C2["honeypot.respond()<br/>(substitutes canary placeholders<br/>in honeypot.txt template at<br/>inference time only)"]
         B3 --> C1
         B3 --> C2
     end
@@ -420,7 +420,7 @@ flowchart TB
         C1 -.scans.-> D1
         C2 -.invokes.-> D2
         D2 -.routes back through.-> D1
-        D1 -.match - block.-> D3
+        D1 -.match block.-> D3
     end
 ```
 
