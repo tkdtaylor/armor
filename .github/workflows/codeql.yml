@@ -37,13 +37,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
-          # tests/ and archive/ excluded via path filters (false-positive heavy):
-          paths:
-            - "src"
-            - "examples"
-          paths-ignore:
-            - "tests"
-            - "archive"
+          config-file: ./.github/codeql/codeql-config.yml
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
         with:

@@ -1,0 +1,10 @@
+name: armor-codeql-config
+
+# Scan shipped runtime/example code. tests/ contains intentionally hostile
+# fixtures, and archive/ is local-only historical material in development trees.
+paths:
+  - src
+  - examples
+paths-ignore:
+  - tests
+  - archive

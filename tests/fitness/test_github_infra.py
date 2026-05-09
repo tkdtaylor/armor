@@ -58,7 +58,12 @@ def test_tc_060_03_codeql_triggers_on_pr_push_schedule() -> None:
 
 def test_tc_060_04_codeql_excludes_tests_and_archive() -> None:
     """TC-060-04: codeql.yml excludes tests/ and archive/ paths."""
-    text = (GH / "workflows" / "codeql.yml").read_text()
+    workflow_text = (GH / "workflows" / "codeql.yml").read_text()
+    config = GH / "codeql" / "codeql-config.yml"
+    assert "config-file: ./.github/codeql/codeql-config.yml" in workflow_text
+    assert config.exists(), "CodeQL config file missing"
+
+    text = config.read_text()
     for needle in ("tests", "archive"):
         assert needle in text, f"codeql.yml does not reference {needle}/ in path filters"
 
