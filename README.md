@@ -7,6 +7,8 @@
 
 A defense-in-depth security layer for LLM agents. Detects prompt injection, exfiltration via canary tokens, encoding/obfuscation, jailbreaks, tool/API abuse, and session-level multi-turn attacks. Ships as a Docker container with a small embedded validator LLM and an importable Python library.
 
+![armor architecture concept: protected LLM agent flow through input, output, and tool-call guard layers](artifacts/armor-architecture.png)
+
 ![armor end-to-end demo: input injection block + canary exfiltration block](artifacts/demo.svg)
 
 > **Want to see this live?** `make demo` runs both scenarios end-to-end on a real daemon. See [`scripts/demo.sh`](scripts/demo.sh). The image above is a static approximation; [`artifacts/recording.md`](artifacts/recording.md) explains how to regenerate as a real asciicast.

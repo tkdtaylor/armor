@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-05-09 (v1.8 — fixed output-flow Mermaid sequence syntax)
+**Last updated:** 2026-05-09 (v1.9 — added generated architecture concept image)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -12,6 +12,8 @@ These diagrams are part of the **authoritative spec** for this project. Code cha
 ## Capability overview — armor protecting an agent
 
 The 30-second mental model. armor sits as a guard layer between the user, the agent's LLM loop, and the tools the agent calls. It enforces three intercept points (input, tool, output) and runs a canary-trap path: a honeypot LLM seeds fake credentials into suspicious sessions, and if any of those credentials reappear in a later output the request is blocked and a forensic incident is written — with the `canary_id` only, never the value.
+
+![armor architecture concept: protected LLM agent flow through input, output, and tool-call guard layers](../../artifacts/armor-architecture.png)
 
 ```mermaid
 flowchart LR
