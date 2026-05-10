@@ -13,6 +13,30 @@ import pytest
 from armor.logging import StructuredFormatter, setup_logging
 
 
+def test_trusted_source_tools_log_omits_configured_names(
+    tmp_path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TC-110-01: trusted source tool names are not logged in clear text."""
+    monkeypatch.setenv("ARMOR_DISABLE_LLM", "true")
+    config_path = tmp_path / "armor.toml"
+    config_path.write_text('[pipeline.fetched]\ntrusted_source_tools = ["corp_secret_wiki", "internal_jira_query"]\n')
+
+    caplog.set_level(logging.INFO, logger="armor.daemon.server")
+
+    from armor.daemon.server import DaemonServer
+
+    server = DaemonServer(
+        socket_path=str(tmp_path / "armor.sock"),
+        db_path=str(tmp_path / "armor.db"),
+        config_path=str(config_path),
+    )
+
+    assert server.trusted_source_tools == ["corp_secret_wiki", "internal_jira_query"]
+    assert "Loaded 2 trusted source tool(s)" in caplog.text
+    assert "corp_secret_wiki" not in caplog.text
+    assert "internal_jira_query" not in caplog.text
+
+
 def test_structured_formatter_basic() -> None:
     formatter = StructuredFormatter()
     record = logging.LogRecord(

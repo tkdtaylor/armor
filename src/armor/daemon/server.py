@@ -223,7 +223,7 @@ class DaemonServer:
             trusted_tools = fetched_config.get("trusted_source_tools", [])
             if isinstance(trusted_tools, list):
                 self.trusted_source_tools = trusted_tools
-                logger.info(f"Loaded trusted source tools: {self.trusted_source_tools}")
+                logger.info("Loaded %d trusted source tool(s)", len(self.trusted_source_tools))
 
         # Load per-source multipliers from config (per ADR-041)
         if self.config and "pipeline" in self.config and "source_multipliers" in self.config["pipeline"]:
@@ -231,7 +231,7 @@ class DaemonServer:
 
             multipliers = self.config["pipeline"]["source_multipliers"]
             Pipeline.set_source_multipliers(multipliers)
-            logger.info(f"Loaded source multipliers from config: {multipliers}")
+            logger.info("Loaded %d source multiplier override(s) from config", len(multipliers))
 
         self._detector_filters = self._load_detector_filters()
 
