@@ -271,7 +271,7 @@ Roadmap, per-task planning, and TDD test specs are operator-private and not part
 
 armor is a single-daemon, detector-pipeline design: a long-lived process listens on a Unix socket, every check fans out through a sequence of detectors (static + LLM + topic-coherence + rolling-buffer), and the per-session state machine gates the LLM cost tier. The hook layer (and the Python SDK) are thin shims; all decision logic lives in the daemon.
 
-If you are comparing guardrail approaches, see [armor vs NVIDIA NeMo Guardrails](docs/architecture/armor-vs-nemo-guardrails.md). In brief: NeMo Guardrails is a broad programmable guardrails framework for conversational and RAG applications; armor is a local security layer focused on runtime checks, canary exfiltration detection, tool-call validation, and forensic logging around existing agent loops.
+If you are comparing adjacent agent-safety projects, see [armor vs NVIDIA NeMo Guardrails](docs/architecture/armor-vs-nemo-guardrails.md) and [armor vs NVIDIA OpenShell](docs/architecture/armor-vs-openshell.md). In brief: armor is a local security layer focused on runtime checks, canary exfiltration detection, tool-call validation, and forensic logging around existing agent loops.
 
 The 30-second mental model — armor sits between the user, the agent, and the tools, enforces three intercept points, and runs a canary-trap loop where a honeypot LLM seeds fake credentials into suspicious sessions so that any later exfiltration becomes visible at the output check:
 
@@ -311,6 +311,7 @@ Start here:
 - **[docs/architecture/overview.md](docs/architecture/overview.md)** — narrative walk-through of components, the design principles, and how the pieces compose.
 - **[docs/architecture/diagrams.md](docs/architecture/diagrams.md)** — nine Mermaid diagrams: capability overview, system components, input-check flow, output / canary-trip flow, multi-turn risk escalation state machine, operator-clear flow, Claude Code deployment topology, tool-call validation flow, and canary value generation / runtime use.
 - **[docs/architecture/armor-vs-nemo-guardrails.md](docs/architecture/armor-vs-nemo-guardrails.md)** — focused comparison with NVIDIA NeMo Guardrails and where the tools complement each other.
+- **[docs/architecture/armor-vs-openshell.md](docs/architecture/armor-vs-openshell.md)** — focused comparison with NVIDIA OpenShell and where runtime sandboxing complements armor.
 - **[docs/architecture/threat-model.md](docs/architecture/threat-model.md)** — trust boundaries, attacker scenarios, and the explicit "NOT defended against" enumeration.
 - **[docs/architecture/tech-stack.md](docs/architecture/tech-stack.md)** — full dependency table with rationale per choice.
 - **[docs/architecture/decisions/](docs/architecture/decisions/)** — ADRs (validator model selection, IPC protocol, soft-fail policy, etc.). Each captures the *why* behind a non-obvious choice; the spec captures the *what is*.
