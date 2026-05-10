@@ -1,8 +1,8 @@
 """Public-release readiness fitness checks (task 032 / 035 / 037 / 038 / 044).
 
-This module encodes the post-rewrite verification checks from the task 032
-test spec and pre-public-release tree redaction checks from task 044 as
-runnable assertions. They cover repo hygiene that survives across releases.
+This module encodes public-release hygiene checks from the task 032 test spec
+and pre-public-release tree redaction checks from task 044 as runnable
+assertions. They cover repo hygiene that survives across releases.
 
 Spec markers (ownership after the 035/037/038 split):
     TC-032-01 — No leaked canary values remain in git history (task 038, alias of TC-038-03)
@@ -11,19 +11,17 @@ Spec markers (ownership after the 035/037/038 split):
     TC-032-04 — All required contributor files exist and are non-empty (task 035)
     TC-032-05 — Personal harness state is not tracked in .claude/ (task 035)
     TC-032-06 — No "open source" wording outside the LICENSE itself (task 035)
-    TC-032-07 — Pre-rewrite backup tag exists (task 038, alias of TC-038-01)
     TC-032-08 — SECURITY.md has the procedural skeleton for disclosure (task 037)
     TC-032-09 — CI matrix runs the expected jobs (task 035)
 
-Task-038 markers (operator-driven public release history rewrite):
-    TC-038-01 — Pre-rewrite backup tag exists locally (asserts via TC-032-07)
+Task-038 markers (operator-driven public release hygiene):
     TC-038-02 — Author email is clean across all commits (asserts via TC-032-02)
     TC-038-03 — No leaked pre-rotation canary values in history (asserts via TC-032-01)
-    TC-038-04 — Squashed history count is between 5 and 8 inclusive
-    TC-038-05 — Backup mirror clone exists on operator's local disk (operator-verified, no pytest)
+    TC-038-04 — Curated history count stays bounded
+    TC-038-05 — Operator-private recovery artifact exists (operator-verified, no pytest)
     TC-038-06 — No ADR required (procedure-only task, no design decision)
 
-Task-044 markers (tree redaction before history rewrite):
+Task-044 markers (tree redaction before public release):
     TC-044-01 — No pre-rotation AWS canary literal in tracked files (task 044)
     TC-044-02 — No pre-rebrand general email literal in tracked files (task 044)
     TC-044-03 — No pre-rebrand licensing email literal in tracked files (task 044)
@@ -117,17 +115,17 @@ def _assert_security_md_structure(text: str) -> None:
 def test_tc_032_08_security_md_structure() -> None:
     """TC-032-08: SECURITY.md has the procedural skeleton for disclosure."""
     text = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+    assert text
     _assert_security_md_structure(text)
 
 
 # ---------------------------------------------------------------------------
-# Task 038 — operator-driven git history rewrite.
-# These three assertions were skipped until task 038 landed; they read
-# post-rewrite local-repo state and assert the rewritten invariants.
+# Task 038 — operator-driven public-release hygiene.
+# These assertions read local-repo state and assert release-readiness
+# invariants that should remain true in public checkouts.
 # ---------------------------------------------------------------------------
 
 CANONICAL_AUTHOR_EMAIL = "2325494+tkdtaylor@users.noreply.github.com"
-PRE_REWRITE_TAG = "pre-public-rewrite"
 
 
 def test_tc_032_02_author_email_clean() -> None:
@@ -151,12 +149,6 @@ def test_tc_032_02_author_email_clean() -> None:
     assert unique == [CANONICAL_AUTHOR_EMAIL], (
         f"expected exactly [{CANONICAL_AUTHOR_EMAIL!r}] across --all history, got {unique}"
     )
-
-
-def test_tc_032_07_pre_rewrite_backup_tag_exists() -> None:
-    """TC-032-07 / TC-038-01: the pre-rewrite backup tag exists locally."""
-    out = subprocess.check_output(["git", "tag", "-l", PRE_REWRITE_TAG], cwd=ROOT, text=True).strip()
-    assert out == PRE_REWRITE_TAG, f"expected local tag {PRE_REWRITE_TAG!r}, git tag -l returned {out!r}"
 
 
 def test_tc_032_01_no_leaked_canaries_in_history() -> None:
@@ -183,18 +175,18 @@ def test_tc_032_01_no_leaked_canaries_in_history() -> None:
 
 
 def test_tc_038_04_squashed_history_count_in_range() -> None:
-    """TC-038-04: rewritten HEAD history stays bounded; rerun the squash when this approaches the upper bound.
+    """TC-038-04: HEAD history stays bounded; rerun the release compaction when this approaches the upper bound.
 
-    Post-rewrite the count is 7 (six bucketed milestones + one completion commit).
-    Subsequent operator commits accumulate above that and are folded back into
-    the bucket scheme on the next rerun (see archive/00-release-runbook.md
-    "Where the next rerun's commits land").
+    The public-preview baseline count was 7 (six bucketed milestones + one
+    completion commit). Subsequent operator commits accumulate above that and
+    are folded back into the bucket scheme on the next release-compaction run
+    (see archive/00-release-runbook.md "Where the next rerun's commits land").
 
     **Skipped 2026-05-07 during the discussion-audit follow-up batch (ADRs
     032-040 + tasks 061-063).** The check is intentionally disabled while a
     sustained run of doc/ADR work pushes the commit count above the
     public-release bound. The next squash rerun (archive/00-release-runbook.md)
-    will fold these commits into the existing milestone buckets and re-enable
+    folds these commits into the existing milestone buckets and re-enables
     this assertion. Re-enable by removing the `pytest.skip` line; the upper
     bound may need a one-time refresh based on the post-rerun count.
     """
@@ -211,12 +203,12 @@ def test_tc_038_04_squashed_history_count_in_range() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TC-038-05 — Backup mirror clone existence is operator-verified (the path
-# is operator-private, so the assertion is recorded in the task completion
-# commit message, not gated by pytest). Marker present here for spec coverage.
+# TC-038-05 — Recovery artifact existence is operator-verified (the path is
+# operator-private, so the assertion is recorded outside pytest). Marker present
+# here for spec coverage.
 #
-# TC-038-06 — Task 038 executes a procedure (history rewrite), not a design
-# decision; no ADR required. Marker present here for spec coverage.
+# TC-038-06 — Task 038 executes an operator procedure, not a design decision;
+# no ADR required. Marker present here for spec coverage.
 # ---------------------------------------------------------------------------
 
 

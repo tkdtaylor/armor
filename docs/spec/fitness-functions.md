@@ -97,7 +97,7 @@ and every file there corresponds to exactly one row.
 | Invariant | Why | Test |
 |-----------|-----|------|
 | README is structurally and substantively truthful | Per task 057, the README must contain the structural and content elements that make it honest about what the project does and does not do. | [test_readme_truthfulness.py](../../tests/fitness/test_readme_truthfulness.py) |
-| Public-release readiness (SECURITY.md matchers, project-status badges, etc.) | Post-rewrite verification of release-readiness invariants. | [test_public_release.py](../../tests/fitness/test_public_release.py) |
+| Public-release readiness (SECURITY.md matchers, project-status badges, etc.) | Verification of release-readiness invariants. | [test_public_release.py](../../tests/fitness/test_public_release.py) |
 | SDK type-strictness, docstring coverage, ADR requirements | The SDK surface is type-strict, every public symbol has a docstring, and the SDK's invariants are pinned. | [test_sdk_polish.py](../../tests/fitness/test_sdk_polish.py) |
 | Daemon emits structured-log JSON with required fields | Per TC-028-08, all logs from the daemon must be valid JSON with required fields (`ts`, `level`, `event`). | [test_structured_logs.py](../../tests/fitness/test_structured_logs.py) |
 | Project email rebrand consistency | Every shipped contact-info file and the canonical-email matcher reference the rebrand target. | [test_email_rebrand.py](../../tests/fitness/test_email_rebrand.py) |

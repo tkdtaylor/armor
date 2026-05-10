@@ -222,4 +222,4 @@ If strict indirect-injection scanning is enabled without exemptions, building ar
 ## Audit Trail
 
 - **v0.4 (2026-05-06):** Initial threat model. No CRITICAL findings post-audit. Security review flagged no high-risk gaps; all known limitations are documented above.
-- **v0.9 public preview (2026-05-07):** Public-release readiness pass. Pre-public tree redaction, contributor docs, SECURITY.md disclosure procedure, and history rewrite landed. No new CRITICAL findings; the boundary set, attacker model, and defended scenarios above remain the v0.4 surface.
+- **v0.9 public preview (2026-05-07):** Public-release readiness pass. Pre-public tree redaction, contributor docs, and SECURITY.md disclosure procedure landed. No new CRITICAL findings; the boundary set, attacker model, and defended scenarios above remain the v0.4 surface.

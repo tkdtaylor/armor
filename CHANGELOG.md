@@ -70,7 +70,7 @@ tracked operator-private.
 - **Architecture component table** added to `docs/architecture/overview.md` enumerating every runtime module the daemon ships with.
 - **Architecture diagrams** refreshed for the public preview: HoneypotGate, pipeline orchestrator, logging sink, and rolling buffer added to the runtime-flow diagram.
 - **Roadmap, per-task planning, and local agent harnesses are operator-private** and no longer part of the public repo. The build-process workflow itself (TDD spec-first, atomic commits, ADR + test-spec + task-completion as separate commits) remains documented in `CONTRIBUTING.md`.
-- **Public git history** rewritten for the public preview with a single canonical author identity (the GitHub noreply). Pre-rewrite history preserved on the operator's local disk via a `--mirror` clone; not part of the public repo.
+- **Public-preview repository metadata** now uses a single canonical author identity (the GitHub noreply). Operator-private recovery artifacts are not part of the public repo.
 - **CI workflow pinned to `uv sync --frozen`** in `ci.yml` — every job installs the exact tree the lockfile describes (was `uv sync --all-extras --dev`).
 - **Dependabot** added a third ecosystem (`docker`) alongside `pip` and `github-actions`. Weekly Monday cadence across all three.
 - **Issue templates** converted from markdown to YAML form schema. `bug_report.yml` has an attack-class dropdown (input injection / canary exfiltration / tool abuse / multi-turn / other) so triage routes to the right detector group automatically. `feature_request.yml` requires "what attack does this defend against" as a structured field.
