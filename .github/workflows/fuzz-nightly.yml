@@ -13,9 +13,9 @@ jobs:
     name: IPC Fuzz Harness (1+ hour)
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: astral-sh/setup-uv@v2
+      - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload fuzz results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fuzz-results
           path: .hypothesis/
@@ -49,9 +49,9 @@ jobs:
     name: Quarantine Fitness Check
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: astral-sh/setup-uv@v2
+      - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
@@ -67,9 +67,9 @@ jobs:
     name: Network Isolation Verification
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: astral-sh/setup-uv@v2
+      - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
