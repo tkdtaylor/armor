@@ -134,6 +134,6 @@ def test_ci_fitness_jobs_fetch_release_tags() -> None:
 
     for job_name in ("fitness", "make-fitness"):
         steps = jobs[job_name]["steps"]
-        checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
+        checkout = next(step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@"))
         assert checkout.get("with", {}).get("fetch-depth") == 0, f"{job_name} does not fetch full history"
         assert checkout.get("with", {}).get("fetch-tags") is True, f"{job_name} does not fetch tags"
