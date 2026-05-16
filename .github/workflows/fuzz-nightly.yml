@@ -28,9 +28,7 @@ jobs:
             -v \
             --tb=short \
             --hypothesis-seed=random \
-            -x \
-            --hypothesis-profiles=default \
-            --hypothesis-derandomize
+            -x
         env:
           # Set hypothesis to run more examples for longer fuzzing
           HYPOTHESIS_PROFILE: default
