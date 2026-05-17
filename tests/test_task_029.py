@@ -360,7 +360,7 @@ class TestTask102ReleaseDrift:
     def test_tc_102_04_interfaces_metadata_date_current(self):
         """TC-102-04: interfaces spec metadata reflects the latest release-surface edit."""
         text = Path("docs/spec/interfaces.md").read_text()
-        assert "**Last updated:** 2026-05-09" in text
+        assert "**Last updated:** 2026-05-17" in text
 
 
 if __name__ == "__main__":
