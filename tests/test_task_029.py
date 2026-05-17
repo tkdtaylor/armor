@@ -48,15 +48,15 @@ class TestReleaseWorkflow:
         assert "v*.*.*" in content, "Pattern 'v*.*.*' not found in workflow"
 
     def test_workflow_builds_multiarch_image(self):
-        """TC-029-02: docker/setup-qemu-action and docker/build-push-action with platforms."""
+        """TC-029-02: docker/build-push-action builds linux/amd64 and linux/arm64 via native runners."""
         workflow_path = Path(".github/workflows/release.yml")
         with open(workflow_path) as f:
             content = f.read()
 
-        assert "docker/setup-qemu-action" in content, "setup-qemu-action not found"
         assert "docker/build-push-action" in content, "build-push-action not found"
         assert "linux/amd64" in content, "linux/amd64 platform not found"
         assert "linux/arm64" in content, "linux/arm64 platform not found"
+        assert "ubuntu-24.04-arm" in content, "native arm64 runner not configured"
 
     def test_workflow_publishes_to_pypi_via_oidc(self):
         """TC-029-03: pypa/gh-action-pypi-publish with OIDC (no PYPI_API_TOKEN)."""
