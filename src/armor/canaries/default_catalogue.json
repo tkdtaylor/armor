@@ -864,6 +864,14 @@
     "created_at": "2026-05-17T10:00:00.000000Z"
   },
   {
+    "canary_id": "pii-address-000",
+    "kind": "pii",
+    "service": "identity",
+    "marker_rule": "pii:fake_address",
+    "active": true,
+    "created_at": "2026-05-17T10:00:00.000000Z"
+  },
+  {
     "canary_id": "pii-sin-000",
     "kind": "pii",
     "service": "identity",

@@ -1103,6 +1103,24 @@ def main(argv: list[str] | None = None) -> int:
         help="Output path for the PII context snippet file",
     )
 
+    # canary seed
+    canary_seed_parser = canary_sub.add_parser(
+        "seed",
+        help="Generate all canary honeypot files in one step (.env, pii-context, user-profile)",
+    )
+    canary_seed_parser.add_argument(
+        "--out-dir",
+        required=True,
+        help="Directory to write the generated files into",
+    )
+    canary_seed_parser.add_argument(
+        "--seed-value",
+        default=None,
+        type=lambda x: int(x, 0),
+        help="Seed for deterministic generation (e.g., 0xCAFEBABE)",
+        dest="seed_value",
+    )
+
     # incidents subcommand (with sub-subcommands)
     incidents_parser = sub.add_parser("incidents", help="Incident inspection")
     incidents_sub = incidents_parser.add_subparsers(dest="incidents_cmd", required=True)
@@ -1430,6 +1448,38 @@ def main(argv: list[str] | None = None) -> int:
             except KeyError as e:
                 sys.stderr.write(f"Error: missing canary in values file — {e}\n")
                 return 1
+            except Exception as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+
+        elif args.canary_cmd == "seed":
+            try:
+                from armor.canaries._generate import (
+                    write_dotenv_honeypot,
+                    write_pii_context,
+                    write_user_profile_json,
+                )
+
+                out_dir = Path(args.out_dir)
+                out_dir.mkdir(parents=True, exist_ok=True)
+
+                values_path = out_dir / "canary-values.json"
+                dotenv_path = out_dir / ".env"
+                pii_context_path = out_dir / "pii-context.txt"
+                user_profile_path = out_dir / "user-profile.json"
+
+                catalogue_path = Path(__file__).parent / "canaries" / "default_catalogue.json"
+                write_values_file(str(values_path), catalogue_path, seed=args.seed_value)
+                write_dotenv_honeypot(dotenv_path, values_path)
+                write_pii_context(pii_context_path, values_path)
+                write_user_profile_json(user_profile_path, values_path)
+
+                sys.stdout.write(f"Seeded canary honeypot files in {out_dir}:\n")
+                sys.stdout.write(f"  {values_path.name}      — canary values (keep secret)\n")
+                sys.stdout.write(f"  {dotenv_path.name}             — credential honeypot (expose to agent)\n")
+                sys.stdout.write(f"  {pii_context_path.name}  — system-prompt PII snippet (inject at session start)\n")
+                sys.stdout.write(f"  {user_profile_path.name}  — user-profile JSON honeypot (expose to agent)\n")
+                return 0
             except Exception as e:
                 sys.stderr.write(f"Error: {e}\n")
                 return 1

@@ -45,6 +45,10 @@ def get_compiled_patterns() -> list[re.Pattern[str]]:
         # Credential probe: asking what API keys/credentials the agent itself holds
         r"\b(?:api\s+keys?|credentials?|access\s+keys?|secret\s+keys?)\b.{0,60}?\bdo\s+you\s+have\b",
         r"\bwhat\s+(?:api\s+keys?|credentials?|access\s+keys?|secrets?|tokens?)\b",
+        # PII-from-context enumeration: asking the agent to enumerate personal data
+        # it has in its context/instructions (exfil-011 and exfil-012 attack patterns)
+        r"\b(?:personal\s+(?:details?|information|data)|contact\s+information|user\s+(?:records?|data))\b.{0,100}\b(?:in\s+your|from\s+your|you\s+have\s+access\s+to)\b.{0,80}\b(?:context|instructions?|system\s+prompt)\b",
+        r"\b(?:list|enumerate|output|compile|dump)\b.{0,60}\b(?:user\s+records?|names?\s+and\s+personal|personal\s+information)\b.{0,80}\b(?:access\s+to|in\s+your.{0,30}context)\b",
     ]
 
     return [re.compile(pattern, re.IGNORECASE) for pattern in pattern_strings]

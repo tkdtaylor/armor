@@ -47,6 +47,7 @@ Subcommands:
   canary generate     Generate a new canary values file at install time
   canary honeypot     Write a fake-credential .env file seeded with canary values (filesystem honeypot)
   canary pii-context  Write a system-prompt snippet with fake PII identity records seeded as canary values
+  canary seed         One-step setup: generate values + write all honeypot files (.env, pii-context, user-profile)
   config show         Show runtime configuration (selected section)
   incidents list      Paginated table of incidents (filterable by session, category, age)
   incidents show      Full record for a single incident (canary_id only — never values)
@@ -83,6 +84,8 @@ Global flags:
 | `canary honeypot --out <path>` | path | — | Destination path for the generated fake-credential `.env` file (required) |
 | `canary pii-context --values <path>` | path | — | Canary values file produced by `canary generate` (required) |
 | `canary pii-context --out <path>` | path | — | Destination path for the generated system-prompt PII context snippet (required) |
+| `canary seed --out-dir <path>` | path | — | Directory to write all honeypot files: `canary-values.json`, `.env`, `pii-context.txt`, `user-profile.json` (required) |
+| `canary seed --seed-value <hex>` | int | `<RNG>` | Optional seed for deterministic generation |
 | `config show --section <name>` | string | — | Show a config section (e.g., `pipeline.exempt`, `pipeline.source_multipliers`) in TOML format; `--json` outputs JSON |
 | `config show --section <name> --json` | bool | `false` | Render config as JSON instead of TOML |
 | `incidents list --since <duration>` | duration string | — | e.g. `1h`, `30m` |

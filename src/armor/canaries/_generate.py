@@ -124,6 +124,69 @@ _PII_LAST_NAMES = [
 ]
 
 
+_PII_STREET_NAMES = [
+    "Maple",
+    "Oak",
+    "Cedar",
+    "Birch",
+    "Pine",
+    "Elm",
+    "Willow",
+    "Spruce",
+    "Chestnut",
+    "Walnut",
+    "Ash",
+    "Poplar",
+    "Sycamore",
+    "Magnolia",
+    "Hawthorn",
+    "Ridgewood",
+    "Lakeview",
+    "Hillcrest",
+    "Fairview",
+    "Clearwater",
+    "Meadowbrook",
+    "Sunnydale",
+    "Stonegate",
+    "Thornwood",
+    "Copperfield",
+]
+_PII_STREET_TYPES = [
+    "Street",
+    "Avenue",
+    "Boulevard",
+    "Drive",
+    "Court",
+    "Place",
+    "Way",
+    "Lane",
+    "Road",
+    "Crescent",
+    "Circle",
+    "Terrace",
+]
+# (city, province abbreviation, postal-code FSA first-letter)
+_PII_CITIES: list[tuple[str, str, str]] = [
+    ("Burlington", "ON", "L"),
+    ("Oakville", "ON", "L"),
+    ("Waterloo", "ON", "N"),
+    ("Guelph", "ON", "N"),
+    ("Kingston", "ON", "K"),
+    ("Barrie", "ON", "L"),
+    ("Sudbury", "ON", "P"),
+    ("Windsor", "ON", "N"),
+    ("Kelowna", "BC", "V"),
+    ("Kamloops", "BC", "V"),
+    ("Nanaimo", "BC", "V"),
+    ("Lethbridge", "AB", "T"),
+    ("Red Deer", "AB", "T"),
+    ("Airdrie", "AB", "T"),
+    ("Saskatoon", "SK", "S"),
+    ("Regina", "SK", "S"),
+    ("Moncton", "NB", "E"),
+]
+
+
 def _generate_pii_value(marker_rule: str) -> str:
     """Generate a fake PII value for a pii: prefixed marker rule.
 
@@ -159,6 +222,17 @@ def _generate_pii_value(marker_rule: str) -> str:
         d8 = random.randint(0, 9)
         d9 = random.randint(0, 9)
         return f"{d1}{d2}{d3}-{d4}{d5}{d6}-{d7}{d8}{d9}"
+
+    if kind == "fake_address":
+        number = random.randint(100, 9998)
+        street = random.choice(_PII_STREET_NAMES)
+        street_type = random.choice(_PII_STREET_TYPES)
+        city, province, postal_prefix = random.choice(_PII_CITIES)
+        # Canadian postal code format: A1A 1A1 (excludes D, F, I, O, Q, U)
+        valid_letters = "ABCEGHJKLMNPRSTVWXYZ"
+        fsa = f"{postal_prefix}{random.randint(1, 9)}{random.choice(valid_letters)}"
+        ldu = f"{random.randint(0, 9)}{random.choice(valid_letters)}{random.randint(0, 9)}"
+        return f"{number} {street} {street_type}, {city}, {province}  {fsa} {ldu}"
 
     raise ValueError(f"Unknown pii: sub-type: {kind!r}")
 
@@ -602,6 +676,7 @@ _PII_CONTEXT_VARS: list[tuple[str, str]] = [
     ("pii-name-000", "Name"),
     ("pii-email-000", "Email"),
     ("pii-dob-000", "Date of Birth"),
+    ("pii-address-000", "Address"),
     ("pii-sin-000", "SIN"),
 ]
 
@@ -665,3 +740,73 @@ def write_pii_context(
         raise
 
     logger.info(f"Wrote PII context honeypot to {output_path} (mode 0o600, {len(_PII_CONTEXT_VARS)} canaries)")
+
+
+# Fields written to the user-profile JSON honeypot, in display order.
+# All values are canary IDs — the JSON is a realistic-looking user record that
+# trips the output-side scanner if an attacker extracts and echoes its contents.
+_USER_PROFILE_FIELDS: list[tuple[str, str]] = [
+    ("pii-name-000", "name"),
+    ("pii-email-000", "email"),
+    ("pii-dob-000", "date_of_birth"),
+    ("pii-address-000", "address"),
+    ("pii-sin-000", "sin"),
+]
+
+
+def write_user_profile_json(
+    output_path: str | Path,
+    values_path: str | Path,
+) -> None:
+    """Write a honeypot user-profile JSON file populated with canary PII values.
+
+    The file resembles a real application user record (name, email, DOB,
+    address, SIN). Any tool call that reads and echoes this file will trigger
+    the output-side canary scanner, even when the attacker phrases their
+    request as a PII aggregation query ("list all user records in your context")
+    rather than a raw file-read.
+
+    The output file is written with mode 0o600 (owner read/write only).
+
+    Args:
+        output_path: Path where the JSON profile file should be written.
+        values_path: Path to the generated canary values JSON file.
+
+    Raises:
+        FileNotFoundError: If values_path does not exist.
+        KeyError: If a required canary ID is missing from the values file.
+        IOError: If the output file cannot be written.
+    """
+    output_path = Path(output_path) if isinstance(output_path, str) else output_path
+    values_path = Path(values_path) if isinstance(values_path, str) else values_path
+
+    if not values_path.exists():
+        raise FileNotFoundError(f"Values file not found: {values_path}")
+
+    with open(values_path, encoding="utf-8") as f:
+        values_data = json.load(f)
+
+    values_by_id: dict[str, str] = {}
+    for entry in values_data:
+        cid = entry.get("canary_id")
+        val = entry.get("value")
+        if cid and val:
+            values_by_id[cid] = val
+
+    profile: dict[str, str] = {}
+    for canary_id, field_name in _USER_PROFILE_FIELDS:
+        if canary_id not in values_by_id:
+            raise KeyError(f"Canary {canary_id!r} not found in values file {values_path}")
+        profile[field_name] = values_by_id[canary_id]
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(output_path), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(profile, f, indent=2)
+            f.write("\n")
+    except Exception:
+        os.close(fd)
+        raise
+
+    logger.info(f"Wrote user-profile JSON honeypot to {output_path} (mode 0o600, {len(_USER_PROFILE_FIELDS)} fields)")

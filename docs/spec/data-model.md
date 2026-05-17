@@ -124,7 +124,7 @@ canary_id      text      PK; e.g. "aws-key-001", "github-pat-002"
 kind           text      "credential" | "url" | "path" | "hostname" | "wallet" | "jwt" | "ssh-key" | "cert" | "kube-config" | "db-connection" | "pii"
 service        text      "aws" | "github" | "stripe" | "openai" | "anthropic" | "slack" | "discord" | "twilio" | "sendgrid" | "google" | "firebase" | "gcp" | "azure" | "gitlab" | "cohere" | "huggingface" | "bitcoin" | "ethereum" | "solana" | "bip39" | "metamask" | "crypto" | "generic" | "identity"
 value          text      the actual canary string (never committed to repo; loaded at boot)
-marker_rule    text      how to deterministically identify this value (regex or algorithmic)
+marker_rule    text      how to deterministically identify this value: a regex pattern, or a `pii:<type>` descriptor for PII canaries (`pii:fake_name`, `pii:dob`, `pii:sin`, `pii:fake_address`). The `pii:` prefix skips regex validation since values are generated algorithmically.
 created_at     timestamp UTC
 active         boolean
 false_positive_risk text (optional) "high" for LLM-provider kinds where legitimate docs/examples mention key shapes; field is optional and only present for high-risk kinds

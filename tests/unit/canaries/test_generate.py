@@ -433,3 +433,133 @@ class TestCatalogueLoadWithValues:
 
         with pytest.raises(ValueError, match="no value provided"):
             Catalogue.load(schema_file, values_file)
+
+
+class TestPIIAddressGeneration:
+    """Tests for the pii:fake_address canary type."""
+
+    def test_fake_address_generates_string(self):
+        """pii:fake_address returns a non-empty string."""
+        value = _generate_value_for_pattern("pii:fake_address")
+        assert isinstance(value, str)
+        assert len(value) > 0
+
+    def test_fake_address_contains_street_number(self):
+        """Generated address starts with a numeric street number."""
+        value = _generate_value_for_pattern("pii:fake_address")
+        parts = value.split(" ")
+        assert parts[0].isdigit(), f"Expected street number first, got: {value!r}"
+        assert 100 <= int(parts[0]) <= 9998
+
+    def test_fake_address_contains_province_and_postal(self):
+        """Generated address contains a Canadian province abbreviation and postal code."""
+        valid_provinces = {"ON", "BC", "AB", "SK", "NB"}
+        value = _generate_value_for_pattern("pii:fake_address")
+        # Format: "123 Street Name Type, City, PR  A1A 1A1"
+        assert any(f", {prov}  " in value for prov in valid_provinces), (
+            f"No recognized province abbreviation in: {value!r}"
+        )
+
+    def test_fake_address_is_randomized(self):
+        """Repeated calls produce different addresses (almost certainly)."""
+        import random
+
+        random.seed(None)
+        values = {_generate_value_for_pattern("pii:fake_address") for _ in range(10)}
+        assert len(values) > 1, "Address generator appears to return the same value every time"
+
+    def test_fake_address_deterministic_with_seed(self):
+        """Same seed produces same address."""
+        import random
+
+        random.seed(42)
+        v1 = _generate_value_for_pattern("pii:fake_address")
+        random.seed(42)
+        v2 = _generate_value_for_pattern("pii:fake_address")
+        assert v1 == v2
+
+
+class TestWriteUserProfileJson:
+    """Tests for write_user_profile_json."""
+
+    def _make_values_file(self, tmp_path):
+        """Write a minimal values JSON with all PII canary IDs."""
+        data = [
+            {"canary_id": "pii-name-000", "value": "Alice Neon Wolf"},
+            {"canary_id": "pii-email-000", "value": "canary-abc123@armor-trap.invalid"},
+            {"canary_id": "pii-dob-000", "value": "1985-03-22"},
+            {"canary_id": "pii-address-000", "value": "742 Maple Street, Burlington, ON  L7R 2K4"},
+            {"canary_id": "pii-sin-000", "value": "999-123-456"},
+        ]
+        values_file = tmp_path / "values.json"
+        values_file.write_text(json.dumps(data))
+        return values_file
+
+    def test_writes_valid_json(self, tmp_path):
+        """write_user_profile_json produces a parseable JSON file."""
+        from armor.canaries._generate import write_user_profile_json
+
+        values_file = self._make_values_file(tmp_path)
+        out = tmp_path / "user-profile.json"
+        write_user_profile_json(out, values_file)
+
+        with open(out) as f:
+            profile = json.load(f)
+
+        assert isinstance(profile, dict)
+
+    def test_profile_contains_all_fields(self, tmp_path):
+        """Profile JSON contains name, email, date_of_birth, address, sin."""
+        from armor.canaries._generate import write_user_profile_json
+
+        values_file = self._make_values_file(tmp_path)
+        out = tmp_path / "user-profile.json"
+        write_user_profile_json(out, values_file)
+
+        with open(out) as f:
+            profile = json.load(f)
+
+        for field in ("name", "email", "date_of_birth", "address", "sin"):
+            assert field in profile, f"Missing field {field!r} in user profile"
+
+    def test_profile_values_match_canaries(self, tmp_path):
+        """Profile field values match the canary values from the values file."""
+        from armor.canaries._generate import write_user_profile_json
+
+        values_file = self._make_values_file(tmp_path)
+        out = tmp_path / "user-profile.json"
+        write_user_profile_json(out, values_file)
+
+        with open(out) as f:
+            profile = json.load(f)
+
+        assert profile["name"] == "Alice Neon Wolf"
+        assert profile["email"] == "canary-abc123@armor-trap.invalid"
+        assert profile["address"] == "742 Maple Street, Burlington, ON  L7R 2K4"
+
+    def test_profile_written_mode_0o600(self, tmp_path):
+        """Profile file is written with mode 0o600."""
+        from armor.canaries._generate import write_user_profile_json
+
+        values_file = self._make_values_file(tmp_path)
+        out = tmp_path / "user-profile.json"
+        write_user_profile_json(out, values_file)
+
+        file_stat = os.stat(out)
+        assert stat.S_IMODE(file_stat.st_mode) == 0o600
+
+    def test_missing_values_file_raises(self, tmp_path):
+        """FileNotFoundError when values file does not exist."""
+        from armor.canaries._generate import write_user_profile_json
+
+        with pytest.raises(FileNotFoundError):
+            write_user_profile_json(tmp_path / "out.json", tmp_path / "nonexistent.json")
+
+    def test_missing_canary_id_raises(self, tmp_path):
+        """KeyError when a required canary ID is absent from values."""
+        from armor.canaries._generate import write_user_profile_json
+
+        values_file = tmp_path / "values.json"
+        values_file.write_text(json.dumps([{"canary_id": "pii-name-000", "value": "Alice"}]))
+        with pytest.raises(KeyError):
+            write_user_profile_json(tmp_path / "out.json", values_file)
