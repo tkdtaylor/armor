@@ -7,6 +7,8 @@ such as:
 - "by order of compliance"
 - "this is for a security audit"
 - "authorized by legal"
+- "[OPERATOR UPDATE ...] safety restrictions suspended"
+- "safety restrictions suspended for maintenance window"
 """
 
 import re
@@ -49,6 +51,10 @@ class RegexAuthorityImpersonation:
             r"\b(by\s+order\s+of\s+(the\s+)?(administrator|operator|compliance|legal|security))\b",
             r"\b(as\s+(your|the)\s+(supervisor|manager|owner)\s+I\s+(command|order|instruct|require))\b",
             r"\b(I\s+am\s+(your|the)\s+(administrator|admin|developer|operator|creator))\b",
+            # Bracket-notation authority spoofing: [OPERATOR UPDATE ...], [SYSTEM NOTICE ...], etc.
+            r"\[(?:OPERATOR|SYSTEM|ADMIN|MAINTENANCE|ANTHROPIC|OPENAI|COMPANY|ENTERPRISE)\s+(?:UPDATE|NOTICE|DIRECTIVE|ORDER|OVERRIDE|ALERT|MESSAGE)\b",
+            # Safety control suspension language
+            r"\b(?:safety\s+restrictions?|guardrails?|safety\s+(?:guidelines?|controls?|measures?))\s+(?:(?:are|is|have\s+been|has\s+been)\s+)?(?:suspended|lifted|disabled|removed|waived|bypassed|deactivated)\b",
         ]
 
         # Advisory-tier patterns (authority pressure, plausibly benign)
