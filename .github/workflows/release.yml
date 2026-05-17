@@ -20,9 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set up QEMU (for arm64 builds)
-        uses: docker/setup-qemu-action@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -40,13 +37,13 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
 
-      - name: "Build and push image (multi-arch: amd64 + arm64)"
+      - name: Build and push image (amd64)
         id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }}
@@ -91,9 +88,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
-
-      - name: Set up QEMU (for running arm64 images)
-        uses: docker/setup-qemu-action@v4
 
       - name: Pull published image (amd64)
         run: docker pull ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }}
