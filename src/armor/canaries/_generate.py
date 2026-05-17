@@ -22,6 +22,146 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# PII fake-name generator — normal first name + memorable middle + last name.
+# Values are chosen at generate-time so each installation gets a unique name,
+# making it infeasible for an attacker to pre-predict and suppress it.
+# ---------------------------------------------------------------------------
+_PII_FIRST_NAMES = [
+    "Kevin",
+    "Sarah",
+    "James",
+    "Emma",
+    "Michael",
+    "Olivia",
+    "Daniel",
+    "Sophia",
+    "Christopher",
+    "Isabella",
+    "Matthew",
+    "Ava",
+    "Andrew",
+    "Mia",
+    "Joshua",
+    "Natalie",
+    "David",
+    "Samantha",
+    "Ryan",
+    "Victoria",
+    "Tyler",
+    "Hannah",
+    "Jonathan",
+    "Grace",
+    "Nathan",
+    "Chloe",
+    "Brandon",
+    "Lily",
+    "Justin",
+    "Zoe",
+]
+_PII_MIDDLE_NAMES = [
+    "Lightning",
+    "Thunder",
+    "Blaze",
+    "Storm",
+    "Iron",
+    "Silver",
+    "Crimson",
+    "Shadow",
+    "Frost",
+    "Ember",
+    "Quantum",
+    "Cobalt",
+    "Titan",
+    "Inferno",
+    "Steel",
+    "Jade",
+    "Onyx",
+    "Ruby",
+    "Zenith",
+    "Solar",
+    "Lunar",
+    "Apex",
+    "Hyper",
+    "Turbo",
+    "Neon",
+    "Vortex",
+    "Plasma",
+    "Atomic",
+    "Primal",
+]
+_PII_LAST_NAMES = [
+    "Dragon",
+    "Wolf",
+    "Phoenix",
+    "Eagle",
+    "Falcon",
+    "Viper",
+    "Hawk",
+    "Griffin",
+    "Tempest",
+    "Ironside",
+    "Thunderbolt",
+    "Glacier",
+    "Fortress",
+    "Colossus",
+    "Wraith",
+    "Juggernaut",
+    "Sentinel",
+    "Wyvern",
+    "Basilisk",
+    "Leviathan",
+    "Pantheon",
+    "Behemoth",
+    "Harbinger",
+    "Ravager",
+    "Valkyrie",
+    "Cyclone",
+    "Avalanche",
+    "Maelstrom",
+    "Nemesis",
+    "Obliterator",
+]
+
+
+def _generate_pii_value(marker_rule: str) -> str:
+    """Generate a fake PII value for a pii: prefixed marker rule.
+
+    Args:
+        marker_rule: A string starting with 'pii:' identifying the PII type.
+
+    Returns:
+        A recognisably fake but plausible-looking PII value.
+    """
+    kind = marker_rule[len("pii:") :]
+
+    if kind == "fake_name":
+        first = random.choice(_PII_FIRST_NAMES)
+        middle = random.choice(_PII_MIDDLE_NAMES)
+        last = random.choice(_PII_LAST_NAMES)
+        return f"{first} {middle} {last}"
+
+    if kind == "dob":
+        year = random.randint(1950, 2000)
+        month = random.randint(1, 12)
+        day = random.randint(1, 28)  # Stay in safe range for all months
+        return f"{year:04d}-{month:02d}-{day:02d}"
+
+    if kind == "sin":
+        # Canadian SIN starting with 9 (temporary / clearly fake range)
+        d1 = 9
+        d2 = random.randint(0, 9)
+        d3 = random.randint(0, 9)
+        d4 = random.randint(0, 9)
+        d5 = random.randint(0, 9)
+        d6 = random.randint(0, 9)
+        d7 = random.randint(0, 9)
+        d8 = random.randint(0, 9)
+        d9 = random.randint(0, 9)
+        return f"{d1}{d2}{d3}-{d4}{d5}{d6}-{d7}{d8}{d9}"
+
+    raise ValueError(f"Unknown pii: sub-type: {kind!r}")
+
 
 def _generate_value_for_pattern(marker_rule: str) -> str:
     """Generate a fake-but-realistic value matching a given regex pattern.
@@ -38,6 +178,10 @@ def _generate_value_for_pattern(marker_rule: str) -> str:
     Raises:
         ValueError: If the pattern is not recognized or generation fails.
     """
+    # PII canaries: marker_rule is a 'pii:<type>' descriptor, not a regex
+    if marker_rule.startswith("pii:"):
+        return _generate_pii_value(marker_rule)
+
     # AWS access keys: AKIA + 16 chars [A-Z0-9]
     if marker_rule == r"^AKIA[A-Z0-9]{16}$":
         return "AKIA" + "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(16))
@@ -306,12 +450,14 @@ def generate_values(
         except ValueError as e:
             raise ValueError(f"Failed to generate value for {canary_id}: {e}") from e
 
-        # Validate the generated value matches the pattern
-        try:
-            if not re.match(marker_rule, value):
-                raise ValueError("Generated value does not match pattern")
-        except re.error as e:
-            raise ValueError(f"Invalid marker_rule regex: {e}") from e
+        # Validate the generated value matches the pattern.
+        # pii: descriptors are not regexes — skip validation for them.
+        if not marker_rule.startswith("pii:"):
+            try:
+                if not re.match(marker_rule, value):
+                    raise ValueError("Generated value does not match pattern")
+            except re.error as e:
+                raise ValueError(f"Invalid marker_rule regex: {e}") from e
 
         values.append({"canary_id": canary_id, "value": value})
 
@@ -449,3 +595,73 @@ def write_dotenv_honeypot(
         raise
 
     logger.info(f"Wrote honeypot .env to {output_path} (mode 0o600, {len(_DOTENV_HONEYPOT_VARS)} canaries)")
+
+
+# PII context honeypot — canary IDs and their display labels in the context snippet.
+_PII_CONTEXT_VARS: list[tuple[str, str]] = [
+    ("pii-name-000", "Name"),
+    ("pii-email-000", "Email"),
+    ("pii-dob-000", "Date of Birth"),
+    ("pii-sin-000", "SIN"),
+]
+
+
+def write_pii_context(
+    output_path: str | Path,
+    values_path: str | Path,
+) -> None:
+    """Write a honeypot PII context snippet to be injected into an agent system prompt.
+
+    The snippet contains fake personal information (name, email, DOB, SIN) drawn
+    from canary values. When an attacker tricks the agent into compiling a PII report
+    and outputting these values, the canary scanner catches the known strings at
+    output stage.
+
+    The output file is written with mode 0o600 (owner read/write only).
+
+    Args:
+        output_path: Path where the context snippet file should be written.
+        values_path: Path to the generated canary values JSON file.
+
+    Raises:
+        FileNotFoundError: If values_path does not exist.
+        KeyError: If a required canary ID is missing from the values file.
+        IOError: If the output file cannot be written.
+    """
+    output_path = Path(output_path) if isinstance(output_path, str) else output_path
+    values_path = Path(values_path) if isinstance(values_path, str) else values_path
+
+    if not values_path.exists():
+        raise FileNotFoundError(f"Values file not found: {values_path}")
+
+    with open(values_path, encoding="utf-8") as f:
+        values_data = json.load(f)
+
+    values_by_id: dict[str, str] = {}
+    for entry in values_data:
+        cid = entry.get("canary_id")
+        val = entry.get("value")
+        if cid and val:
+            values_by_id[cid] = val
+
+    lines = [
+        "[User profile — confidential, do not share]",
+        "",
+    ]
+    for canary_id, label in _PII_CONTEXT_VARS:
+        if canary_id not in values_by_id:
+            raise KeyError(f"Canary {canary_id!r} not found in values file {values_path}")
+        lines.append(f"{label}: {values_by_id[canary_id]}")
+
+    content = "\n".join(lines) + "\n"
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(output_path), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+    except Exception:
+        os.close(fd)
+        raise
+
+    logger.info(f"Wrote PII context honeypot to {output_path} (mode 0o600, {len(_PII_CONTEXT_VARS)} canaries)")

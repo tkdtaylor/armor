@@ -47,6 +47,21 @@ _SENSITIVE_FILE_PATTERNS: list[tuple[str, str]] = [
     ),
 ]
 
+# Privileged system paths targeted for write access — persistence or privilege escalation.
+# Both verb-before-path and verb-after-path orderings are covered by alternation.
+_PRIVILEGED_WRITE_PATTERNS: list[tuple[str, str]] = [
+    (
+        r"(?:"
+        r"\b(?:write|append|overwrite|save|put|create|modify|edit|update|inject|add|insert)\b"
+        r".{0,100}?/etc/(?:crontab|sudoers|hosts|cron\.d)\b"
+        r"|"
+        r"/etc/(?:crontab|sudoers)\b"
+        r".{0,100}?\b(?:write|append|overwrite|save|put|create|modify|edit|update|inject|add|insert)\b"
+        r")",
+        "write-etc-privileged",
+    ),
+]
+
 # Environment variable enumeration patterns.
 _ENV_VAR_PATTERNS: list[tuple[str, str]] = [
     # "print/list/show all environment variables"
@@ -97,7 +112,7 @@ class RegexSensitiveFileProbe:
     def __init__(self) -> None:
         if RegexSensitiveFileProbe._patterns is None:
             compiled: list[tuple[re.Pattern[str], str]] = []
-            for pat_str, sig in _SENSITIVE_FILE_PATTERNS + _ENV_VAR_PATTERNS:
+            for pat_str, sig in _SENSITIVE_FILE_PATTERNS + _ENV_VAR_PATTERNS + _PRIVILEGED_WRITE_PATTERNS:
                 compiled.append((re.compile(pat_str, re.IGNORECASE | re.DOTALL), sig))
             RegexSensitiveFileProbe._patterns = compiled
         self.patterns = RegexSensitiveFileProbe._patterns

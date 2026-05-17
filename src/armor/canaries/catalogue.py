@@ -169,15 +169,17 @@ class Catalogue:
                     false_positive_risk=item.get("false_positive_risk"),
                     activation=activation,
                 )
-                # Validate active canaries: must have a value and it must match marker_rule
+                # Validate active canaries: must have a value and it must match marker_rule.
+                # pii: prefixed rules are descriptors, not regexes — skip regex validation.
                 if entry.active:
                     if not entry.value:
                         raise ValueError(f"Canary {canary_id}: no value provided (neither in schema nor values file)")
-                    try:
-                        if not re.match(entry.marker_rule, entry.value):
-                            raise ValueError(f"Canary {canary_id}: value does not match marker_rule")
-                    except re.error as e:
-                        raise ValueError(f"Canary {canary_id}: invalid marker_rule regex: {e}") from e
+                    if not entry.marker_rule.startswith("pii:"):
+                        try:
+                            if not re.match(entry.marker_rule, entry.value):
+                                raise ValueError(f"Canary {canary_id}: value does not match marker_rule")
+                        except re.error as e:
+                            raise ValueError(f"Canary {canary_id}: invalid marker_rule regex: {e}") from e
                 entries.append(entry)
             except KeyError as e:
                 raise ValueError(f"Missing field in canary entry: {e}") from e

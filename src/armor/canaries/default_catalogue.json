@@ -838,5 +838,37 @@
     "marker_rule": "^[a-zA-Z0-9+/]+=*$",
     "active": true,
     "created_at": "2026-05-07T10:35:47.228853Z"
+  },
+  {
+    "canary_id": "pii-name-000",
+    "kind": "pii",
+    "service": "identity",
+    "marker_rule": "pii:fake_name",
+    "active": true,
+    "created_at": "2026-05-17T10:00:00.000000Z"
+  },
+  {
+    "canary_id": "pii-email-000",
+    "kind": "pii",
+    "service": "identity",
+    "marker_rule": "^canary-[a-z0-9\\-]+@armor-trap\\.invalid$",
+    "active": true,
+    "created_at": "2026-05-17T10:00:00.000000Z"
+  },
+  {
+    "canary_id": "pii-dob-000",
+    "kind": "pii",
+    "service": "identity",
+    "marker_rule": "pii:dob",
+    "active": true,
+    "created_at": "2026-05-17T10:00:00.000000Z"
+  },
+  {
+    "canary_id": "pii-sin-000",
+    "kind": "pii",
+    "service": "identity",
+    "marker_rule": "pii:sin",
+    "active": true,
+    "created_at": "2026-05-17T10:00:00.000000Z"
   }
 ]

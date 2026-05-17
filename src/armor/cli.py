@@ -1087,6 +1087,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Output path for the honeypot .env file",
     )
 
+    # canary pii-context
+    canary_pii_parser = canary_sub.add_parser(
+        "pii-context",
+        help="Write a honeypot PII context snippet to inject into an agent system prompt",
+    )
+    canary_pii_parser.add_argument(
+        "--values",
+        required=True,
+        help="Path to the generated canary values file (from 'armor canary generate')",
+    )
+    canary_pii_parser.add_argument(
+        "--out",
+        required=True,
+        help="Output path for the PII context snippet file",
+    )
+
     # incidents subcommand (with sub-subcommands)
     incidents_parser = sub.add_parser("incidents", help="Incident inspection")
     incidents_sub = incidents_parser.add_subparsers(dest="incidents_cmd", required=True)
@@ -1385,6 +1401,27 @@ def main(argv: list[str] | None = None) -> int:
                 sys.stdout.write(
                     "Place this file where your agent has filesystem access. "
                     "The canary scanner will catch it if the contents are echoed.\n"
+                )
+                return 0
+            except FileNotFoundError as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+            except KeyError as e:
+                sys.stderr.write(f"Error: missing canary in values file — {e}\n")
+                return 1
+            except Exception as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+
+        elif args.canary_cmd == "pii-context":
+            try:
+                from armor.canaries._generate import write_pii_context
+
+                write_pii_context(args.out, args.values)
+                sys.stdout.write(f"Wrote PII context honeypot to {args.out}\n")
+                sys.stdout.write(
+                    "Inject the contents of this file into your agent's system prompt. "
+                    "The canary scanner will catch any output that includes these values.\n"
                 )
                 return 0
             except FileNotFoundError as e:

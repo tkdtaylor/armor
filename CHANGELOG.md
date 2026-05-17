@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-05-17
+
+### Added
+
+- **`regex.code_injection` detector blocks Python subprocess injection attacks.** Catches `__import__('subprocess')` dynamic import bypass, `subprocess.run/Popen` combined with network tools (`curl`, `wget`, `nc`), and `os.system()` with network tools. Covers both the user-instruction vector ("execute this in your code tool") and code tool parameters directly.
+- **`regex.exfil_chain` detector blocks chained tool-abuse with external data exfiltration.** Two patterns: `exfil-chained-to-url` catches "then/and send/upload/forward … http(s)://..." sequences; `exfil-suspicious-path` catches URLs whose path ends in `/collect`, `/exfil`, `/steal`, `/harvest`, or similar collection segments.
+- **`regex.sensitive_file_probe` now blocks privileged file write attempts.** A new `write-etc-privileged` pattern catches write-intent verbs (`write`, `append`, `overwrite`, `modify`, etc.) targeted at `/etc/crontab`, `/etc/sudoers`, `/etc/hosts`, or `/etc/cron.d` — the persistence and privilege-escalation paths an agent should never be asked to write.
+- **PII context honeypot via `armor canary pii-context`.** Four new PII canary types (`pii-name-000`, `pii-email-000`, `pii-dob-000`, `pii-sin-000`) added to the catalogue. The name canary is generated at install time as a randomized "Firstname AwesomeMiddle EpicLast" triple (e.g., "Kevin Lightning Dragon") — distinctive enough to stand out in any output, unique per installation. `write_pii_context()` produces a context snippet to inject into the agent's system prompt; when an attacker asks the agent to compile a PII report, the canary scanner catches the known values at output stage. Run `armor canary generate --out ~/.armor/canaries.json && armor canary pii-context --values ~/.armor/canaries.json --out pii-context.txt`, then inject `pii-context.txt` into your system prompt.
+- **13 new eval corpus rows** covering write-to-crontab, Python code injection, and exfiltration chain patterns, plus matching true negatives.
+
 ## [0.10.0] — 2026-05-17
 
 ### Added

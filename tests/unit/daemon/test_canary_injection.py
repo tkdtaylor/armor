@@ -53,7 +53,9 @@ class TestDaemonBootWithCanaryValues:
 
         # Verify catalogue was loaded
         assert server.catalogue is not None
-        assert len(server.catalogue.active_canaries()) == 103  # Full bundled catalogue (expanded per task 064)
+        assert (
+            len(server.catalogue.active_canaries()) == 107
+        )  # Full bundled catalogue (103 credential + 4 PII canaries)
         assert server.canary_scanner is not None
 
     def test_daemon_boot_missing_values_file(self, tmp_path):
@@ -183,7 +185,9 @@ class TestDaemonBootLegacyMode:
             )
 
         assert server.catalogue is not None
-        assert len(server.catalogue.active_canaries()) == 103  # Full bundled catalogue (expanded per task 064)
+        assert (
+            len(server.catalogue.active_canaries()) == 107
+        )  # Full bundled catalogue (103 credential + 4 PII canaries)
 
 
 class TestCanaryScannerInjection:
