@@ -87,6 +87,7 @@ The initial recipe table is drawn from the internal credential-type inventory pl
 | `cert-*` | `/etc/ssl/private/server.pem` and `/etc/ssl/private/server.key` | PEM | 0600 (root-owned) | Pair cert + key at the canonical TLS-server location |
 | `path-*`, `url-*`, `hostname-*` | Referenced from inside the structured files above (e.g. a `.ssh/config` `Host` entry pointing to a `hostname-*` canary, an `.env` `WEBHOOK_URL` line referencing a `url-*` canary) | n/a | n/a | These kinds become *content* inside the file recipes, not standalone files |
 | `email-*` | `.gitconfig` (`user.email`) and `<project-root>/.env` (`SUPPORT_EMAIL=...`) | INI / dotenv | 0644 / 0600 |  |
+| `pii-*` | Agent system prompt (injected via `armor canary pii-context`) | System prompt snippet | n/a | Fake identity records (randomised name, email address, date of birth, SIN) seeded into the agent's system prompt at conversation start; any output containing one of these values trips the post-output canary scanner regardless of how the attacker phrased their request. Not a filesystem file — the "path" is the agent's context window, not an on-disk location. |
 
 The recipe table is **per-kind**, not per-canary. Each catalogue entry's `kind` field selects the recipe; the entry's generated value fills the relevant slot. A second `slot` field (added to the schema in a follow-up task) names *which* slot inside a multi-slot recipe (e.g. `aws-key-001` fills `[default].aws_access_key_id`; `aws-secret-001` fills `[default].aws_secret_access_key`).
 

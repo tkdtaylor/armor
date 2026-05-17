@@ -43,6 +43,7 @@ def test_catalogue_kinds_match_recipe_table():
         "cert",  # TLS certificates
         "kube-config",  # Kubernetes config tokens
         "db-connection",  # Database connection strings
+        "pii",  # fake PII identity records (name, email, DOB, SIN) seeded via armor canary pii-context
     }
 
     # All catalogue kinds must appear in the recipe table
