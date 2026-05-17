@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-05-17
+
 ### Added
 
 - **`pii:fake_address` canary type** adds a realistic Canadian street address to the PII honeypot set. The generated address (e.g., "742 Maple Street, Burlington, ON  L7R 2K4") is unique per installation and included in both the system-prompt context snippet and the new user-profile JSON file. The Aho-Corasick output scanner catches it verbatim if an attacker's PII aggregation query causes the model to echo it.
