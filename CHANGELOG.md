@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-17
+
+### Added
+
+- **`regex.ssrf_probe` detector blocks cloud metadata service probes at input stage.** Detects `169.254.169.254` (AWS/Azure IMDS), `metadata.google.internal` (GCP), `100.100.100.200` (Alibaba Cloud), and `169.254.0.2` (Oracle Cloud) anywhere in user text. Previously armor had no IMDS detector and the link-local address bypassed all checks undetected.
+- **`regex.sensitive_file_probe` detector blocks sensitive file read and environment variable enumeration probes.** Catches requests to read `.env`, `id_rsa`, `id_ed25519`, `.ssh/id_*`, `secrets.yaml`, `/etc/shadow`, and `.netrc` via agent file tools; and environment variable enumeration attacks ("print all env vars with SECRET in the name", "what env vars are available to you"). Agent-directed phrasing required on `env-what-probe` to avoid false positives on educational questions.
+- **Honeypot `.env` infrastructure via `armor canary honeypot`.** `write_dotenv_honeypot()` generates a `.env` file populated with canary values for `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`, `CLAUDE_API_KEY`, and `OPENAI_API_KEY` from the active catalogue. The canary scanner catches output-side leaks when an attacker tricks the agent into reading and echoing the file. Run `armor canary generate --out canaries.json && armor canary honeypot --values canaries.json --out .env` and place the `.env` where your agent has filesystem access. See `examples/honeypots/.env.example` for the setup workflow.
+- **19 new eval corpus rows** in `probe_attacks.yaml` covering all new detector signals (SSRF, sensitive file, env-var probe families) plus true negatives.
+
 ## [0.9.3] — 2026-05-17
 
 ### Fixed
