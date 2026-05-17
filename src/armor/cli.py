@@ -1071,6 +1071,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Seed for deterministic generation (e.g., 0xCAFEBABE)",
     )
 
+    # canary honeypot
+    canary_honeypot_parser = canary_sub.add_parser(
+        "honeypot",
+        help="Write a honeypot .env file populated with canary credentials",
+    )
+    canary_honeypot_parser.add_argument(
+        "--values",
+        required=True,
+        help="Path to the generated canary values file (from 'armor canary generate')",
+    )
+    canary_honeypot_parser.add_argument(
+        "--out",
+        required=True,
+        help="Output path for the honeypot .env file",
+    )
+
     # incidents subcommand (with sub-subcommands)
     incidents_parser = sub.add_parser("incidents", help="Incident inspection")
     incidents_sub = incidents_parser.add_subparsers(dest="incidents_cmd", required=True)
@@ -1355,6 +1371,27 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             except ValueError as e:
                 sys.stderr.write(f"Error: {e}\n")
+                return 1
+            except Exception as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+
+        elif args.canary_cmd == "honeypot":
+            try:
+                from armor.canaries._generate import write_dotenv_honeypot
+
+                write_dotenv_honeypot(args.out, args.values)
+                sys.stdout.write(f"Wrote honeypot .env to {args.out}\n")
+                sys.stdout.write(
+                    "Place this file where your agent has filesystem access. "
+                    "The canary scanner will catch it if the contents are echoed.\n"
+                )
+                return 0
+            except FileNotFoundError as e:
+                sys.stderr.write(f"Error: {e}\n")
+                return 1
+            except KeyError as e:
+                sys.stderr.write(f"Error: missing canary in values file — {e}\n")
                 return 1
             except Exception as e:
                 sys.stderr.write(f"Error: {e}\n")
