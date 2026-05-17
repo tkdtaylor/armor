@@ -1,7 +1,7 @@
 # Interfaces
 
 **Project:** armor
-**Last updated:** 2026-05-09
+**Last updated:** 2026-05-17
 
 The system's contact surface — everything that calls into the system, everything the system calls out to, and the public boundaries within the system. Each interface is a stable contract.
 
@@ -45,6 +45,8 @@ Subcommands:
   session close       Mark a session ended; flush state
   canary list         List the active canary catalogue (IDs + kinds, never values)
   canary generate     Generate a new canary values file at install time
+  canary honeypot     Write a fake-credential .env file seeded with canary values (filesystem honeypot)
+  canary pii-context  Write a system-prompt snippet with fake PII identity records seeded as canary values
   config show         Show runtime configuration (selected section)
   incidents list      Paginated table of incidents (filterable by session, category, age)
   incidents show      Full record for a single incident (canary_id only — never values)
@@ -77,6 +79,10 @@ Global flags:
 | `check fetched <text> --source-tool <name>` | string | — | Tool-call result + source tool name to evaluate for indirect injection (per ADR-041). In `--hook-mode`, both fields may be derived from hook JSON on stdin (`tool_name` plus `tool_response`/`tool_result`). |
 | `canary generate --out <path>` | path | — | Output path for generated values file (required) |
 | `canary generate --seed <hex>` | int | `<RNG>` | Optional seed for deterministic generation (e.g., `0xCAFEBABE`); if unset, uses OS RNG |
+| `canary honeypot --values <path>` | path | — | Canary values file produced by `canary generate` (required) |
+| `canary honeypot --out <path>` | path | — | Destination path for the generated fake-credential `.env` file (required) |
+| `canary pii-context --values <path>` | path | — | Canary values file produced by `canary generate` (required) |
+| `canary pii-context --out <path>` | path | — | Destination path for the generated system-prompt PII context snippet (required) |
 | `config show --section <name>` | string | — | Show a config section (e.g., `pipeline.exempt`, `pipeline.source_multipliers`) in TOML format; `--json` outputs JSON |
 | `config show --section <name> --json` | bool | `false` | Render config as JSON instead of TOML |
 | `incidents list --since <duration>` | duration string | — | e.g. `1h`, `30m` |

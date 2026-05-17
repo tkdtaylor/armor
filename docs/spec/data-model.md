@@ -1,7 +1,7 @@
 # Data Model
 
 **Project:** armor
-**Last updated:** 2026-05-08
+**Last updated:** 2026-05-17
 
 What data exists, how it's structured, where it lives, and what relationships hold between entities.
 
@@ -121,8 +121,8 @@ created_at     timestamp  UTC; used for ordering
 field          type      notes
 ─────────────────────────────────────
 canary_id      text      PK; e.g. "aws-key-001", "github-pat-002"
-kind           text      "credential" | "url" | "path" | "hostname" | "wallet" | "jwt" | "ssh-key" | "cert" | "kube-config" | "db-connection"
-service        text      "aws" | "github" | "stripe" | "openai" | "anthropic" | "slack" | "discord" | "twilio" | "sendgrid" | "google" | "firebase" | "gcp" | "azure" | "gitlab" | "cohere" | "huggingface" | "bitcoin" | "ethereum" | "solana" | "bip39" | "metamask" | "crypto" | "generic"
+kind           text      "credential" | "url" | "path" | "hostname" | "wallet" | "jwt" | "ssh-key" | "cert" | "kube-config" | "db-connection" | "pii"
+service        text      "aws" | "github" | "stripe" | "openai" | "anthropic" | "slack" | "discord" | "twilio" | "sendgrid" | "google" | "firebase" | "gcp" | "azure" | "gitlab" | "cohere" | "huggingface" | "bitcoin" | "ethereum" | "solana" | "bip39" | "metamask" | "crypto" | "generic" | "identity"
 value          text      the actual canary string (never committed to repo; loaded at boot)
 marker_rule    text      how to deterministically identify this value (regex or algorithmic)
 created_at     timestamp UTC

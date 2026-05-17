@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-05-09 (v1.9 — added generated architecture concept image)
+**Last updated:** 2026-05-17 (v2.0 — added four new static detectors, PII context path to §8)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -71,7 +71,7 @@ flowchart TB
         PipelineOrch["Pipeline orchestrator<br/>(runs detectors, aggregates verdicts)"]
 
         subgraph Detectors["Detector pipeline"]
-            Static["Static detectors<br/>(regex, Aho-Corasick, entropy)"]
+            Static["Static detectors<br/>(regex, Aho-Corasick, entropy)<br/>incl. ssrf_probe, sensitive_file_probe,<br/>code_injection, exfil_chain"]
             Validator["Validator LLM<br/>(Qwen3-0.6B-Q4_K_M)"]
             Topic["Topic-coherence detector<br/>(MiniLM ONNX embedding, per-session EMA)"]
             CmdGuard["Command-injection guard<br/>(shell denylist, tool params)"]
@@ -398,7 +398,11 @@ flowchart TB
         S1["default_catalogue.json<br/>(bundled schema:<br/>canary_id, kind, marker_rule, active — no values)"]
         S2["armor canary generate<br/>(reads schema, generates a fresh value per<br/>active marker_rule, merges schema + values)"]
         S3[("values JSON file<br/>(0o600, owner-only —<br/>schema fields plus the freshly random value)")]
+        S4["armor canary honeypot<br/>(writes fake-credential .env<br/>with generated values)"]
+        S5["armor canary pii-context<br/>(writes system-prompt snippet<br/>with fake PII identity records:<br/>name, email, DOB, SIN)"]
         S1 --> S2 --> S3
+        S3 --> S4
+        S3 --> S5
     end
 
     subgraph Boot["Daemon boot-time"]
@@ -429,6 +433,7 @@ flowchart TB
 **Key contracts**
 
 - The bundled `default_catalogue.json` ships in the wheel and the Docker image but contains **no values** — only `canary_id`, `kind`, `service`, `marker_rule`, `active`. Anyone reading the public source learns the *shape* of the canaries, not any deployment's specific values.
+- Two honeypot output paths are available after `armor canary generate`: `armor canary honeypot` writes a fake-credential `.env` file (credentials surface) and `armor canary pii-context` writes a system-prompt snippet with fake PII identity records (name, email, date of birth, SIN). Both output files contain real canary values registered in the daemon; any output containing these values triggers a block via the Aho-Corasick scanner — regardless of how the attacker phrased their request.
 - `_generate_value_for_pattern(marker_rule)` in `armor/canaries/_generate.py` knows the recognized regex shapes (AWS keys, GitHub PATs, Stripe keys, fake URLs/paths/hostnames/emails, fake wallet addresses) and emits a fresh random string conforming to each. Unknown patterns raise `ValueError` rather than silently producing garbage.
 - `write_values_file()` writes the merged schema + values atomically with mode `0o600` via `os.open(O_CREAT|O_WRONLY|O_TRUNC, 0o600)` — readable only by the owning user. Each install therefore has a different value set; cloning a public dump tells an attacker nothing about a target deployment.
 - The `Catalogue` object is daemon-process-local. There is no network read; the values file path is operator-controlled and lives outside the Docker image (per ADR-010).

@@ -17,10 +17,11 @@ A defense-in-depth security layer for LLM agents. Detects prompt injection, exfi
 
 `armor` sits between the user and the agent, and between the agent and its tools. It performs:
 
-- **Pre-flight checks** on user input (encoding requests, jailbreak templates, instruction overrides)
+- **Pre-flight checks** on user input (encoding requests, jailbreak templates, instruction overrides, SSRF probes, sensitive file probes, code injection, exfiltration chains)
 - **Post-flight checks** on model output (canary leakage, exfiltration destinations, encoded payloads)
 - **Session-level tracking** for multi-turn / chunked exfiltration attempts
 - **Tool-call validation** on agent-issued shell commands and API calls
+- **Canary honeypots** at two surfaces: fake credentials seeded in filesystem `.env` files (`armor canary honeypot`) and fake PII identity records seeded in the agent's system prompt (`armor canary pii-context`) — output-side defense that catches PII aggregation and credential exfiltration regardless of input phrasing
 
 When a check fails, the response is **blocked** before reaching the user, and the full attack chain (input + attempted output + intended destination) is captured for forensic review.
 

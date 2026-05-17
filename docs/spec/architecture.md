@@ -1,7 +1,7 @@
 # Architecture — System Structure
 
 **Project:** armor
-**Last updated:** 2026-05-08
+**Last updated:** 2026-05-17
 
 This file is the **catalog** that pairs with [`docs/architecture/diagrams.md`](../architecture/diagrams.md). The diagram shows the model visually; this file lists every container, component, and edge in tabular form so a drift audit can mechanically verify the model against the code.
 
@@ -65,6 +65,10 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 | `detectors.tool_rate_anomaly` | [src/armor/detectors/tool_rate_anomaly.py](../../src/armor/detectors/tool_rate_anomaly.py) | static | Sliding-window per-tool call-rate tracking per session; advisory when burst detected per ADR-040 | `types` |
 | `detectors.tool_chain` | [src/armor/detectors/tool_chain.py](../../src/armor/detectors/tool_chain.py) | static | Detects multi-turn attack chains (e.g., Read .env → WebFetch); per-session history tracking with strict/loose matching per ADR-040 | `types` |
 | `detectors.conversation_hijack` | [src/armor/detectors/conversation_hijack.py](../../src/armor/detectors/conversation_hijack.py) | static | Detects claims of prior agreement without corroboration; reads `SessionContext.signal_history` to calibrate confidence per ADR-037 | `types` |
+| `detectors.regex_code_injection` | [src/armor/detectors/regex_code_injection.py](../../src/armor/detectors/regex_code_injection.py) | static | Regex matches for Python code injection via `__import__('subprocess')` dynamic import bypass and subprocess/`os.system` calls paired with network exfiltration tools; scans both input text and `code`/`input` tool parameters | `types` |
+| `detectors.regex_exfil_chain` | [src/armor/detectors/regex_exfil_chain.py](../../src/armor/detectors/regex_exfil_chain.py) | static | Regex matches for instruction-then-exfiltrate chains (`then`/`and` + send verb + external URL) and URLs with suspicious exfiltration path suffixes (`/collect`, `/exfil`, `/steal`, `/harvest`, etc.) | `types` |
+| `detectors.regex_sensitive_file_probe` | [src/armor/detectors/regex_sensitive_file_probe.py](../../src/armor/detectors/regex_sensitive_file_probe.py) | static | Regex matches for sensitive file read-intent probes (`.env`, `id_rsa`, `id_ed25519`, `/etc/shadow`, `.netrc`, `secrets.yaml`), environment-variable enumeration requests, and write-intent to privileged system files (`/etc/crontab`, `/etc/sudoers`, `/etc/hosts`) | `types` |
+| `detectors.regex_ssrf_probe` | [src/armor/detectors/regex_ssrf_probe.py](../../src/armor/detectors/regex_ssrf_probe.py) | static | Regex matches for SSRF probe attempts targeting cloud IMDS endpoints (AWS `169.254.169.254`, GCP `metadata.google.internal`, Alibaba `100.100.100.200`) and `file://` URI schemes | `types` |
 | `detectors.jailbreak_template` | [src/armor/detectors/jailbreak_template.py](../../src/armor/detectors/jailbreak_template.py) | llm | Static templates (DAN, developer-mode, fictional framing) plus optional validator-LLM judgment. Cost tier reflects highest invocation path. LLM session injected at daemon boot (mechanism A). | `llm.validator`, `types` |
 | `detectors.llm_validator` | [src/armor/detectors/llm_validator.py](../../src/armor/detectors/llm_validator.py) | llm | Calls `llm.validator` with a structured-output prompt; emits `advisory` with confidence; gated by `session.state ≥ Watching`. LLM session injected at daemon boot (mechanism A). | `llm.validator`, `types` |
 
