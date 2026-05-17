@@ -166,7 +166,7 @@ jobs:
       - name: Smoke test daemon health inside container
         run: |
           for i in {1..30}; do
-            if docker exec armor-smoke armor health; then
+            if docker exec armor-smoke armor health --socket /var/run/armor/armor.sock; then
               exit 0
             fi
             sleep 2

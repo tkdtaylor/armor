@@ -62,7 +62,7 @@ USER armor
 
 # Health check: verify daemon can start (this will fail initially until daemon starts listening)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD test -S /var/run/armor.sock || exit 1
+    CMD test -S /var/run/armor/armor.sock || exit 1
 
 # Entry point: run the daemon with the baked model
-ENTRYPOINT ["armor", "daemon", "--socket", "/var/run/armor.sock", "--db", "/var/lib/armor/armor.db", "--model", "/models/active.gguf"]
+ENTRYPOINT ["armor", "daemon", "--socket", "/var/run/armor/armor.sock", "--db", "/var/lib/armor/armor.db", "--model", "/models/active.gguf"]
