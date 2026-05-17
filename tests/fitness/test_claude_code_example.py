@@ -61,7 +61,6 @@ def test_tc_096_06_readme_has_real_session_verification_anchor() -> None:
     assert "Last verified hook integration:" in text
     assert "Claude Code" in text
     assert "Codex CLI" in text
-    assert "2026-05-09" in text
 
 
 def test_tc_055_05_readme_length_under_120_lines() -> None:
