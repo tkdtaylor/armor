@@ -127,27 +127,28 @@ def test_tc_032_08_security_md_structure() -> None:
 
 CANONICAL_AUTHOR_EMAIL = "2325494+tkdtaylor@users.noreply.github.com"
 
+# GitHub bot noreply addresses that legitimately land on main via merged
+# automation PRs (e.g. non-squash dependabot merges). These are not personal
+# email leaks — the assertion's purpose — so they are filtered before the
+# comparison. The previous `--exclude=refs/remotes/origin/dependabot/*` only
+# pruned which refs `git log --all` walked; once a bot's commit is reachable
+# from main, ref-exclusion does nothing.
+ALLOWED_BOT_EMAILS = {
+    "49699333+dependabot[bot]@users.noreply.github.com",
+}
+
 
 def test_tc_032_02_author_email_clean() -> None:
-    """TC-032-02 / TC-038-02: every commit author email equals the canonical address.
-
-    Excludes ``refs/remotes/origin/dependabot/*`` — those branches are authored by the
-    dependabot bot and never merge as-is; checking them flags noise, not a real leak.
-    """
+    """TC-032-02 / TC-038-02: every non-bot commit author email equals the canonical address."""
     out = subprocess.check_output(
-        [
-            "git",
-            "log",
-            "--exclude=refs/remotes/origin/dependabot/*",
-            "--all",
-            "--format=%ae",
-        ],
+        ["git", "log", "--all", "--format=%ae"],
         cwd=ROOT,
         text=True,
     )
-    unique = sorted({line for line in out.splitlines() if line})
+    unique = sorted({line for line in out.splitlines() if line} - ALLOWED_BOT_EMAILS)
     assert unique == [CANONICAL_AUTHOR_EMAIL], (
-        f"expected exactly [{CANONICAL_AUTHOR_EMAIL!r}] across --all history, got {unique}"
+        f"expected exactly [{CANONICAL_AUTHOR_EMAIL!r}] across --all history "
+        f"(after filtering {sorted(ALLOWED_BOT_EMAILS)}), got {unique}"
     )
 
 
