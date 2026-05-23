@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.3] — 2026-05-23
+
 ### Fixed
 
 - **PII canary city names are now entirely fictional.** All 17 Canadian city names in the PII address canary are replaced with invented-but-plausible names (e.g. "Harwick ON", "Brindlemoor BC") verified not to exist in any Canadian geographic database. Previously the city names were real, creating a small risk that a generated address could match a genuine address and produce a false positive.
