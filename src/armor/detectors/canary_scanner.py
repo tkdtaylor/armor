@@ -97,8 +97,13 @@ class CanaryScannerDetector:
             if not hits:
                 return Verdict.pass_verdict()
 
-            # Block on any hit
-            first_hit = hits[0]
+            # Prefer full canary hits over sub-pattern hits for the signal_id.
+            # Sub-patterns (canary.sub:*) are substrings of full canaries; when both
+            # match, the full canary is more specific and informative.
+            first_hit = next(
+                (h for h in hits if not h.canary_id.startswith("canary.sub:")),
+                hits[0],
+            )
             canary_ids = [hit.canary_id for hit in hits]
 
             # Build details
