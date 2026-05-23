@@ -65,6 +65,8 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `detector.tool_chain.history_depth` | integer | `20` | no | Maximum number of recent tool calls to retain per session for chain matching (per ADR-040) |
 | `detector.tool_chain.window_turns` | integer | `5` | no | Maximum turns between consecutive chain steps in loose-matching mode (per ADR-040) |
 | `detector.tool_chain.user_chains_path` | path | `<unset>` | no | Path to optional user-provided tool-chain catalogue; format identical to bundled `tool_chains.yaml` (per ADR-040) |
+| `detector.output_harmful_content.enabled` | bool | `false` | no | Opt-in gate for the output harmful-content detector. When `false` (default), the detector is not instantiated. When `true`, the two-stage detector runs on every `check.output` payload with `source == MODEL_OUTPUT`. |
+| `detector.output_harmful_content.block_threshold` | float | `0.6` | no | LLM confidence at or above which the detector upgrades from `advisory` to `block`. Applies only when the LLM returns `risky`. Below this threshold the verdict is always `advisory`. |
 | `pipeline.source_multipliers.user_input` | float | `1.0` | no | Confidence multiplier for USER_INPUT payloads (per ADR-041) |
 | `pipeline.source_multipliers.tool_params` | float | `1.0` | no | Confidence multiplier for TOOL_PARAMS payloads (per ADR-041) |
 | `pipeline.source_multipliers.model_output` | float | `1.0` | no | Confidence multiplier for MODEL_OUTPUT payloads (per ADR-041) |
@@ -165,6 +167,10 @@ supported_confidence = 0.3
 history_depth = 20
 window_turns = 5
 # user_chains_path = "/etc/armor/custom_chains.yaml"
+
+[detector.output_harmful_content]
+enabled = false
+block_threshold = 0.6
 
 [pipeline.source_multipliers]
 user_input            = 1.0

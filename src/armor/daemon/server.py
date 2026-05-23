@@ -303,6 +303,16 @@ class DaemonServer:
             f"Injected conversation_hijack detector (unsupported_confidence={unsupported_confidence}, supported_confidence={supported_confidence})"
         )
 
+        # Opt-in: output_harmful_content detector
+        ohc_config = self.config.get("detector", {}).get("output_harmful_content", {})
+        if ohc_config.get("enabled", False):
+            from armor.detectors.output_harmful_content import OutputHarmfulContent
+
+            block_threshold = float(ohc_config.get("block_threshold", 0.6))
+            ohc_detector = OutputHarmfulContent(block_threshold=block_threshold)
+            self.registry.detectors["output.harmful_content"] = ohc_detector
+            logger.info("Injected output_harmful_content detector (block_threshold=%.2f)", block_threshold)
+
         # Inject LLM session into detectors that depend on it (post-load loop, mechanism A)
         self._inject_llm_session()
 

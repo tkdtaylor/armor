@@ -17,8 +17,12 @@ from armor.types import SessionContext, Verdict
 logger = logging.getLogger(__name__)
 
 
-def _load_validator_prompt() -> str:
+def _load_validator_prompt(prompt_path: Path | None = None) -> str:
     """Load the validator system prompt from disk.
+
+    Args:
+        prompt_path: Optional path to a custom prompt file. If provided and exists,
+                    load from that path. Otherwise, load from the default location.
 
     Returns:
         The prompt text.
@@ -26,10 +30,13 @@ def _load_validator_prompt() -> str:
     Raises:
         FileNotFoundError: If the prompt file is missing.
     """
-    prompt_path = Path(__file__).parent / "prompts" / "validator.txt"
-    if not prompt_path.exists():
-        raise FileNotFoundError(f"Validator prompt not found at {prompt_path}")
-    return prompt_path.read_text(encoding="utf-8")
+    if prompt_path and prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
+
+    default_path = Path(__file__).parent / "prompts" / "validator.txt"
+    if not default_path.exists():
+        raise FileNotFoundError(f"Validator prompt not found at {default_path}")
+    return default_path.read_text(encoding="utf-8")
 
 
 def _invoke_with_deadline(fn: Any, args: tuple[Any, ...], budget_ms: int) -> Any:
@@ -75,6 +82,7 @@ def validate(
     session_context: SessionContext,
     llm_session: LLMSession | None = None,
     budget_ms: int | None = None,
+    prompt_path: Path | None = None,
 ) -> Verdict:
     """Validate a payload for adversarial content using the LLM.
 
@@ -84,6 +92,8 @@ def validate(
         llm_session: The loaded LLM session. If None, returns advisory with confidence=0.
         budget_ms: Optional budget override in milliseconds. If not provided, uses
                   llm_session.validator_budget_ms if available.
+        prompt_path: Optional path to a custom prompt file. If provided and exists,
+                    load from that path instead of the default validator.txt.
 
     Returns:
         An advisory Verdict with confidence score in details["confidence"].
@@ -109,8 +119,8 @@ def validate(
             budget_ms = 500
 
     try:
-        # Load validator system prompt
-        system_prompt = _load_validator_prompt()
+        # Load validator system prompt (with optional custom path)
+        system_prompt = _load_validator_prompt(prompt_path=prompt_path)
 
         # Define the LLM call wrapped with deadline enforcement
         def _llm_call() -> Any:
