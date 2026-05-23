@@ -151,12 +151,12 @@ class TestCanaryParaphraseDetector:
     def test_tc_066_06_full_match_not_paraphrase(
         self, detector: CanaryParaphraseDetector, context: SessionContext
     ) -> None:
-        """TC-066-06: Full canary value should not be detected as paraphrase (out of scope).
+        """TC-066-06: Full canary value in rolling buffer triggers block at high n-gram count.
 
-        This is a regression check: the paraphrase detector should not fire on full values
-        (that's the canary_scanner's job). However, since the paraphrase detector does
-        scan n-grams, a full value will match multiple n-grams. This test documents
-        that behavior.
+        A full canary value produces far more distinct n-grams than the 10x block
+        threshold (k_threshold=3, k_block=30). The paraphrase detector correctly
+        blocks in this case. In the real pipeline the canary_scanner fires first,
+        so this code path is only exercised when the detector runs in isolation.
         """
         buf = context.rolling_buffer
         assert buf is not None
@@ -166,12 +166,10 @@ class TestCanaryParaphraseDetector:
         payload = Payload(text="")
         verdict = detector.check(payload, context)
 
-        # The paraphrase detector will likely fire on the full value
-        # (since it contains many n-grams). This is acceptable — the
-        # canary_scanner will block it first in the pipeline anyway.
-        # We just document that the paraphrase detector is not suppressed
-        # on full values (it's not its job to be smart about that).
-        assert verdict.decision in ("pass", "advisory")
+        # 195 distinct n-grams >> 30 (10x k_threshold) -> block.
+        # In the real pipeline the exact canary_scanner fires first; the
+        # paraphrase detector correctly escalates when it runs in isolation.
+        assert verdict.decision in ("advisory", "block")
 
     # TC-066-07: Confidence formula K=4, K_threshold=3
     def test_tc_066_07_confidence_formula(self, detector: CanaryParaphraseDetector, context: SessionContext) -> None:

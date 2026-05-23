@@ -60,35 +60,35 @@ _PII_FIRST_NAMES = [
     "Zoe",
 ]
 _PII_MIDDLE_NAMES = [
-    "Lightning",
-    "Thunder",
-    "Blaze",
-    "Storm",
-    "Iron",
-    "Silver",
-    "Crimson",
-    "Shadow",
-    "Frost",
-    "Ember",
-    "Quantum",
-    "Cobalt",
-    "Titan",
-    "Inferno",
-    "Steel",
-    "Jade",
-    "Onyx",
-    "Ruby",
-    "Zenith",
-    "Solar",
-    "Lunar",
-    "Apex",
-    "Hyper",
-    "Turbo",
-    "Neon",
-    "Vortex",
-    "Plasma",
-    "Atomic",
-    "Primal",
+    "Thundaze",
+    "Lightnorm",
+    "Silvrost",
+    "Irember",
+    "Crimadow",
+    "Quantobalt",
+    "Titaferno",
+    "Stelade",
+    "Rubnyx",
+    "Zenolar",
+    "Lunarex",
+    "Atomasma",
+    "Vorteon",
+    "Hyturbo",
+    "Primblaze",
+    "Storember",
+    "Silcrim",
+    "Frostitan",
+    "Bladow",
+    "Ironyx",
+    "Balvorn",
+    "Thunderal",
+    "Quantnox",
+    "Jadember",
+    "Plasolar",
+    "Hypferno",
+    "Lunstorm",
+    "Apexmal",
+    "Rubenith",
 ]
 _PII_LAST_NAMES = [
     "Dragon",
@@ -185,6 +185,25 @@ _PII_CITIES: list[tuple[str, str, str]] = [
     ("Fairgrove", "SK", "S"),
     ("Beldock", "NB", "E"),
 ]
+
+CANARY_DOMAIN = "armor-trap.invalid"
+
+
+def sub_pattern_map() -> dict[str, str]:
+    """Return additional Aho-Corasick patterns that are sub-components of generated canary values.
+
+    These supplement the full-value canary scanner with high-signal fragments that
+    survive mild reformatting (e.g. an LLM that omits the email local-part but
+    reproduces the domain, or outputs a distinctive middle name without the full name).
+
+    Each key is a synthetic canary ID (never a real catalogue entry).
+    """
+    patterns: dict[str, str] = {
+        "canary.sub:domain": CANARY_DOMAIN,
+    }
+    for name in _PII_MIDDLE_NAMES:
+        patterns[f"canary.sub:middle:{name.lower()}"] = name
+    return patterns
 
 
 def _generate_pii_value(marker_rule: str) -> str:
@@ -346,7 +365,7 @@ def _generate_value_for_pattern(marker_rule: str) -> str:
     # Fake URLs: https://canary.armor-trap.invalid/<id>
     if marker_rule == r"^https://canary\.armor-trap\.invalid/[a-z0-9\-]+$":
         suffix = "".join(random.choice(string.ascii_lowercase + string.digits + "-") for _ in range(12))
-        return f"https://canary.armor-trap.invalid/{suffix}"
+        return f"https://canary.{CANARY_DOMAIN}/{suffix}"
 
     # Slack webhook URL
     if marker_rule == r"^https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+$":
@@ -369,12 +388,12 @@ def _generate_value_for_pattern(marker_rule: str) -> str:
     # Fake hostnames: <id>.canary.armor-trap.invalid
     if marker_rule == r"^[a-z0-9\-]+\.canary\.armor-trap\.invalid$":
         prefix = "".join(random.choice(string.ascii_lowercase + string.digits + "-") for _ in range(12))
-        return f"{prefix}.canary.armor-trap.invalid"
+        return f"{prefix}.canary.{CANARY_DOMAIN}"
 
     # Fake email addresses: canary-<id>@armor-trap.invalid
     if marker_rule == r"^canary-[a-z0-9\-]+@armor-trap\.invalid$":
         suffix = "".join(random.choice(string.ascii_lowercase + string.digits + "-") for _ in range(12))
-        return f"canary-{suffix}@armor-trap.invalid"
+        return f"canary-{suffix}@{CANARY_DOMAIN}"
 
     # Fake wallet addresses: 1ARMORTRAP + 32 hex chars
     if marker_rule == r"^1ARMORTRAP[0-9a-f]{32}$":
@@ -419,7 +438,7 @@ def _generate_value_for_pattern(marker_rule: str) -> str:
         password = "".join(random.choice(string.ascii_letters + string.digits) for _ in range(16))
         host = "canary-" + "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
         db_name = "canary_db"
-        return f"{db_type}://{username}:{password}@{host}.armor-trap.invalid/{db_name}"
+        return f"{db_type}://{username}:{password}@{host}.{CANARY_DOMAIN}/{db_name}"
 
     # BIP39 seed (12-word phrase): [a-z]+ (space [a-z]+){11}
     if marker_rule == r"^[a-z]+( [a-z]+){11}$":

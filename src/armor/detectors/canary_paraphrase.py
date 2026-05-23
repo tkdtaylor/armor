@@ -167,19 +167,29 @@ class CanaryParaphraseDetector:
             for canary_id, distinct_ngrams in distinct_ngrams_per_canary.items():
                 k_observed = len(distinct_ngrams)
                 if k_observed >= self.k_threshold:
-                    # Calculate confidence: min(1.0, K_observed / K_threshold * 0.5)
                     confidence = min(1.0, (k_observed / self.k_threshold) * 0.5)
+                    details: dict[str, object] = {
+                        "canary_id": canary_id,
+                        "ngram_count": k_observed,
+                        "k_threshold": self.k_threshold,
+                        "confidence": confidence,
+                    }
+                    signal_id = f"canary.paraphrase:{canary_id}:ngram"
+                    message = f"Potential paraphrased canary leak detected (n-grams: {k_observed})"
+
+                    if k_observed >= self.k_threshold * 10:
+                        return Verdict.block_verdict(
+                            signal_id=signal_id,
+                            message="Output suppressed by armor.",
+                            severity="critical",
+                            details=details,
+                        )
 
                     return Verdict.advisory_verdict(
-                        signal_id=f"canary.paraphrase:{canary_id}:ngram",
+                        signal_id=signal_id,
                         severity="high",
-                        message=f"Potential paraphrased canary leak detected (n-grams: {k_observed})",
-                        details={
-                            "canary_id": canary_id,
-                            "ngram_count": k_observed,
-                            "k_threshold": self.k_threshold,
-                            "confidence": confidence,
-                        },
+                        message=message,
+                        details=details,
                     )
 
             return Verdict.pass_verdict()

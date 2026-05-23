@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from armor.canaries._generate import sub_pattern_map
 from armor.canaries.catalogue import Catalogue
 from armor.canaries.scanner import CanaryScanner
 from armor.daemon.honeypot_gate import should_invoke_honeypot
@@ -188,8 +189,10 @@ class DaemonServer:
                     logger.error("Catalogue is empty (no active canaries)")
                     sys.exit(78)
 
-                # Build canary value map for the scanner
+                # Build canary value map for the scanner, then extend with sub-patterns
+                # (email domain, distinctive middle names) that survive mild LLM reformatting.
                 canary_map = {entry.canary_id: entry.value for entry in active_canaries}
+                canary_map.update(sub_pattern_map())
                 self.canary_scanner = CanaryScanner(canary_map)
                 logger.info(f"Loaded canary catalogue with {len(active_canaries)} active canaries")
 

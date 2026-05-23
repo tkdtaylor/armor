@@ -12,7 +12,7 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 
-from armor.canaries._generate import write_values_file
+from armor.canaries._generate import sub_pattern_map, write_values_file
 from armor.canaries.catalogue import Catalogue
 from armor.canaries.scanner import CanaryScanner
 from armor.types import Payload, SessionContext, Verdict
@@ -43,6 +43,7 @@ def _default_scanner() -> CanaryScanner:
         # Load with the generated values
         catalogue = Catalogue.load(temp_values_path)
         canary_map = {entry.canary_id: entry.value for entry in catalogue.active_canaries()}
+        canary_map.update(sub_pattern_map())
         return CanaryScanner(canary_map)
     finally:
         # Clean up temp file
