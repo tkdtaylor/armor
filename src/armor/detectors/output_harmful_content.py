@@ -9,7 +9,6 @@ This detector is opt-in and output-only (source == MODEL_OUTPUT).
 
 import re
 from pathlib import Path
-from typing import Literal
 
 from armor.llm.validator import validate
 from armor.types import Payload, SessionContext, Source, Verdict
@@ -32,7 +31,7 @@ class OutputHarmfulContent:
 
     id: str = "output.harmful_content"
     category: str = "output"
-    cost_tier: Literal["static", "semantic", "llm"] = "llm"
+    cost_tier: str = "llm"
 
     # Compiled patterns — shared across all instances
     _patterns: list[re.Pattern[str]] | None = None

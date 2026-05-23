@@ -1,7 +1,7 @@
 # Behaviors
 
 **Project:** armor
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-23
 
 What the system does, observably. Each behavior describes a triggering condition, the system's response, and any externally-visible side effects.
 
@@ -322,6 +322,22 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Configuration:** The chunk size is configurable via `[pipeline.fetched]` section in `armor.toml` with key `chunk_size_bytes` (default 4096). The hard cap of 16 chunks is fixed (unadjustable).
 - **Failure modes:** Detector raises → that detector's verdict is recorded as `error`, pipeline continues (fail-open per detector). Whole pipeline raises → daemon returns `block` (fail-closed at pipeline level) and logs an internal error.
 - **References:** ADR-033, ADR-041
+
+### B-018: Detect harmful commands in model output (opt-in)
+
+- **Trigger:** Output check runs detector `output.harmful_content` when `detector.output_harmful_content.enabled = true` in `armor.toml` (disabled by default). Only fires on payloads with `source == MODEL_OUTPUT`.
+- **Response:** Two-stage detection:
+  1. **Stage 1 — regex fast path:** Scans the output for runnable attack commands in four families:
+     - **Cloud credential exfil:** `aws s3 cp … credentials`, `gsutil cp … credentials`, `az storage blob upload`.
+     - **Credential file access:** `cat ~/.aws/credentials`, `cat /etc/shadow`, `cat ~/.netrc`, `cat ~/.ssh/id_rsa`, `find / -name *.aws`, `find / -name credentials`.
+     - **IMDS / metadata endpoints:** `169.254.169.254`, `metadata.google.internal`, `100.100.100.200`.
+     - **Privilege escalation chains:** `aws ssm get-parameter --with-decryption`, `aws iam pass-role`, `aws iam attach-role-policy`.
+     If no pattern fires, returns `pass` immediately.
+  2. **Stage 2 — LLM confirmation:** If a pattern fires and the LLM session is available, the output is sent to the validator LLM with a dedicated prompt (`src/armor/llm/prompts/output_harmful_content.txt`). Returns `block` with `signal_id = output.harmful_content:confirmed` if the LLM returns `risky` with `confidence ≥ block_threshold` (default 0.6). Returns `advisory` with `signal_id = output.harmful_content:pattern_match` if the LLM returns `risky` below threshold, or if the LLM is unavailable.
+- **Configuration:** Controlled by `detector.output_harmful_content.enabled` (bool, default `false`) and `detector.output_harmful_content.block_threshold` (float, default 0.6). See `docs/spec/configuration.md`.
+- **Side effects:** On `block`: forensic record written with `attack_category = "output_harmful_content"`, severity `critical`. On `advisory`: session risk score incremented.
+- **Failure modes:** Stage 1 pattern raises → `error` verdict returned, pipeline continues (fail-open per detector). LLM unavailable → soft-fail to `advisory` with `signal_id = output.harmful_content:pattern_match`. LLM exception → soft-fail to `advisory` with error details in `details["error"]`.
+- **References:** task 112, corpus at `tests/eval/corpus/scenarios_multi_turn.yaml` (family: "authority_pedagogy_framing"), configuration keys at `docs/spec/configuration.md`.
 
 ---
 
