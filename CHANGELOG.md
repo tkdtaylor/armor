@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **PII canary city names are now entirely fictional.** All 17 Canadian city names in the PII address canary are replaced with invented-but-plausible names (e.g. "Harwick ON", "Brindlemoor BC") verified not to exist in any Canadian geographic database. Previously the city names were real, creating a small risk that a generated address could match a genuine address and produce a false positive.
+- **PII middle names are now portmanteau words absent from any dictionary.** The 29 middle-name tokens (e.g. "Thundaze", "Silvrost", "Vorteon") are constructed by fusing halves of two real words, making them pronounceable but not dictionary-valid. This eliminates the edge case where a standalone middle name matched ordinary English output.
+- **Sub-pattern scanning added for `armor-trap.invalid` domain and all portmanteau middle names.** `sub_pattern_map()` registers the canary email/URL domain and all 29 middle names as additional Aho-Corasick patterns, catching leaks where only a fragment (domain alone, or middle name alone) appears in output rather than the full canary value.
+- **Canary paraphrase detector now blocks at 10× the advisory threshold.** When the rolling-buffer n-gram count for a single canary reaches 30 (10× the default advisory threshold of 3), the detector escalates from advisory to block. This suppresses output when sustained fragment accumulation or a near-complete canary value is detected.
+- **Canary scanner signal ID now correctly reflects the full canary match, not a sub-pattern.** When both a full canary value and a sub-pattern (e.g. the `armor-trap.invalid` domain) appear in the same text, the signal ID was incorrectly set to the sub-pattern hit because it ends at an earlier byte offset in the Aho-Corasick scan. The scanner now picks the first non-sub-pattern hit for the signal ID, falling back to the sub-pattern only when no full canary matched.
+
 ## [0.10.2] — 2026-05-17
 
 ### Added
