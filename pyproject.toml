@@ -73,6 +73,7 @@ extractor_destinations = "armor.detectors.destination_extractor:DestinationExtra
 instruction_burial = "armor.detectors.instruction_burial:InstructionBurialDetector"
 jailbreak_template = "armor.detectors.jailbreak_template:JailbreakTemplate"
 llm_validator = "armor.detectors.llm_validator:LLMValidator"
+output_harmful_content = "armor.detectors.output_harmful_content:OutputHarmfulContent"
 regex_authority_impersonation = "armor.detectors.regex_authority_impersonation:RegexAuthorityImpersonation"
 regex_instruction_override = "armor.detectors.regex_instruction_override:RegexInstructionOverride"
 regex_memory_planting = "armor.detectors.memory_planting:RegexMemoryPlanting"
