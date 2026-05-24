@@ -554,7 +554,7 @@
 # Benign rows (Task 116 - documentation examples, tutorials, etc.)
 - id: exfil-tn-009-api-key-example-in-docs
   description: Fake API key in documentation
-  input: "Example: sk_test_4eC39HqLyjWDarhtT657G7L7 in your code"
+  input: "Example: sk_test_XXXX_FAKE_EXAMPLE_KEY in your code"
   attack_category: exfiltration
   expected_verdict: pass
 
