@@ -77,3 +77,14 @@ CREATE TABLE IF NOT EXISTS OperatorAuditLog (
 
 -- Index on OperatorAuditLog for session lookups
 CREATE INDEX IF NOT EXISTS idx_operator_audit_session_ts ON OperatorAuditLog(session_id, ts);
+
+-- DaemonStats table: persist cumulative daemon metrics across restarts
+CREATE TABLE IF NOT EXISTS daemon_stats (
+    id INTEGER PRIMARY KEY CHECK (id = 1),  -- single-row table
+    total_checks_cumulative INTEGER NOT NULL DEFAULT 0,
+    last_updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Ensure the daemon_stats table has the required single row
+INSERT OR IGNORE INTO daemon_stats (id, total_checks_cumulative, last_updated_at)
+VALUES (1, 0, datetime('now'));

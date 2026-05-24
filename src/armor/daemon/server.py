@@ -527,9 +527,59 @@ class DaemonServer:
                 "message": str(e),
             }
 
+    def _load_persisted_check_count(self) -> None:
+        """Load cumulative check count from daemon_stats table on startup.
+
+        This method is called during daemon initialization to restore the check counter
+        from the previous session. The counter persists across daemon restarts.
+        """
+        try:
+            import sqlite3
+
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            row = cursor.execute("SELECT total_checks_cumulative FROM daemon_stats WHERE id = 1").fetchone()
+            if row:
+                self._total_checks = row["total_checks_cumulative"]
+                logger.info(f"Loaded persisted check count: {self._total_checks}")
+            else:
+                logger.info("No persisted check count found; starting at 0")
+
+            conn.close()
+        except sqlite3.Error as e:
+            logger.warning(f"Failed to load persisted check count: {e}")
+            # Continue with in-memory count (0) if load fails
+
+    def _persist_check_count(self) -> None:
+        """Persist the cumulative check count to daemon_stats table.
+
+        This method is called after each check operation to ensure the counter
+        survives daemon restarts. Uses INSERT OR REPLACE to maintain a single-row table.
+        """
+        try:
+            import sqlite3
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "INSERT INTO daemon_stats (id, total_checks_cumulative, last_updated_at) VALUES (1, ?, datetime('now'))"
+                " ON CONFLICT(id) DO UPDATE SET total_checks_cumulative = ?, last_updated_at = datetime('now')",
+                (self._total_checks, self._total_checks),
+            )
+            conn.commit()
+            conn.close()
+        except sqlite3.Error as e:
+            logger.warning(f"Failed to persist check count: {e}")
+            # Continue even if persist fails; count is still in memory
+
     def _record_check_metric(self, operation: str, elapsed_ms: float) -> None:
         """Record in-memory health metrics for completed check operations."""
         self._total_checks += 1
+        # Persist the updated count to SQLite
+        self._persist_check_count()
         if operation == "check.input":
             self._input_latencies_ms.append(elapsed_ms)
         elif operation == "check.output":
@@ -1249,6 +1299,9 @@ class DaemonServer:
         self.session_store = SessionStore(self.db_path)
         self.forensic_logger = ForensicLogger(self.db_path, catalogue=self.catalogue)
         self.quarantine_store = QuarantineStore(self.db_path, key_path=self.quarantine_key_path)
+
+        # Load persisted total_checks count from daemon_stats table
+        await asyncio.to_thread(self._load_persisted_check_count)
 
         # Start background sweeper task
         self._sweeper_task = start_sweeper(self.quarantine_store)

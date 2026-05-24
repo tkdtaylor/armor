@@ -113,6 +113,21 @@ created_at     timestamp  UTC; used for ordering
 - **Data invariants:** Text is never encrypted or hashed (raw output stored). Text is never logged verbatim to forensic records — chunked-canary blocks reference `turn_ids` and `canary_id` only.
 - **Cleanup:** No automatic deletion in the current daemon. Operators can reclaim space by deleting rows for ended sessions out of band; a periodic sweeper is tracked as a deferred hygiene task.
 
+#### Entity: `daemon_stats` (cumulative daemon metrics)
+
+```
+field                     type       notes
+──────────────────────────────────────────────────────
+id                        integer    PK (constrained to 1; single-row table)
+total_checks_cumulative   integer    Total guarded checks executed across all daemon restarts
+last_updated_at           timestamp  UTC; when the row was last updated
+```
+
+- **Purpose:** Persist daemon-level metrics across restarts. Currently tracks cumulative check count for v1.0 external validation / dogfood counting.
+- **Lifecycle:** Single-row table, created on first daemon startup. Updated after every check operation. Never deleted.
+- **Data invariants:** The `id` column is constrained to 1 to enforce single-row invariant. On insertion, uses `ON CONFLICT(id) DO UPDATE` to ensure the row is always updated, never duplicated.
+- **How it works:** On daemon startup, load the persisted `total_checks_cumulative` value and restore in-memory `_total_checks` counter. After each check, increment the counter and immediately persist to SQLite. If the daemon restarts, the counter resumes from the last persisted value (not 0).
+
 ### Corpus: Test evaluation corpus rows (in-repo, `tests/eval/corpus/`)
 
 **Purpose:** Red-team test cases against which all detectors are evaluated. Organized by attack category (direct_injection, exfiltration, etc.). Used to measure detector coverage, false-positive rate, and latency; required for v1.0 release (≥25 external sources per family for families ≥100 rows).
