@@ -38,6 +38,13 @@ Documentation = "https://github.com/tkdtaylor/armor#readme"
 Issues = "https://github.com/tkdtaylor/armor/issues"
 
 [project.optional-dependencies]
+# Provider SDKs needed only when running examples/. Intentionally not pinned — users
+# bring their own SDK version. `pip install armor-ai[examples]` or `uv sync --extra examples`.
+examples = [
+    "anthropic>=0.25.0",
+    "openai>=1.0.0",
+]
+
 # Mirrors [dependency-groups] dev so `pip install .[dev]` works for non-uv consumers.
 # The uv-native group below is the source of truth; keep these in sync.
 dev = [

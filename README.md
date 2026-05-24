@@ -255,6 +255,19 @@ For agents that aren't built on top of a framework integration — raw Anthropic
 
 All examples run offline with `--offline-smoke` for smoke testing without a daemon.
 
+**Last verified end-to-end** (2026-05-24, `ARMOR_DISABLE_LLM=true`, daemon with 24 detectors active):
+
+| Example | Armor layer | Signal | Provider / model | Notes |
+|---------|-------------|--------|-----------------|-------|
+| `anthropic_sdk.py` | `check_input` | `regex.instruction_override:override-001` | Anthropic / `claude-haiku-4-5-20251001` | LLM call not exercised (no credits); armor block path confirmed |
+| `openai_sdk.py` | `check_input` | `regex.instruction_override:override-001` | OpenAI / `gpt-4o-mini` | LLM call not exercised (quota); armor block path confirmed |
+| `langchain.py` | `check_input` + `check_output` | `regex.instruction_override:override-001` | — (no LLM call in demo) | Full pass + block flow verified |
+| `custom_agent.py --demo-attack injection` | `check_input` | `stub.direct_injection.instruction_override` | — (stub) | Exit 10 (correct) |
+| `custom_agent.py --demo-attack path-traversal` | `check_tool_call` | `stub.tool_param_schema.path_traversal` | — (stub) | Exit 11 (correct) |
+| `custom_agent.py --demo-attack canary-leak` | `check_output` | `stub.canary_scanner.synthetic_canary_emitted` | — (stub) | Exit 12 (correct); canary not in stdout |
+
+All incidents cross-referenced against the SQLite forensic log (4 `Incident` rows, session IDs: `langchain-demo`, `anthropic-demo`, `openai-demo`). Estimated API cost: $0.00 (both LLM calls blocked before reaching the provider).
+
 ## Project structure
 
 ```
