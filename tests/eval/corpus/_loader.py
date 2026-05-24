@@ -67,6 +67,8 @@ class CorpusRow:
         family: Attack family name for filtering (optional).
         covers_detectors: Detector IDs directly exercised by this row even if
             the full pipeline returns a later blocking detector signal.
+        source: Source provenance of the row (optional). Format: "maintainer" (default),
+            or "external:<source_name>" (e.g., "external:harmbench").
     """
 
     id: str
@@ -80,6 +82,7 @@ class CorpusRow:
     turns: list[Turn] | None = None
     family: str | None = None
     covers_detectors: list[str] = field(default_factory=list)
+    source: str | None = None
 
     def is_multi_turn(self) -> bool:
         """Return True if this is a multi-turn scenario row."""
@@ -419,6 +422,7 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
                     turns=turns,
                     family=row_dict.get("family"),
                     covers_detectors=covers_detectors,
+                    source=row_dict.get("source"),
                 )
                 rows.append(row)
                 continue
@@ -466,6 +470,7 @@ def load_corpus(category: str | None = None) -> list[CorpusRow]:
                 tool_params=tool_params,
                 family=row_dict.get("family"),
                 covers_detectors=covers_detectors,
+                source=row_dict.get("source"),
             )
             rows.append(row)
 

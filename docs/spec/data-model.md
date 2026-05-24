@@ -113,6 +113,35 @@ created_at     timestamp  UTC; used for ordering
 - **Data invariants:** Text is never encrypted or hashed (raw output stored). Text is never logged verbatim to forensic records — chunked-canary blocks reference `turn_ids` and `canary_id` only.
 - **Cleanup:** No automatic deletion in the current daemon. Operators can reclaim space by deleting rows for ended sessions out of band; a periodic sweeper is tracked as a deferred hygiene task.
 
+### Corpus: Test evaluation corpus rows (in-repo, `tests/eval/corpus/`)
+
+**Purpose:** Red-team test cases against which all detectors are evaluated. Organized by attack category (direct_injection, exfiltration, etc.). Used to measure detector coverage, false-positive rate, and latency; required for v1.0 release (≥25 external sources per family for families ≥100 rows).
+
+**Schema:** Each row is a YAML dict with:
+
+```
+field                  type              notes
+─────────────────────────────────────────────────────
+id                     text              Unique identifier (e.g., "di-001", "mt-001")
+attack_category        text              Category for classification (e.g., "direct_injection", "exfiltration.canary_leak")
+input                  text              Input payload (single-shot rows) OR omitted (multi-turn rows use `turns`)
+expected_verdict       text              Expected detector verdict: "pass", "block", "advisory", or "error" (single-shot only)
+expected_signal_id     text (optional)   Expected detector signal ID (e.g., "regex.instruction_override:override-001")
+notes                  text (optional)   Descriptive notes for the test case
+tool                   text (optional)   Tool name for tool_abuse rows (defaults to "Bash" if omitted)
+tool_params            object (optional) Tool parameters (defaults to {command: input} for Bash)
+turns                  array (optional)  Multi-turn scenario; list of turn objects with input, agent_output, verdicts
+family                 text (optional)   Attack family name for filtering and sourcing requirements
+covers_detectors       array (optional)  Detector IDs directly exercised by this row (for explicit coverage tracking)
+source                 text (optional)   Row provenance: "maintainer" (default if omitted) or "external:<name>" (e.g., "external:harmbench"). Used to enforce v1.0 sourcing gate: families with ≥100 rows must have ≥25 external rows.
+```
+
+**Data invariants:**
+- Canary references in `input` and `expected_signal_id` use `{canary:<id>}` syntax; literal canary values are forbidden (validated at load time).
+- If `source` is absent, defaults to `None` (treated as `"maintainer"` by the sourcing gate).
+- Multi-turn rows use a `turns` array instead of `input` and `expected_verdict`.
+- Single-shot rows must have either `(input, expected_verdict)` or `turns`, never both.
+
 #### Entity: `CanaryCatalogue` (in-memory snapshot)
 
 **Source:** Merged from schema (bundled, `src/armor/canaries/default_catalogue.json`) + values (runtime-injected, path specified by `daemon.canary_values_path` or `ARMOR_CANARY_VALUES_PATH`).

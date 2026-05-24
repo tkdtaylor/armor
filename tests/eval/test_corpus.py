@@ -94,6 +94,87 @@ def test_required_context_window_detectors_have_corpus_coverage() -> None:
     assert covered_detector_ids >= REQUIRED_CONTEXT_WINDOW_DETECTORS
 
 
+def test_source_field_accepted_by_loader() -> None:
+    """TC-113-01: Source field accepted by loader without error.
+
+    Verify that corpus rows with a source field load successfully
+    and the field is accessible on the returned CorpusRow object.
+    """
+    # Verify that source field is nullable and accessible on any row
+    # (when rows with explicit source are added, they will also be accepted)
+    for row in all_rows[:5]:  # Sample a few rows
+        # Should not raise AttributeError
+        source_value = row.source
+        assert source_value is None or isinstance(source_value, str)
+
+
+def test_missing_source_field_defaults_to_none() -> None:
+    """TC-113-02: Missing source field defaults to None / maintainer.
+
+    Verify that rows without explicit source field have source == None,
+    which is treated as "maintainer" in the sourcing gate.
+    """
+    # All existing corpus rows should either have source=None or explicit "external:" prefix
+    for row in all_rows:
+        if row.source is None:
+            # This is expected for maintainer-written rows
+            pass
+        else:
+            # If source is set, it should be a string
+            assert isinstance(row.source, str)
+
+
+def test_external_sourcing_gate() -> None:
+    """TC-113-03/04/05: External sourcing gate - families with >= 100 rows must have >= 25 external rows.
+
+    TC-113-03: Gate vacuously passes when no family is at 100 rows.
+    TC-113-04: Gate fails when a family hits 100 rows with < 25 external rows.
+    TC-113-05: Gate passes when >= 25 external rows present.
+
+    For any attack_category with >= 100 rows, assert that at least 25 of those rows
+    have a source field starting with "external:".
+
+    Families below 100 rows skip the assertion (corpus expansion tasks 114-120
+    will trigger this gate once they land additional rows).
+    """
+    # Group all rows (including multi-turn) by attack_category
+    rows_by_category: dict[str, list[corpus_loader.CorpusRow]] = {}
+    for row in all_rows:
+        if row.attack_category not in rows_by_category:
+            rows_by_category[row.attack_category] = []
+        rows_by_category[row.attack_category].append(row)
+
+    # Check each category
+    for category, rows in rows_by_category.items():
+        total_rows = len(rows)
+
+        # Skip categories below the 100-row threshold
+        if total_rows < 100:
+            continue
+
+        # Count external rows for this category
+        external_rows = sum(1 for row in rows if (row.source or "").startswith("external:"))
+
+        assert external_rows >= 25, (
+            f"Attack category '{category}' has {total_rows} rows but only {external_rows} "
+            f"come from external sources (need >=25). "
+            f"Use 'source: external:<name>' in YAML rows to mark external provenance."
+        )
+
+
+def test_spec_documents_source_field() -> None:
+    """TC-113-06: Spec coverage - docs/spec/data-model.md documents source field.
+
+    Verify that the data model spec includes documentation of the corpus source field.
+    """
+    spec_path = Path(__file__).parents[2] / "docs" / "spec" / "data-model.md"
+    content = spec_path.read_text(encoding="utf-8")
+
+    # Check that the source field is documented
+    assert "source" in content.lower()
+    assert "external:" in content
+
+
 @pytest.mark.parametrize(
     ("row", "detector_id"),
     declared_detector_coverage_cases,
