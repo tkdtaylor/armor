@@ -15,8 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy the source code
 COPY . .
 
-# Install the armor package and its dependencies (including llama-cpp-python)
-RUN pip install --no-cache-dir --user .
+# Install uv, then install dependencies using the frozen lock file so the
+# Docker build always gets the exact same versions as the dev environment.
+# pip install is used for the final --user install to keep the same /root/.local
+# layout that the runtime stage copies from.
+RUN pip install --no-cache-dir uv
+RUN uv export --frozen --no-dev --no-emit-project -o /tmp/frozen-reqs.txt
+RUN pip install --no-cache-dir --user -r /tmp/frozen-reqs.txt
+RUN pip install --no-cache-dir --user --no-deps .
 
 # Download the embedding model for topic-coherence detection
 RUN python3 -c "from huggingface_hub import hf_hub_download; import os; os.makedirs('/build/models', exist_ok=True); \
