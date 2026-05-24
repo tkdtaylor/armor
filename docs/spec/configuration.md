@@ -27,7 +27,7 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `model.path` | path | `/models/active.gguf` | no | Validator LLM weights |
 | `model.context_tokens` | integer | `2048` | no | LLM context window |
 | `model.validator_budget_ms` | integer | `500` | no | Hard latency cap per validator LLM call (milliseconds). Empirical P95: 486 ms. |
-| `model.honeypot_budget_ms` | integer | `16000` | no | Hard latency cap per honeypot LLM call (milliseconds). Empirical P95: 15,000–15,500 ms; current budget set per ADR-023 (was 12,000 ms in earlier drafts). On timeout: returns empty string (soft-fail). |
+| `model.honeypot_budget_ms` | integer | `16000` | no | Hard latency cap per honeypot LLM call (milliseconds). Empirical P95: 15,000–15,500 ms; budget set per ADR-023. On timeout: returns empty string (soft-fail). |
 | **Soft-fail behavior (not tunable)** | — | — | — | When any LLM call (validator or honeypot) exceeds its budget, the detector returns `advisory(confidence=0)` instead of raising an exception. This is hardcoded fail-open behavior (per ADR-023 §"Soft-fail policy"); there is no operator override. The LLM is advisory, not load-bearing; static-only detection is sufficient for all P0/P1 attacks. |
 | `pipeline.input_detectors` | array of strings | `["*"]` | no | Detector allowlist for `check.input`; supports `*`, exact detector IDs, detector categories, and glob patterns |
 | `pipeline.output_detectors` | array of strings | `["*"]` | no | Detector allowlist for `check.output`; same matching rules as `pipeline.input_detectors` |
@@ -39,7 +39,6 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `entropy.threshold` | float | `4.5` | no | Shannon entropy bits/char above which to flag (consumed by `entropy.decode_rescan` detector); used for single-turn output checks |
 | `entropy.max_decode_depth` | integer | `3` | no | Maximum recursion depth for bounded-depth decode; 0-indexed (depth=3 means up to 3 codec applications) |
 | `entropy.no_progress_margin_bits` | float | `0.5` | no | Entropy reduction margin for no-progress termination (bits/char); if decoded entropy < input entropy − margin, stop recursing |
-| `detector.canary.partial_match_min_chars` | integer | `12` | no | Minimum prefix length (chars) of a canary value to trigger a partial-match advisory signal (per ADR-025) |
 | `detector.canary_paraphrase.ngram_min` | integer | `6` | no | Minimum n-gram length for paraphrase detector (per ADR-034) |
 | `detector.canary_paraphrase.ngram_max` | integer | `11` | no | Maximum n-gram length for paraphrase detector (per ADR-034) |
 | `detector.canary_paraphrase.k_threshold` | integer | `3` | no | Number of distinct n-grams required to fire paraphrase advisory (per ADR-034) |

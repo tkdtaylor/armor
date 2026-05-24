@@ -232,8 +232,8 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 
 ### B-009b: Detect paraphrased canary leaks via n-gram matching in rolling buffer
 
-- **Trigger:** Output check reaches the rolling-buffer scanning phase (same as B-009a). Detector `canary.paraphrase` runs on the rolling buffer after the chunked-canary scan.
-- **Response:** The paraphrase detector builds an Aho-Corasick automaton of all contiguous n-grams of length [`detector.canary_paraphrase.ngram_min`, `detector.canary_paraphrase.ngram_max`] from active canary values (defaults: 6–11 chars, below the 12-char partial-match threshold from B-009a). On every output check, it:
+- **Trigger:** Output check reaches the rolling-buffer scanning phase (same as B-009a). Detector `canary.paraphrase` runs on the rolling buffer.
+- **Response:** The paraphrase detector builds an Aho-Corasick automaton of all contiguous n-grams of length [`detector.canary_paraphrase.ngram_min`, `detector.canary_paraphrase.ngram_max`] from active canary values (defaults: 6–11 chars). On every output check, it:
   1. Scans the rolling buffer concatenation for n-gram matches.
   2. Tracks distinct n-grams matched per canary_id.
   3. If count ≥ `detector.canary_paraphrase.k_threshold` (default 3) for any canary, returns `advisory` with `signal_id = canary.paraphrase:<canary_id>:ngram`, `severity = high`, and `confidence = min(1.0, K_observed / K_threshold * 0.5)`.
@@ -245,7 +245,7 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
   - `detector.canary_paraphrase.ngram_max` (int, default 11): maximum n-gram length.
   - `detector.canary_paraphrase.k_threshold` (int, default 3): distinct n-grams required to fire advisory.
   - `detector.canary_paraphrase.advisory_weight` (float, default 0.5): signal weight consumed by session FSM via `session.signal_weights."canary.paraphrase"`.
-- **Relationship to B-009a:** Both detectors share the rolling buffer and operate on the same concatenation. B-009a fires on contiguous 12+ char prefixes (higher confidence, block-eligible). B-009b fires on sub-12-char n-gram fragments (lower confidence, advisory only). They emit distinct `signal_id`s (`canary.partial` vs `canary.paraphrase`) and feed separate signals into the FSM.
+- **Relationship to B-009a:** Both detectors share the rolling buffer and operate on the same concatenation. B-009a fires on any canary match in the per-turn payload (`canary.scanner:*`, block-eligible). B-009b fires on sub-token n-gram fragments distributed across turns (`canary.paraphrase:*`, advisory only). They emit distinct `signal_id`s and feed separate signals into the FSM.
 - **Failure modes:** Latency budget exceeded (timeout) → returns `error` verdict, pipeline continues. Automaton construction fails → falls back to pass verdict and logs warning.
 - **References:** ADR-034, unit tests at `tests/unit/detectors/test_canary_paraphrase.py`, corpus at `tests/eval/corpus/exfiltration.yaml` (family `paraphrase_exfil`)
 

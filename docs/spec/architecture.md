@@ -1,7 +1,7 @@
 # Architecture — System Structure
 
 **Project:** armor
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-24
 
 This file is the **catalog** that pairs with [`docs/architecture/diagrams.md`](../architecture/diagrams.md). The diagram shows the model visually; this file lists every container, component, and edge in tabular form so a drift audit can mechanically verify the model against the code.
 
@@ -39,7 +39,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 
 | Component | Source | Responsibility | Depends on |
 |-----------|--------|----------------|------------|
-| `daemon.server` | [src/armor/daemon/server.py](../../src/armor/daemon/server.py) | Unix-socket server; reads a check request, invokes `pipeline`, returns the verdict; persists FSM transitions on every check. Loads and injects LLM session into LLM-dependent detectors at boot via post-load loop (mechanism A). | `pipeline`, `db.migrations`, `db.session_store`, `db.forensic`, `db.quarantine`, `db.sweeper`, `armor.logging`, `daemon.honeypot_gate`, `session.state_machine`, `llm.session`, `canaries.catalogue`, `canaries.scanner`, `detectors.canary_scanner`, `detectors.destination_extractor`, `detectors.instruction_burial`, `detectors.conversation_hijack` |
+| `daemon.server` | [src/armor/daemon/server.py](../../src/armor/daemon/server.py) | Unix-socket server; reads a check request, invokes `pipeline`, returns the verdict; persists FSM transitions on every check. Loads and injects LLM session into LLM-dependent detectors at boot via post-load loop (mechanism A). Conditionally injects `detectors.output_harmful_content` when `detector.output_harmful_content.enabled=true`. | `pipeline`, `db.migrations`, `db.session_store`, `db.forensic`, `db.quarantine`, `db.sweeper`, `db.operator_audit`, `armor.logging`, `daemon.honeypot_gate`, `session.state_machine`, `llm.session`, `canaries.catalogue`, `canaries.scanner`, `detectors.canary_scanner`, `detectors.destination_extractor`, `detectors.instruction_burial`, `detectors.conversation_hijack`, `detectors.output_harmful_content` (conditional) |
 | `armor.logging` | [src/armor/logging.py](../../src/armor/logging.py) | Structured logging for daemon-side events; substitutes `canary_id` for canary values before persisting | `types` |
 | `daemon.honeypot_gate` | [src/armor/daemon/honeypot_gate.py](../../src/armor/daemon/honeypot_gate.py) | Decides when to invoke the honeypot LLM path (gated by session state and per-path budget) | `llm.honeypot`, `session.state_machine` |
 
@@ -47,7 +47,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 
 | Component | Source | Cost tier | Responsibility | Depends on |
 |-----------|--------|-----------|----------------|------------|
-| `detectors.canary_scanner` | [src/armor/detectors/canary_scanner.py](../../src/armor/detectors/canary_scanner.py) | static | Aho-Corasick scan for canary values in the payload; emits `block` + `canary_id` on full match, `advisory` + `canary_id` on partial-prefix match (≥ `detector.canary.partial_match_min_chars` chars) per ADR-025. The rolling-buffer scan for chunked exfiltration lives in `detectors.canary_paraphrase` (n-gram coverage), not here. | `canaries._generate`, `canaries.catalogue`, `canaries.scanner`, `types` |
+| `detectors.canary_scanner` | [src/armor/detectors/canary_scanner.py](../../src/armor/detectors/canary_scanner.py) | static | Aho-Corasick scan for canary values in the payload; emits `block` + `canary_id` on any match. The rolling-buffer scan for chunked / paraphrased exfiltration lives in `detectors.canary_paraphrase` (n-gram coverage), not here. | `canaries._generate`, `canaries.catalogue`, `canaries.scanner`, `types` |
 | `detectors.canary_paraphrase` | [src/armor/detectors/canary_paraphrase.py](../../src/armor/detectors/canary_paraphrase.py) | static | N-gram coverage detector for paraphrased canary leaks (Approach A per ADR-034); scans rolling buffer for ≥ K distinct n-grams of same canary; emits `advisory` with confidence formula | `canaries.catalogue`, `types`, `session.rolling_buffer` |
 | `detectors.regex_authority_impersonation` | [src/armor/detectors/regex_authority_impersonation.py](../../src/armor/detectors/regex_authority_impersonation.py) | static | Regex matches for authority-impersonation injection attacks | `types` |
 | `detectors.regex_instruction_override` | [src/armor/detectors/regex_instruction_override.py](../../src/armor/detectors/regex_instruction_override.py) | static | Regex matches for "ignore previous instructions" family attacks | `types` |
@@ -71,6 +71,7 @@ The daemon container is the single network-facing surface. The CLI and SDK eithe
 | `detectors.regex_ssrf_probe` | [src/armor/detectors/regex_ssrf_probe.py](../../src/armor/detectors/regex_ssrf_probe.py) | static | Regex matches for SSRF probe attempts targeting cloud IMDS endpoints (AWS `169.254.169.254`, GCP `metadata.google.internal`, Alibaba `100.100.100.200`) and `file://` URI schemes | `types` |
 | `detectors.jailbreak_template` | [src/armor/detectors/jailbreak_template.py](../../src/armor/detectors/jailbreak_template.py) | llm | Static templates (DAN, developer-mode, fictional framing) plus optional validator-LLM judgment. Cost tier reflects highest invocation path. LLM session injected at daemon boot (mechanism A). | `llm.validator`, `types` |
 | `detectors.llm_validator` | [src/armor/detectors/llm_validator.py](../../src/armor/detectors/llm_validator.py) | llm | Calls `llm.validator` with a structured-output prompt; emits `advisory` with confidence; gated by `session.state ≥ Watching`. LLM session injected at daemon boot (mechanism A). | `llm.validator`, `types` |
+| `detectors.output_harmful_content` | [src/armor/detectors/output_harmful_content.py](../../src/armor/detectors/output_harmful_content.py) | llm | **Opt-in** (disabled by default; enabled via `detector.output_harmful_content.enabled=true`). Two-stage: regex fast-path scans `MODEL_OUTPUT` payloads for runnable attack commands (cloud credential exfil, IMDS probes, privilege escalation chains); stage 2 calls `llm.validator` for confirmation. Emits `block` when LLM confidence ≥ `block_threshold`, `advisory` otherwise. Injected at daemon boot by `daemon.server` when enabled. | `llm.validator`, `types` |
 
 ## Components — session
 

@@ -85,7 +85,7 @@ Answered 2026-05-07.
 4. Per-check honeypot prompt regeneration (existing `prompts/honeypot.txt` becomes a template; `honeypot.py` materializes it per call).
 5. `data-model.md` updated for the schema extension; `behaviors.md` B-002 updated to note that the active subset is now per-check.
 6. New corpus rows under `tests/eval/corpus/exfiltration.yaml` exercising activation rules (e.g., a turn that does *not* use `WebFetch` should not match a `tool_used:WebFetch` canary).
-7. New fitness function: `tests/fitness/canary_activation_consistency.py` — assert that for any session, an activated-then-deactivated canary, if reactivated, produces the same value (not regenerated mid-session).
+7. New fitness function: `tests/fitness/test_canary_activation_consistency.py` — assert that for any session, an activated-then-deactivated canary, if reactivated, produces the same value (not regenerated mid-session).
 8. **Performance budget:** per-check active-set re-evaluation must complete in ≤ 1 ms. Aho-Corasick rebuild on subset change ≤ 5 ms. Both are well within the per-detector budget.
 
 ## See also

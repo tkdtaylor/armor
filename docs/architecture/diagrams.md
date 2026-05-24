@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-05-17 (v2.0 — added four new static detectors, PII context path to §8)
+**Last updated:** 2026-05-24 (v2.1 — added output detectors (opt-in) and tool-abuse detector boxes to §1)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -76,6 +76,8 @@ flowchart TB
             Topic["Topic-coherence detector<br/>(MiniLM ONNX embedding, per-session EMA)"]
             CmdGuard["Command-injection guard<br/>(shell denylist, tool params)"]
             Rolling["canary.paraphrase n-gram scan<br/>(rolling buffer, 8 KB / 20 turns, advisory only)"]
+            ToolAbuse["Tool-abuse detectors<br/>(param schema, rate anomaly, chain)"]
+            OutputOpt["Output detectors (opt-in)<br/>(output.harmful_content — regex + LLM, MODEL_OUTPUT only)"]
         end
 
         HoneypotGate["HoneypotGate<br/>(state ≥ Watching ∧ block/advisory → honeypot)"]
@@ -96,6 +98,8 @@ flowchart TB
     PipelineOrch --> Topic
     PipelineOrch --> CmdGuard
     PipelineOrch --> Rolling
+    PipelineOrch --> ToolAbuse
+    PipelineOrch --> OutputOpt
     HoneypotGate -.invokes.-> Honeypot
     Topic -.advisory feeds.-> FSM
     Static -.advisory/block feeds.-> FSM
