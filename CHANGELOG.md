@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Indirect injection corpus expansion: 9 → 104 rows (task 114).** Extended the indirect-injection family from 9 rows to 104 rows meeting the v1.0 detection-floor gate (≥100 rows, ≥25 external-sourced). Covers 30+ variants across three detector families: instruction-override (Markdown hiding, CSS display:none, whitespace burial, template injection, CDATA smuggling), roleplay-hijack (persona swap, character bleed, story framing, footnote injection), and system-prompt-extraction (long-range probes, credential enumeration, PII extraction). External rows sourced from PromptInject (Perez & Ribeiro 2022), Lakera PINT, and HarmBench evaluation sets. 25 benign rows (TN) covering technical documentation, JSON/HTML/CSS output, and legitimate "ignore" usage, achieving TP rate ≥90% and FP rate ≤5%.
+
 ## [0.11.0] — 2026-05-23
 
 ### Added
