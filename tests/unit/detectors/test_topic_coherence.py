@@ -264,7 +264,7 @@ class TestTopicCoherence:
         Pins spec: "when no EMA exists, no comparison is possible."
         """
         fake_vec = self._make_fake_vectorize()
-        detector = TopicCoherence(_vectorize=fake_vec)
+        detector = TopicCoherence(_vectorize=fake_vec, budget_ms=5000)
 
         # First input: no EMA yet
         payload = Payload(text="hello, help me with something")
@@ -282,7 +282,7 @@ class TestTopicCoherence:
         fake_vec = self._make_fake_vectorize()
         threshold = 0.5
         margin = 0.2
-        detector = TopicCoherence(_vectorize=fake_vec, threshold=threshold, margin=margin)
+        detector = TopicCoherence(_vectorize=fake_vec, threshold=threshold, margin=margin, budget_ms=5000)
 
         # Seed EMA with a benign input
         payload1 = Payload(text="hello world")
