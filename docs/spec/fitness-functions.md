@@ -1,7 +1,7 @@
 # Fitness Functions
 
 **Project:** armor
-**Last updated:** 2026-05-09
+**Last updated:** 2026-05-24
 
 Executable architectural invariants. Every check is a pytest test under
 [tests/fitness/](../../tests/fitness/); discovery is the single source of
@@ -51,6 +51,9 @@ and every file there corresponds to exactly one row.
 | `src/armor/daemon/` makes no outbound network calls | Top-level invariant in `SPEC.md`; defends the no-network promise. Imports of `requests`, `httpx`, `urllib3`, `http.client`, `socket`, or `urllib` under the daemon tree fail this check. | [test_no_outbound_network.py](../../tests/fitness/test_no_outbound_network.py) |
 | Validator LLM has no canary value access | Per ADR-021, `src/armor/llm/validator.py` must not call `catalogue.values()` or read `entry.value` / `canary.value`. Values flow only through the honeypot path. | [test_validator_no_value_access.py](../../tests/fitness/test_validator_no_value_access.py) |
 | Daemon IPC ops assign correct `Payload.source` defaults | Per ADR-041 §1, `check.input → USER_INPUT`, `check.output → MODEL_OUTPUT`, `check.tool → TOOL_PARAMS`, `check.fetched → TOOL_RESULT_UNTRUSTED`. | [test_payload_source_propagation.py](../../tests/fitness/test_payload_source_propagation.py) |
+| Detectors do not cross-import sibling detectors | Per modularity principle, detector modules must not import each other; only public utility functions (e.g., `get_compiled_patterns()`) are allowed. `__init__.py` and future `registry.py` exempt. | [test_detector_no_cross_import.py](../../tests/fitness/test_detector_no_cross_import.py) |
+| `types.py` has no runtime internal imports | Per dependency hierarchy, `src/armor/types.py` must not import armor modules at runtime; only TYPE_CHECKING blocks allowed. | [test_types_no_internal_imports.py](../../tests/fitness/test_types_no_internal_imports.py) |
+| Forensic logger never writes canary values | Per ADR-021, the forensic log stores only `canary_id`, never plaintext `canary.value`. Static analysis rejects any `triggered_canary` assignment that accesses `.value`. | [test_forensic_canary_id_gate.py](../../tests/fitness/test_forensic_canary_id_gate.py) |
 
 ### Performance / footprint
 
