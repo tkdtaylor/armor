@@ -59,7 +59,10 @@ class _InternalImportChecker(ast.NodeVisitor):
 
 @pytest.mark.smoke
 def test_types_has_no_internal_imports() -> None:
-    """TC-127-02: AST scan rejects internal armor imports in types.py."""
+    """TC-127-02: AST scan rejects internal armor imports in types.py.
+
+    Spec marker: TC-127-02
+    """
     assert TYPES_PATH.is_file(), f"types.py not found at {TYPES_PATH}"
 
     try:

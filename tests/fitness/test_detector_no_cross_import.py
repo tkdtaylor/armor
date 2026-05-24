@@ -64,7 +64,10 @@ class _CrossImportChecker(ast.NodeVisitor):
 
 @pytest.mark.smoke
 def test_detectors_do_not_cross_import() -> None:
-    """TC-127-01: AST scan rejects detector-to-detector imports."""
+    """TC-127-01: AST scan rejects detector-to-detector imports.
+
+    Spec marker: TC-127-01
+    """
     assert DETECTORS_DIR.is_dir(), f"detectors directory not found at {DETECTORS_DIR}"
 
     violations: list[str] = []

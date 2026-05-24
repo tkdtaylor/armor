@@ -29,7 +29,10 @@ VALUE_ATTR_ACCESS = re.compile(r"\.value\b")
 
 @pytest.mark.smoke
 def test_forensic_triggered_canary_never_stores_value() -> None:
-    """TC-127-03: Static analysis rejects canary.value in forensic assignments."""
+    """TC-127-03: Static analysis rejects canary.value in forensic assignments.
+
+    Spec marker: TC-127-03
+    """
     violations: list[str] = []
 
     # Check forensic.py
