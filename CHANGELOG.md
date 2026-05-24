@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-05-23
+
+### Added
+
+- **`output.harmful_content` detector (opt-in).** Two-stage detector for harmful attack commands in model output: fast regex pass across four families (cloud credential exfiltration, credential file access, IMDS/metadata endpoints, privilege escalation chains), followed by LLM confirmation. Disabled by default — enable with `detector.output_harmful_content.enabled = true` in `armor.toml`. Block threshold tunable via `detector.output_harmful_content.block_threshold` (default 0.6).
+
+### Fixed
+
+- **Mypy strict type error in `OutputHarmfulContent`.** `cost_tier` was annotated as `Literal['static', 'semantic', 'llm']` instead of `str`, making it incompatible with the `Detector` protocol and failing CI typecheck on both Python 3.12 and 3.13.
+- **Flaky `test_tc_024_05` / `test_tc_024_06` under slow CI.** Tests that aren't exercising the latency-budget path now use `budget_ms=5000` instead of the default 50 ms. The `np.random.RandomState` cold-start on a shared CI worker was taking ~53 ms and spuriously tripping the soft-fail advisory. `test_tc_024_07` (which explicitly tests the budget path) is unchanged.
+
 ## [0.10.3] — 2026-05-23
 
 ### Fixed

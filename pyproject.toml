@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "armor-ai"
-version = "0.10.3"
+version = "0.11.0"
 description = "A defense-in-depth security layer for LLM agents"
 readme = {file = "README_PYPI.md", content-type = "text/markdown"}
 requires-python = ">=3.12"
