@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-05-24
+
 ### Added
 
-- **Indirect injection corpus expansion: 9 → 104 rows (task 114).** Extended the indirect-injection family from 9 rows to 104 rows meeting the v1.0 detection-floor gate (≥100 rows, ≥25 external-sourced). Covers 30+ variants across three detector families: instruction-override (Markdown hiding, CSS display:none, whitespace burial, template injection, CDATA smuggling), roleplay-hijack (persona swap, character bleed, story framing, footnote injection), and system-prompt-extraction (long-range probes, credential enumeration, PII extraction). External rows sourced from PromptInject (Perez & Ribeiro 2022), Lakera PINT, and HarmBench evaluation sets. 25 benign rows (TN) covering technical documentation, JSON/HTML/CSS output, and legitimate "ignore" usage, achieving TP rate ≥90% and FP rate ≤5%.
+- **`canary.chunked` detector** reconstructs canary values that have been split across multiple turns in the rolling session buffer and blocks immediately on a full match. Enforces the forensic invariant — logs `canary_id` only, never the canary value. Registered as an entry point; no cross-detector imports. (task 128)
+- **Check counter persistence via `daemon_stats` table.** Cumulative `armor check` invocations are now written to SQLite and reloaded on daemon restart, enabling uninterrupted 14-day external validation runs. `armor health` can read the count offline when the daemon socket is unreachable. (task 122)
+- **Eval corpus source provenance field.** All corpus rows now carry a `source` field (`original`, `manual`, or a dataset name), making the ground-truth origin of every row auditable. (task 113)
+- **All 7 red-team categories expanded to ≥100 rows** with ≥25 external-sourced entries: indirect injection (9 → 104, task 114), obfuscation (task 115, 100 rows), exfiltration (task 116, 100+ rows), probe attacks (task 117, 119 rows), direct injection (task 118, 100+ rows), jailbreak (task 119, 149 rows), tool abuse (task 120, 110 rows). External rows sourced from PromptInject, Lakera PINT, HarmBench, and RLHF-Blended sets. Each category meets the v1.0 detection-floor gate (≥100 rows, TP ≥90%, FP ≤5%).
+- **Three structural fitness functions** enforcing invariants at the architectural level: `test_detector_no_cross_import` (detectors may not import each other), `test_forensic_canary_id_gate` (forensic log must never store raw canary values), `test_types_no_internal_imports` (public types module must not import internal packages). (task 127)
+- **Unit tests for `tool_param_schema` detector** covering schema validation, allow-list enforcement, and advisory/block escalation. (task 126)
+- **Unit tests for four regex detectors** (`regex_encoding_request`, `regex_exfil_chain`, `regex_code_injection`, `regex_ssrf_probe`) — each with TC markers aligned to the test spec. (task 125)
+- **Fitness gate for `output.harmful_content`** verifying TP/FP rates against the eval corpus and confirming the detector is disabled by default. (task 124)
+- **SDK examples verified against live APIs.** The Anthropic, OpenAI, and LangChain integration examples in `examples/` are now smoke-tested against real API endpoints in CI. (task 095)
+
+### Fixed
+
+- **Stripe test key replaced with synthetic placeholder in TN corpus rows.** Several true-negative rows contained a realistic-looking Stripe secret key pattern that was tripping secret-scanning tooling in downstream forks. Replaced with an inert synthetic value.
+- **Release workflow now skips gracefully if a GitHub release already exists.** Re-pushing a tag (e.g. after moving it to a post-fix commit) no longer fails CI with a 422 error.
 
 ## [0.11.0] — 2026-05-23
 

@@ -207,6 +207,7 @@ jobs:
           tag: ${{ github.ref_name }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generateReleaseNotes: true
+          skipIfReleaseExists: true
           body: |
             Multi-arch image (linux/amd64 + linux/arm64): ghcr.io/${{ github.repository_owner }}/armor:${{ steps.meta.outputs.version }}
             PyPI: pip install armor-ai==${{ steps.meta.outputs.version }}
