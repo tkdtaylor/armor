@@ -227,8 +227,8 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Cooldown interaction:** The rolling buffer does **not** reset when the session state steps back to Normal (cooldown). The buffer persists across cooldown to maintain context for gradual exfiltration attacks.
 - **Forensic invariant:** Multi-turn incidents reference `canary_id` only, never the canary value itself. Forensic records record the `turn_ids` that contributed fragments.
 - **Side effects:** Buffer entries are persisted to the `SessionRollingBuffer` table (append-only).
-- **Failure modes:** Buffer table corrupted or missing → daemon refuses to start (exit 78 at migrations stage). Per-detector latency budget overruns are handled at each consumer detector (currently `canary.paraphrase`), not here.
-- **References:** ADR-025, corpus at `tests/eval/corpus/multi_turn_chunked.yaml`. The chunked-canary `block` path described in earlier drafts (signal_id `canary.chunked:<canary_id>`, category `exfiltration.canary_chunked`) and the entropy rolling-buffer scan (`entropy.rolling_threshold` config key) are not currently wired in `src/`; multi-turn coverage is presently provided exclusively by `canary.paraphrase` (B-009b). A dedicated chunked-canary block path remains a candidate for future work.
+- **Failure modes:** Buffer table corrupted or missing → daemon refuses to start (exit 78 at migrations stage). Per-detector latency budget overruns are handled at each consumer detector (currently `canary.paraphrase` and `canary.chunked`), not here.
+- **References:** ADR-025, corpus at `tests/eval/corpus/multi_turn_chunked.yaml`. Multi-turn coverage is provided by `canary.paraphrase` (B-009b) for n-gram fragments and `canary.chunked` (B-009c) for full reconstructed values. The entropy rolling-buffer scan (`entropy.rolling_threshold` config key) is not currently wired in `src/`.
 
 ### B-009b: Detect paraphrased canary leaks via n-gram matching in rolling buffer
 
@@ -248,6 +248,22 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Relationship to B-009a:** Both detectors share the rolling buffer and operate on the same concatenation. B-009a fires on any canary match in the per-turn payload (`canary.scanner:*`, block-eligible). B-009b fires on sub-token n-gram fragments distributed across turns (`canary.paraphrase:*`, advisory only). They emit distinct `signal_id`s and feed separate signals into the FSM.
 - **Failure modes:** Latency budget exceeded (timeout) → returns `error` verdict, pipeline continues. Automaton construction fails → falls back to pass verdict and logs warning.
 - **References:** ADR-034, unit tests at `tests/unit/detectors/test_canary_paraphrase.py`, corpus at `tests/eval/corpus/exfiltration.yaml` (family `paraphrase_exfil`)
+
+### B-009c: Detect full canary values reconstructed in rolling buffer
+
+- **Trigger:** Output check reaches the rolling-buffer scanning phase (same as B-009a). Detector `canary.chunked` runs on the rolling buffer.
+- **Response:** The chunked detector scans the rolling buffer concatenation for complete canary values that may have been split across multiple turns. On every output check, it:
+  1. Reads active canaries from the session context (via `catalogue.active_for(ctx)`).
+  2. Concatenates all turns currently in the rolling buffer (no separator, preserving continuity).
+  3. For each active canary, checks if the full value appears as a substring in the concatenated buffer.
+  4. If found, returns `block` verdict with `signal_id = canary.chunked:<canary_id>`, `severity = critical`, and `details = {"canary_ids": [canary_id], "turn_count": N}` where N is the number of turns in the buffer.
+  5. Otherwise returns `pass`.
+- **Use case:** Detects exact reconstructions like a 20-character AWS key split across 4 turns (5 chars per turn), or a GitHub PAT split across 2 turns. Blocks on complete value recovery, as opposed to the advisory-only n-gram matching of B-009b.
+- **Forensic invariant:** Block details reference `canary_id` and `turn_count` only — never the canary value itself. Forensic records store `triggered_canary = canary_id`.
+- **Configuration:** No detector-specific configuration keys.
+- **Relationship to B-009b:** Both detectors consume the rolling buffer. B-009c fires on exact matches of full values (`canary.chunked:*`, block-eligible). B-009b fires on sub-token n-gram fragments distributed across turns (`canary.paraphrase:*`, advisory only). They emit distinct `signal_id`s and feed separate signals into the FSM. A single output check may trigger both if sufficient n-gram fragments accumulate *and* a full value is reconstructed.
+- **Failure modes:** Buffer access error → returns `pass` verdict and logs exception. Missing or empty rolling buffer → returns `pass` (no buffer to scan).
+- **References:** ADR-025, unit tests at `tests/unit/detectors/test_canary_chunked.py` and `tests/unit/db/test_forensic.py::test_chunked_canary_forensic_no_value`, corpus at `tests/eval/corpus/multi_turn_chunked.yaml` (family `chunked_canary`)
 
 ### B-014: Detect tool-call rate anomalies within a session
 

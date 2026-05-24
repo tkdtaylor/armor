@@ -65,6 +65,7 @@ dev = [
 armor = "armor.cli:main"
 
 [project.entry-points."armor.detectors"]
+canary_chunked = "armor.detectors.canary_chunked:CanaryChunkedDetector"
 canary_paraphrase = "armor.detectors.canary_paraphrase:CanaryParaphraseDetector"
 canary_scanner = "armor.detectors.canary_scanner:CanaryScannerDetector"
 cmd_injection_bash = "armor.detectors.cmd_injection_bash:CmdInjectionBash"

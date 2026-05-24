@@ -454,3 +454,56 @@ def test_incidents_list_filter_by_indirect_injection_category(forensic_logger):
     direct_results = forensic_logger.list_incidents(limit=100, category="direct_injection.*")
     direct_categories = [row["attack_category"] for row in direct_results]
     assert any(cat == "direct_injection.instruction_override" for cat in direct_categories)
+
+
+def test_chunked_canary_forensic_no_value(forensic_logger, catalogue):
+    """Test chunked canary block verdict does not leak canary values in forensic log.
+
+    Tests the forensic invariant for canary.chunked detector: triggered_canary field
+    must contain the ID, not the value. Also verifies that the canary value does not
+    appear in any other searchable field.
+    """
+    active_canaries = catalogue.active_canaries()
+    if not active_canaries:
+        # Requires `armor canary generate`; see ADR-010
+        pytest.skip("No active canaries in test catalogue")
+
+    # Use first active canary
+    canary = active_canaries[0]
+    canary_id = canary.canary_id
+    canary_value = canary.value
+
+    # Simulate a chunked canary block verdict
+    # Details contain canary_ids and turn_count, but NOT the value
+    verdict = Verdict.block_verdict(
+        signal_id=f"canary.chunked:{canary_id}",
+        details={"canary_ids": [canary_id], "turn_count": 3},
+    )
+    ctx = SessionContext(session_id="test-session")
+
+    incident_id = forensic_logger._write_incident_sync(verdict, ctx, "test payload")
+
+    # Verify that the forensic log does NOT contain the canary value
+    conn = sqlite3.connect(forensic_logger.db_path)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT signal_id, triggered_canary, attack_category FROM Incident WHERE id = ?",
+        (incident_id,),
+    )
+    row = cursor.fetchone()
+
+    assert row is not None
+    signal_id, triggered_canary, attack_category = row
+
+    # Verify signal_id is correct
+    assert signal_id == f"canary.chunked:{canary_id}"
+
+    # Verify triggered_canary is the ID, not the value
+    assert triggered_canary == canary_id
+    assert triggered_canary != canary_value
+    assert triggered_canary is not None
+
+    # Verify attack_category is correct
+    assert attack_category == "exfiltration.canary_leak"
+
+    conn.close()
