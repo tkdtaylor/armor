@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Relicensed from PolyForm Noncommercial 1.0.0 to Apache-2.0** to remove commercial-adoption friction. armor is now OSI open source, free for use in commercial and proprietary products. Added `NOTICE` (attribution, trademark, security disclaimer); README/README_PYPI/CONTRIBUTING updated; contributions now under the Developer Certificate of Origin (DCO), no CLA. Added an Enterprise Support note (`tools@taylorguard.me`) and GitHub Sponsors as the monetization path. Relicensing governs future versions; previously released versions remain available under their original license.
+- **Relicensed from PolyForm Noncommercial 1.0.0 to Apache-2.0** to remove commercial-adoption friction. armor is now OSI open source, free for use in commercial and proprietary products. Added `NOTICE` (attribution, trademark, security disclaimer); README/README_PYPI/CONTRIBUTING updated; contributions now under the Developer Certificate of Origin (DCO), no CLA. Added an Enterprise Support note (`tools@taylorguard.me`) and GitHub Sponsors as the monetization path. Relicensing governs future versions; previously released versions remain available under their original license. (ADR-044)
 
 ### Added
 
@@ -148,7 +148,7 @@ tracked operator-private.
 
 ### Changed
 
-- **Canonical contact emails** moved to `taylorguard.me`: general / security / Code-of-Conduct contact is `tools@taylorguard.me`; commercial-license inquiries go to `licensing@taylorguard.me`.
+- **Canonical contact emails** moved to `taylorguard.me`: general / security / Code-of-Conduct contact is `tools@taylorguard.me`. Enterprise support inquiries go to `tools@taylorguard.me`.
 - **`armor.toml` schema** rewritten for the post-FSM model: session thresholds, cooldown decay, signal weights, validator/honeypot budgets, and rolling-buffer / topic-coherence keys are now first-class.
 - **Architecture component table** added to `docs/architecture/overview.md` enumerating every runtime module the daemon ships with.
 - **Architecture diagrams** refreshed for the public preview: HoneypotGate, pipeline orchestrator, logging sink, and rolling buffer added to the runtime-flow diagram.
