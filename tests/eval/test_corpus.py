@@ -315,29 +315,54 @@ def test_indirect_injection_tn_rows_preserved() -> None:
     )
 
 
-def test_indirect_injection_attack_tp_rate() -> None:
-    """TC-132-03: TP rate on indirect_injection attack rows is ≥90%.
+async def test_indirect_injection_attack_tp_rate() -> None:
+    """TC-132-03: Pipeline TP rate on indirect_injection attack rows is ≥90%.
 
-    The parametrized test_corpus_verdict asserts each row matches its expected_verdict.
-    This static test asserts the structural invariant: at least 90% of
-    indirect_injection rows (base category only, not subtype) have
-    expected_verdict in {block, advisory}, confirming that the reconciliation
-    did not dilute the attack-row proportion below the TP-rate floor.
+    Selects all indirect_injection (base category only, not subtypes like
+    cross_boundary) rows whose expected_verdict ∈ {block, advisory} — these are
+    the "attack" rows. Runs each through the pipeline using the same
+    _payload_for_row + Pipeline.run path the parametrized test_corpus_verdict
+    uses. Computes the fraction of attack rows whose actual pipeline
+    verdict.decision ∈ {block, advisory} and asserts:
 
-    Note: All rows that carry expected_verdict: block WILL produce block (the
-    parametrized test enforces this per-row). This test asserts the rate threshold
-    is met at the corpus design level — the TN re-tagging should not have created
-    a corpus where benign rows swamp the attack signal.
+      tp_rate = detected_attacks / total_attack_rows ≥ 0.90
+
+    Additionally asserts that NO attack row regresses to decision == "pass",
+    listing any offending row IDs to aid diagnosis.
+
+    TC-132-03: true-positive rate on indirect_injection ATTACK rows ≥ 90%.
     """
-    # Use only the base indirect_injection category (not subtype like cross_boundary)
-    ii_rows = [r for r in all_rows if r.attack_category == "indirect_injection"]
-    attack_rows = [r for r in ii_rows if r.expected_verdict in ("block", "advisory")]
-    tp_rate = len(attack_rows) / len(ii_rows) if ii_rows else 0.0
-    assert tp_rate >= 0.70, (
-        f"indirect_injection attack-row proportion is {tp_rate:.1%} ({len(attack_rows)}/{len(ii_rows)}). "
-        f"Expected ≥70% to maintain meaningful attack signal. "
-        f"(Note: all attack rows produce block per parametrized test_corpus_verdict; "
-        f"this checks the corpus design ratio.)"
+    # Use only the base indirect_injection category (not subtypes like cross_boundary)
+    ii_attack_rows = [
+        r for r in all_rows if r.attack_category == "indirect_injection" and r.expected_verdict in ("block", "advisory")
+    ]
+    assert ii_attack_rows, "No indirect_injection attack rows found — corpus may be empty"
+
+    # Run each attack row through the pipeline (mirrors test_corpus_verdict's mechanism)
+    false_negatives: list[str] = []
+    detected = 0
+    for row in ii_attack_rows:
+        payload = _payload_for_row(row)
+        ctx = SessionContext(session_id=f"tc-132-03:{row.id}", signal_history=[])
+        verdict = await Pipeline.run(detectors, payload, ctx)
+        if verdict.decision in ("block", "advisory"):
+            detected += 1
+        else:
+            false_negatives.append(row.id)
+
+    tp_rate = detected / len(ii_attack_rows)
+
+    # Assert no attack row regresses to pass
+    assert not false_negatives, (
+        f"TC-132-03: {len(false_negatives)} indirect_injection attack row(s) regressed to "
+        f"decision='pass' (were not detected by the pipeline): {false_negatives}"
+    )
+
+    # Assert ≥90% TP rate
+    assert tp_rate >= 0.90, (
+        f"TC-132-03: Pipeline TP rate on indirect_injection attack rows is {tp_rate:.1%} "
+        f"({detected}/{len(ii_attack_rows)}). Expected ≥90%. "
+        f"Undetected rows: {false_negatives}"
     )
 
 
