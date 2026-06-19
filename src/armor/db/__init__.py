@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """SQLite database layer for armor daemon persistence.
 
 This module provides:

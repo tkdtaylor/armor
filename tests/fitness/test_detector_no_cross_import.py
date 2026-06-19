@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: detectors do not import each other.
 
 Per the modularity design principle, detector modules must not import

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Honeypot prompt system with runtime canary value injection.
 
 The honeypot module loads a system prompt template containing placeholder strings

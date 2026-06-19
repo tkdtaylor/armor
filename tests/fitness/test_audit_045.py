@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for task 045 — AWS-shape canary fixture replacement.
 
 This module encodes the AWS-shaped canary replacement audit as a runnable

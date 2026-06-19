@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for harmful content in model output.
 
 Detects runnable attack commands in model responses, particularly those targeting

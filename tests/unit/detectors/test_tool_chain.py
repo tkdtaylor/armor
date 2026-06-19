@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the tool_chain detector.
 
 Tests cover TC-075-01 through TC-075-11 markers from the test spec.

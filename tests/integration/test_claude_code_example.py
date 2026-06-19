@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration test for the examples/claude_code/ Claude Code hooks example (task 055).
 
 Spec markers:

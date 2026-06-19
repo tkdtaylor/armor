@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """LLMSession dataclass for managing a quantized LLM instance."""
 
 from dataclasses import dataclass

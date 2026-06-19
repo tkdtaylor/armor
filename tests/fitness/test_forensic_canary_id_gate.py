@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: forensic logger never writes canary values.
 
 Per ADR-021, the forensic log must store only canary IDs, never the

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Sync IPC client for the armor daemon.
 
 Used by the CLI and other tools to communicate with the daemon over Unix socket.

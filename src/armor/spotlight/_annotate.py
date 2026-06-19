@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Core annotate() function for the armor.spotlight package.
 
 Implements the provenance-annotation transform described in ADR-043 §2 and §4.

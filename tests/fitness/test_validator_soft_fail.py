@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: validator soft-fails to ``advisory(confidence=0)`` on timeout.
 
 Per ADR-023, a validator timeout must produce a soft-fail advisory rather than

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness test: Verify structured logging schema compliance.
 
 TC-028-08: All logs from the daemon must be valid JSON with required fields.

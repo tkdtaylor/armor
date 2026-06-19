@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Health metric contract tests for task 097."""
 
 from __future__ import annotations

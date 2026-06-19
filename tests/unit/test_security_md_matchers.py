@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the SECURITY.md structural matcher (task 037, TC-037-03).
 
 Negative-fixture coverage: the matcher must reject documents that are

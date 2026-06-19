@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Quarantine store: Fernet-encrypted payload storage with TTL."""
 
 import logging

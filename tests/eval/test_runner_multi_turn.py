@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for multi-turn scenario runner and corpus shape validation.
 
 TC-025-05: All turns pass → row passes

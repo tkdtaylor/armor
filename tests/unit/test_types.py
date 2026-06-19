@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for core types (Verdict, Payload, SessionContext, etc.)."""
 
 import pytest

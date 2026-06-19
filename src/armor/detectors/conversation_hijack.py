@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for conversation hijacking attempts.
 
 Detects attempts to hijack a conversation by claiming continuity ("as we agreed

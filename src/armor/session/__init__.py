@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Session-level state machine and aggregation logic.
 
 The session state machine tracks risk level across multiple turns, gates expensive

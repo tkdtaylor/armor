@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for source multiplier application (per ADR-041, task 065)."""
 
 from unittest.mock import MagicMock

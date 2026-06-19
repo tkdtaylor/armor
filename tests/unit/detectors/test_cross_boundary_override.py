@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the cross_boundary_override detector (task 130, ADR-043 §3).
 
 Covers TC-130-01 through TC-130-15. The detector is a provenance-gated tripwire:

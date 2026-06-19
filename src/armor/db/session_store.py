@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Session store: LRU cache + SQLite persistence for session state."""
 
 import asyncio

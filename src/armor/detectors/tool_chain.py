@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for tool call sequence attack chains.
 
 Detects multi-turn attack patterns where a sequence of tool calls matches

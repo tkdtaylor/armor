@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Exponential moving average (EMA) cache for topic-coherence EMA tracking.
 
 Maintains per-session rolling windows of embeddings for EMA calculation.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: validator module has no canary value access.
 
 Per ADR-021, ``src/armor/llm/validator.py`` must not call

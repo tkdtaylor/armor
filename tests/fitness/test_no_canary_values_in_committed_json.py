@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: no ``"value":`` field in committed canary JSON files.
 
 Per ADR-010, the canary catalogue ships as a *schema* — entries describe what

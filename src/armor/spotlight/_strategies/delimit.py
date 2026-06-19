@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Delimit strategy for the armor.spotlight annotator.
 
 Wraps each untrusted span with randomized sentinel delimiters of the form::

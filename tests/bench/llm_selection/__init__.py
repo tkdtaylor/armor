@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Model selection benchmark for armor.
 
 This package benchmarks candidate small LLMs (1-4B params) on two corpora:

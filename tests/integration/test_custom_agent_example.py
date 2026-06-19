@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for examples/custom_agent.py (task 056).
 
 Spec markers:

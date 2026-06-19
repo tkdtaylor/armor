@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Honeypot invocation gate — testable in isolation.
 
 Determines whether the honeypot should be invoked based on session state

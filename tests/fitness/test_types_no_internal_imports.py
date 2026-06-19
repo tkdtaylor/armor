@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: types.py has no internal armor imports.
 
 Per the dependency hierarchy, src/armor/types.py must not import

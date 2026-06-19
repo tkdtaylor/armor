@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Token-count anomaly detector for detecting context overflow and token-budget exploitation.
 
 Detects when a user suddenly submits significantly longer input than their session history,

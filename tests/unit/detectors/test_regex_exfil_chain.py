@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the regex_exfil_chain detector."""
 
 import pytest

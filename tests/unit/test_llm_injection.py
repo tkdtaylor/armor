@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for LLM session injection into LLM-dependent detectors (Task 088).
 
 Tests cover TC-088-01 through TC-088-06 from the test spec.

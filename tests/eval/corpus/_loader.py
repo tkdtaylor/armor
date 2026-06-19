@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Loader for the evaluation corpus YAML files.
 
 The corpus is organized as YAML files under tests/eval/corpus/,

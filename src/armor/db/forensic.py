@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Forensic incident logger — writes blocks to the audit trail."""
 
 import hashlib

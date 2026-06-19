@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for rolling-buffer exfiltration detection.
 
 Tests TC-023-09 through TC-023-12:

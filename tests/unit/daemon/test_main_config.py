@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for daemon __main__ configuration loading (task 077).
 
 Tests the precedence chain for canary_values_path: env var > CLI flag > TOML config > None.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: P95 LLM latency under budget.
 
 TC-033-01: Validator P95 over budget → exit non-zero

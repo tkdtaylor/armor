@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """armor - defense-in-depth security layer for LLM agents.
 
 A security system that detects prompt injection, exfiltration via canary tokens,

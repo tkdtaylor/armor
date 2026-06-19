@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Additional integration tests closing the remaining task-065 TC gaps.
 
 Covers TC-065-02, 03, 18, 19, 20, 21. The earlier `test_check_fetched.py`

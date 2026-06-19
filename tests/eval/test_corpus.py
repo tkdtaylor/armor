@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Parametrized tests over the evaluation corpus.
 
 This test suite loads all corpus YAML files and runs each row through

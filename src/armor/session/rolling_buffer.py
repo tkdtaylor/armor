@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Rolling buffer for multi-turn output aggregation.
 
 Maintains a bounded buffer of the last N outputs (by character count or turn count,

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Cross-boundary override detector (ADR-043 §3).
 
 A provenance-gated tripwire: fires when external-origin content

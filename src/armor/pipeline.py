@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Pipeline runner that aggregates detector verdicts.
 
 The pipeline runs a list of detectors on a payload and composes their verdicts

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the entropy_decode detector.
 
 Tests the entropy-gated decode-and-rescan detector which catches

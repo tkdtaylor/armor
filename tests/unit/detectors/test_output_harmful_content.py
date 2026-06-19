@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the output_harmful_content detector.
 
 Tests cover TC-112-01 through TC-112-10 markers from the test spec.

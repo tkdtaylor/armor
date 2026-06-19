@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Embeddings module for topic-coherence detection.
 
 Provides sentence-transformer ONNX embedding inference and EMA caching

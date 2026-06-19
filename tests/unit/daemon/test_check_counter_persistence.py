@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for daemon check counter persistence (task 122)."""
 
 from __future__ import annotations

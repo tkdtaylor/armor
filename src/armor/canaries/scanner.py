@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Aho-Corasick based canary scanner for efficient multi-pattern matching.
 
 The CanaryScanner wraps pyahocorasick.Automaton to efficiently scan text

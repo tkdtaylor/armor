@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the regex_system_prompt_extraction detector."""
 
 import pytest

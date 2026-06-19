@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness tests for SDK polish (Task 026).
 
 These tests verify type safety, documentation coverage, and ADR requirements.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for daemon client connections via subprocess.
 
 These tests start the daemon as a subprocess and connect to it via Unix socket

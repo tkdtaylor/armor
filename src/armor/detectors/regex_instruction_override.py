@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for instruction-override injection attacks.
 
 Detects patterns where the attacker tries to override or discard the original

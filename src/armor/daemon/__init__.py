@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Armor daemon — long-lived security check server."""
 
 from armor.daemon.server import DaemonServer

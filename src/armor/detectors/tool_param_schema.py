@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for tool-call parameter validation against per-tool schemas.
 
 Validates that tool-call parameters conform to expected schemas and enforces

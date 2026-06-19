@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for check.fetched operation (indirect-injection detection).
 
 Tests the new IPC op check.fetched and CLI subcommand armor check fetched.

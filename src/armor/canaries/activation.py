@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Activation rule evaluation for context-specific canaries.
 
 Per ADR-038, canaries can be gated on session context:

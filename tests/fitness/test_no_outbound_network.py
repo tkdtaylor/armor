@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: armor daemon has no outbound network imports.
 
 Defends the SPEC.md "no-network" invariant for the daemon code path. Imports of

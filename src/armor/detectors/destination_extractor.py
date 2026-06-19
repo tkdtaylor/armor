@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Destination extractor detector for URL, IP, and email exfiltration.
 
 Extracts URLs (http/https/ftp), IPv4, IPv6, and email addresses from output text.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: corpus passes with ``ARMOR_DISABLE_LLM=true``.
 
 Defends the invariant that static detectors alone catch all P0/P1 attacks. The

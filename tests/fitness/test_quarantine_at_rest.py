@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: quarantine table is not greppable for canary values.
 
 Per ADR-011, payloads written to the quarantine table must be encrypted at

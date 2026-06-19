@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Canary catalogue: load, validate, and manage fake-but-realistic canaries.
 
 Each canary entry has:

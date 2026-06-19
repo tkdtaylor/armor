@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CRITICAL INVARIANT TEST: Canary values must never leak from verdicts or logs.
 
 This test is load-bearing. Failure means a security incident in the code.

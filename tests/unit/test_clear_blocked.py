@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the operator-clear path on the session state machine.
 
 Covers task 036 spec markers:

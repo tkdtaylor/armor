@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for post-tool-use-fetched.py hook script.
 
 Tests the indirect-injection detection hook that fires on PostToolUse events

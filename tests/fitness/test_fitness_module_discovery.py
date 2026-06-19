@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness module discovery checks (tasks 040 + 041).
 
 Pins the renames of `tests/fitness/public_release.py` (task 040) and

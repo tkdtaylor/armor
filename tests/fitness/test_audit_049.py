@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness audit for task 049: incidents export spec/code alignment.
 
 Ensures that the spec documents `incidents export` if and only if the code

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for chained tool-abuse attacks that exfiltrate data to an external URL.
 
 Catches instructions where the attacker chains a data-retrieval action with an

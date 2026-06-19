@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the session state machine.
 
 TC-022-01 through TC-022-14: Core FSM logic (forward transitions, cooldown step-back,

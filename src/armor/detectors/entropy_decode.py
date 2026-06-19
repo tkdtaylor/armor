@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Entropy-gated opportunistic decode-and-rescan detector.
 
 Detects encoded canary leakage in output by:

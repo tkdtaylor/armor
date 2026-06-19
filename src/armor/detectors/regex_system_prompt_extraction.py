@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for system-prompt extraction and credential-probe attacks.
 
 Detects patterns where the attacker tries to extract or view the system

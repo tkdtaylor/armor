@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """LLM validator for semantic-level threat classification.
 
 The validator runs a small quantized LLM on payloads flagged by static detectors

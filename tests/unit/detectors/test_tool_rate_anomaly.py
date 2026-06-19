@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the tool_rate_anomaly detector.
 
 Tests cover TC-074-01 through TC-074-10 markers from the test spec.

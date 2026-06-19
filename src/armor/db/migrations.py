@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Database migrations for armor.
 
 Migrations are idempotent — running them on a populated DB is safe.

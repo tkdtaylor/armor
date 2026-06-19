@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: ensure canary values are consistent across activation/deactivation cycles.
 
 Per ADR-038, for any session, a canary that is activated, then deactivated, then

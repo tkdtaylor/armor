@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Benchmark harness for armor's validator + honeypot model selection.
 
 Loads one candidate GGUF model, runs both corpora, emits a structured JSON

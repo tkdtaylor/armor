@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Span dataclass for the armor.spotlight annotator."""
 
 from __future__ import annotations

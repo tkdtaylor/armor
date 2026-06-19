@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector interface and registry.
 
 Detectors are registered via entry points in pyproject.toml and discovered

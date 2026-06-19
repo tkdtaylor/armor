@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Load-bearing test: canary values never leak into forensic logs.
 
 This test verifies the critical invariant that the forensic incident log

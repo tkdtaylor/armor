@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: session state machine transition coverage.
 
 Per ADR-024, every reachable transition of the session state machine must

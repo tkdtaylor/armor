@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Core type definitions for the armor security layer.
 
 Includes Verdict, Payload, SessionContext, and severity/decision enums.

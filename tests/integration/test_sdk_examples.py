@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for SDK examples.
 
 Tests TC-026-12, TC-026-13, TC-026-14: Examples run offline without errors.

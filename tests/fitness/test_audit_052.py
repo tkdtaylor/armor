@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for task 052 — Refresh docs/architecture/diagrams.md.
 
 This module encodes the diagrams spec audit as runnable assertions that prevent

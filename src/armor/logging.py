@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Structured logging utilities for armor.
 
 The daemon emits one JSON object per line by default (ADR-029) so the

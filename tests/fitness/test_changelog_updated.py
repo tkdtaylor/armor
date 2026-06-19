@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: ``CHANGELOG.md`` is updated when user-visible source changes.
 
 When a PR touches user-facing surfaces (CLI, SDK, daemon, public types, examples,

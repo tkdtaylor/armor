@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the topic_coherence detector.
 
 Tests cover TC-024-01 through TC-024-07 and TC-024-11 markers from the test spec.
