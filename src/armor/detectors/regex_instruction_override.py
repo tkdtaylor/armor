@@ -38,6 +38,10 @@ def get_compiled_patterns() -> list[re.Pattern[str]]:
         r"\bforget\s+everything\b",
         # New instructions at line start
         r"^new\s+instructions\s*:",
+        # Forget your/the (previous|prior|all) instructions/context/prompt/rules
+        # (scoped to instruction targets so benign "forget that moment" does not match).
+        # Appended LAST so existing override-NNN signal_id numbering is preserved.
+        r"\bforget\s+(your|the|all)\s+(previous\s+|prior\s+|earlier\s+)?(instructions|context|prompt|rules)\b",
     ]
 
     return [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in pattern_strings]

@@ -110,6 +110,14 @@ default = 30
 unsupported_confidence = 0.7
 supported_confidence = 0.3
 
+[detector.cross_boundary_override]
+# Cross-boundary override tripwire (ADR-043 §3). Fires when external-origin
+# content (tool_result_untrusted / tool_result_trusted) carries agent-directed
+# override / jailbreak language. On by default — armor's default-protect policy.
+enabled         = true
+block_threshold = 0.7    # confidence at/above which the verdict is block, not advisory
+sentinel        = "ARMOR-UNTRUSTED"  # base spotlight sentinel; embedded in untrusted content => sentinel_forgery
+
 [safe_message]
 input_block = "Your input was blocked because it matched a known injection pattern."
 output_block = "The model's response was suppressed because it appeared to leak protected data."

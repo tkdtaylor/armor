@@ -71,7 +71,8 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `spotlight.annotate_sources` | array of strings | `["tool_result_untrusted", "tool_result_trusted"]` | no | Which `Source` enum values receive provenance marking. Array of lowercase `Source` string values. Both `TOOL_RESULT_TRUSTED` and `TOOL_RESULT_UNTRUSTED` are marked by default (per ADR-043 §5 Defaulted §2). |
 | `spotlight.sentinel` | string | `"ARMOR-UNTRUSTED"` | no | Base sentinel string. A cryptographically random alphanumeric suffix (≥6 chars) is appended per `annotate()` call to prevent pre-forging. |
 | `detector.cross_boundary_override.enabled` | bool | `true` | no | Gate for the cross-boundary override detector (task 130). On by default per armor's default-protect policy — detection is always-on; annotation is author-opt-in. |
-| `detector.cross_boundary_override.block_threshold` | float | `0.7` | no | Confidence at or above which the advisory verdict upgrades to `block` for the cross-boundary override detector. |
+| `detector.cross_boundary_override.block_threshold` | float | `0.7` | no | Confidence at or above which the verdict is `block` rather than `advisory` for the cross-boundary override detector. The detector always scans at raw confidence 1.0, so any value ≤ 1.0 (default 0.7) means a match blocks. |
+| `detector.cross_boundary_override.sentinel` | string | `"ARMOR-UNTRUSTED"` | no | Base spotlight sentinel string scanned for in tool-result content; its presence inside an untrusted span is a boundary-escape attempt and raises `cross_boundary_override:sentinel_forgery` (per ADR-043 §4). Matches `spotlight.sentinel`. |
 | `pipeline.source_multipliers.user_input` | float | `1.0` | no | Confidence multiplier for USER_INPUT payloads (per ADR-041) |
 | `pipeline.source_multipliers.tool_params` | float | `1.0` | no | Confidence multiplier for TOOL_PARAMS payloads (per ADR-041) |
 | `pipeline.source_multipliers.model_output` | float | `1.0` | no | Confidence multiplier for MODEL_OUTPUT payloads (per ADR-041) |
@@ -189,6 +190,7 @@ sentinel         = "ARMOR-UNTRUSTED"     # base sentinel; random suffix appended
 [detector.cross_boundary_override]
 enabled         = true                   # on by default (default-protect policy)
 block_threshold = 0.7
+sentinel        = "ARMOR-UNTRUSTED"      # base spotlight sentinel; embedded => sentinel_forgery
 
 [pipeline.source_multipliers]
 user_input            = 1.0

@@ -44,8 +44,8 @@ field             type        notes
 id                integer     PK autoinc
 ts                timestamp   UTC
 session_id        text        FK Session.session_id (nullable for boot-time errors)
-attack_category   text        e.g. "direct_injection", "indirect_injection.<vector>", "exfiltration", "tool_abuse"
-signal_id         text        which detector + which rule fired (e.g. "regex.instruction_override:override-001", "cmd_injection.bash:fs-rm-rf-root")
+attack_category   text        e.g. "direct_injection", "indirect_injection.<vector>" (where <vector> ∈ {instruction_override, system_prompt_extraction, roleplay_hijack, encoding_request, authority_impersonation, memory_planting, cross_boundary}), "exfiltration", "tool_abuse". "indirect_injection.cross_boundary" is emitted by the cross_boundary_override detector for agent-directed override language found in tool-result content (ADR-043 §3).
+signal_id         text        which detector + which rule fired (e.g. "regex.instruction_override:override-001", "cmd_injection.bash:fs-rm-rf-root"). The "cross_boundary_override:*" namespace covers the provenance-gated tripwire: "cross_boundary_override:sentinel_forgery" plus "cross_boundary_override:<rule>" where <rule> is the originating corpus rule id (e.g. "cross_boundary_override:override-001", "cross_boundary_override:dan-002").
 input_hash        text        sha256 of input
 output_hash       text        sha256 of output (nullable for input-side blocks)
 triggered_canary  text        canary_id if applicable (NEVER the canary value itself)
