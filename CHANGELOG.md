@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`armor.spotlight` provenance annotator** — a pure, importable library transform (ADR-043 §2) that annotates a context window with provenance delimiters before the agent passes it to the downstream LLM. Accepts a list of `Span` objects (each tagged with a `Source` trust label) and returns `(marked_text, boundary_instruction)`. The `delimit` strategy wraps untrusted spans with randomized sentinel delimiters (`«ARMOR-UNTRUSTED-{SUFFIX}»`); `datamark` interleaves sentinel tokens between words; `encode` is deferred. Sentinel forgery in untrusted content (boundary-escape attempts) is detected and neutralized, raising `SentinelForgeryError` with a `partial_result` and `span_index`. The annotator runs in the agent process — no daemon call, no network call. On the ADR-028 stable SDK surface. (task 129)
+
 ## [0.12.0] — 2026-05-24
 
 ### Added

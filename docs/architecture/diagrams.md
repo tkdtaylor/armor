@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-05-24 (v2.1 — added output detectors (opt-in) and tool-abuse detector boxes to §1)
+**Last updated:** 2026-06-19 (v2.2 — added armor.spotlight annotator as agent-side transform in §1 and §6)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -63,6 +63,7 @@ flowchart TB
         CC["Claude Code (or other agent)"]
         Hook["Tiny shell hook<br/>UserPromptSubmit / PreToolUse /<br/>PostToolUse / Stop"]
         Lib["armor Python library<br/>(ArmorClient / AsyncArmorClient — ADR-028)"]
+        Spotlight["armor.spotlight annotator<br/>(agent-side transform — ADR-043)<br/>Span[] → (marked_text, boundary_instruction)<br/>No daemon call; pure library function"]
     end
 
     subgraph Container["armor container"]
@@ -90,6 +91,7 @@ flowchart TB
     end
 
     CC --> Hook
+    CC -.annotate context.-> Spotlight
     Hook -->|Unix socket| Daemon
     Lib -->|Unix socket| Daemon
     Daemon --> PipelineOrch
@@ -124,6 +126,7 @@ flowchart TB
 - The structured logger (`armor.logging`) is the event sink for all daemon operations: verdicts, state transitions, honeypot invocations, and forensic incidents. Event schema is defined in ADR-029.
 - The SDK (`armor.sdk.client.ArmorClient`, `armor.sdk.async_client.AsyncArmorClient`) provides importable clients for third-party integrations; daemon communication is via Unix socket, never in-process.
 - Session state is process-local (SQLite file in a mounted volume). A daemon restart preserves session history, FSM fields (`current_state`, `risk_score`, `last_signal_at`), and the rolling buffer.
+- The `armor.spotlight` annotator (`armor.spotlight.annotate`) is a pure library transform that runs in the **agent process**, not inside the daemon container. It accepts a list of `Span` objects (each tagged with a `Source` provenance label) and returns `(marked_text, boundary_instruction)`. The agent prepends `boundary_instruction` to its system prompt and passes `marked_text` as context to the downstream LLM. This transform has no daemon call, no network call, and does not touch the detector pipeline — it is a standalone ADR-028 stable SDK surface (ADR-043 §2). Detection of sentinel forgery in untrusted spans is the annotator's secondary role: if an untrusted span's text contains the sentinel base string, the annotator neutralizes it and raises `SentinelForgeryError` so the agent can log the boundary-escape attempt.
 
 ---
 

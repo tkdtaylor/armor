@@ -66,6 +66,12 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `detector.tool_chain.user_chains_path` | path | `<unset>` | no | Path to optional user-provided tool-chain catalogue; format identical to bundled `tool_chains.yaml` (per ADR-040) |
 | `detector.output_harmful_content.enabled` | bool | `false` | no | Opt-in gate for the output harmful-content detector. When `false` (default), the detector is not instantiated. When `true`, the two-stage detector runs on every `check.output` payload with `source == MODEL_OUTPUT`. |
 | `detector.output_harmful_content.block_threshold` | float | `0.6` | no | LLM confidence at or above which the detector upgrades from `advisory` to `block`. Applies only when the LLM returns `risky`. Below this threshold the verdict is always `advisory`. |
+| `spotlight.enabled` | bool | `false` | no | Opt-in gate for the spotlight annotator. `false` by default because annotation changes what the downstream model sees and requires the agent author to also adopt the `boundary_instruction` in their system prompt. The cross-boundary detector (`cross_boundary_override`) is always-on regardless of this flag (per ADR-043 §5). |
+| `spotlight.strategy` | string | `"delimit"` | no | Marking strategy: `"delimit"` (outer sentinel delimiters), `"datamark"` (interleaved sentinel tokens), `"encode"` (deferred — raises `NotImplementedError`). |
+| `spotlight.annotate_sources` | array of strings | `["tool_result_untrusted", "tool_result_trusted"]` | no | Which `Source` enum values receive provenance marking. Array of lowercase `Source` string values. Both `TOOL_RESULT_TRUSTED` and `TOOL_RESULT_UNTRUSTED` are marked by default (per ADR-043 §5 Defaulted §2). |
+| `spotlight.sentinel` | string | `"ARMOR-UNTRUSTED"` | no | Base sentinel string. A cryptographically random alphanumeric suffix (≥6 chars) is appended per `annotate()` call to prevent pre-forging. |
+| `detector.cross_boundary_override.enabled` | bool | `true` | no | Gate for the cross-boundary override detector (task 130). On by default per armor's default-protect policy — detection is always-on; annotation is author-opt-in. |
+| `detector.cross_boundary_override.block_threshold` | float | `0.7` | no | Confidence at or above which the advisory verdict upgrades to `block` for the cross-boundary override detector. |
 | `pipeline.source_multipliers.user_input` | float | `1.0` | no | Confidence multiplier for USER_INPUT payloads (per ADR-041) |
 | `pipeline.source_multipliers.tool_params` | float | `1.0` | no | Confidence multiplier for TOOL_PARAMS payloads (per ADR-041) |
 | `pipeline.source_multipliers.model_output` | float | `1.0` | no | Confidence multiplier for MODEL_OUTPUT payloads (per ADR-041) |
@@ -170,6 +176,19 @@ window_turns = 5
 [detector.output_harmful_content]
 enabled = false
 block_threshold = 0.6
+
+[spotlight]
+enabled          = false                  # opt-in; off by default (ADR-043 §5)
+strategy         = "delimit"             # "delimit" | "datamark" | "encode" (deferred)
+annotate_sources = [
+  "tool_result_untrusted",
+  "tool_result_trusted",
+]
+sentinel         = "ARMOR-UNTRUSTED"     # base sentinel; random suffix appended per render
+
+[detector.cross_boundary_override]
+enabled         = true                   # on by default (default-protect policy)
+block_threshold = 0.7
 
 [pipeline.source_multipliers]
 user_input            = 1.0
