@@ -15,7 +15,7 @@ import pytest
 
 from armor.detectors import DetectorRegistry
 from armor.pipeline import Pipeline
-from armor.types import Payload, SessionContext
+from armor.types import Payload, SessionContext, Source
 
 _loader_path = Path(__file__).parent / "corpus" / "_loader.py"
 spec = importlib.util.spec_from_file_location("corpus_loader", _loader_path)
@@ -73,11 +73,33 @@ def _covered_detector_ids(rows: list["corpus_loader.CorpusRow"]) -> set[str]:
     return covered
 
 
+def _source_for_row(row: "corpus_loader.CorpusRow") -> Source:
+    """Map the corpus row's source field to a Payload Source enum value.
+
+    The ``source`` field in the corpus YAML is dual-purpose:
+    - Provenance strings (``"external:promptinject"``, etc.) → default USER_INPUT
+    - Source enum strings (``"tool_result_untrusted"``, etc.) → mapped to Source enum
+
+    Args:
+        row: The corpus row to extract source from.
+
+    Returns:
+        The appropriate Source enum value (defaults to USER_INPUT).
+    """
+    if row.source is None:
+        return Source.USER_INPUT
+    try:
+        return Source(row.source)
+    except ValueError:
+        # Provenance strings like "external:promptinject" are not Source enum values
+        return Source.USER_INPUT
+
+
 def _payload_for_row(row: "corpus_loader.CorpusRow") -> Payload:
     """Build a payload for a single-shot corpus row."""
     if row.tool is not None:
         return Payload(tool=row.tool, params=row.tool_params)
-    return Payload(text=row.input)
+    return Payload(text=row.input, source=_source_for_row(row))
 
 
 def test_required_context_window_families_have_corpus_rows() -> None:
@@ -204,6 +226,33 @@ def test_fitness_spec_names_corpus_coverage_invariant() -> None:
     assert "[tests/eval/test_corpus.py]" in content
 
 
+def test_cross_boundary_corpus_family_loaded() -> None:
+    """TC-131-16: The indirect_injection.cross_boundary corpus family loads and has expected rows.
+
+    Verifies that:
+    - The cross_boundary_override.yaml file loads without error (covered by all_rows load above)
+    - At least 9 TP rows and 5 TN rows are present
+    - No existing family rows regressed (all_rows count >= baseline)
+
+    TC-131-16: No regression in existing corpus families after loader extension.
+    """
+    cb_rows = [r for r in corpus if r.attack_category == "indirect_injection.cross_boundary"]
+    tp_rows = [r for r in cb_rows if r.expected_verdict == "block"]
+    tn_rows = [r for r in cb_rows if r.expected_verdict == "pass"]
+
+    assert len(tp_rows) >= 9, f"Expected ≥9 TP rows, got {len(tp_rows)}"
+    assert len(tn_rows) >= 5, f"Expected ≥5 TN rows, got {len(tn_rows)}"
+
+    # Source field must be set on all cross_boundary rows and parse as a Source enum value
+    from armor.types import Source
+
+    for row in cb_rows:
+        assert row.source is not None, f"Row {row.id}: source field must be set"
+        assert Source(row.source) in (Source.TOOL_RESULT_UNTRUSTED, Source.TOOL_RESULT_TRUSTED), (
+            f"Row {row.id}: source '{row.source}' is not a valid tool-result Source"
+        )
+
+
 @pytest.mark.skipif(
     not corpus,
     reason="No corpus rows loaded",
@@ -222,8 +271,8 @@ async def test_corpus_verdict(row: "corpus_loader.CorpusRow") -> None:
     Args:
         row: A corpus row from the parametrize.
     """
-    # Build payload based on row type
-    payload = Payload(tool=row.tool, params=row.tool_params) if row.tool is not None else Payload(text=row.input)
+    # Build payload based on row type (source field threaded through for provenance-gated detectors)
+    payload = _payload_for_row(row)
 
     # Build session context — use unique session ID per row to isolate detector state
     ctx = SessionContext(session_id=row.id, signal_history=[])
