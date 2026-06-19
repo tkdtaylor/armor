@@ -255,7 +255,7 @@ For agents that aren't built on top of a framework integration — raw Anthropic
 
 All examples run offline with `--offline-smoke` for smoke testing without a daemon.
 
-**Last verified end-to-end** (2026-05-24, `ARMOR_DISABLE_LLM=true`, daemon with 25 detectors active):
+**Last verified end-to-end** (2026-05-24, `ARMOR_DISABLE_LLM=true`, daemon with 26 of 27 registered detectors active — `llm_validator` disabled):
 
 | Example | Armor layer | Signal | Provider / model | Notes |
 |---------|-------------|--------|-----------------|-------|

@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-06-19 (v2.2 — added armor.spotlight annotator as agent-side transform in §1 and §6)
+**Last updated:** 2026-06-19 (v2.3 — drift fix: documented canary.chunked block path (B-009c) and cross_boundary_override in §1 and §3)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -72,11 +72,11 @@ flowchart TB
         PipelineOrch["Pipeline orchestrator<br/>(runs detectors, aggregates verdicts)"]
 
         subgraph Detectors["Detector pipeline"]
-            Static["Static detectors<br/>(regex, Aho-Corasick, entropy)<br/>incl. ssrf_probe, sensitive_file_probe,<br/>code_injection, exfil_chain"]
+            Static["Static detectors<br/>(regex, Aho-Corasick, entropy)<br/>incl. ssrf_probe, sensitive_file_probe,<br/>code_injection, exfil_chain,<br/>cross_boundary_override (default-on)"]
             Validator["Validator LLM<br/>(Qwen3-0.6B-Q4_K_M)"]
             Topic["Topic-coherence detector<br/>(MiniLM ONNX embedding, per-session EMA)"]
             CmdGuard["Command-injection guard<br/>(shell denylist, tool params)"]
-            Rolling["canary.paraphrase n-gram scan<br/>(rolling buffer, 8 KB / 20 turns, advisory only)"]
+            Rolling["canary.paraphrase n-gram scan (advisory)<br/>+ canary.chunked full-value scan (block)<br/>(rolling buffer, 8 KB / 20 turns)"]
             ToolAbuse["Tool-abuse detectors<br/>(param schema, rate anomaly, chain)"]
             OutputOpt["Output detectors (opt-in)<br/>(output.harmful_content — regex + LLM, MODEL_OUTPUT only)"]
         end
@@ -121,7 +121,7 @@ flowchart TB
 - The validator LLM and the honeypot share one model weight; they differ only by system prompt. Loaded once at daemon start.
 - The topic-coherence embedder (`armor.embeddings.onnx_embedder.Embedder`) loads `all-MiniLM-L6-v2` ONNX once at daemon start; the detector maintains a rolling EMA via `armor.embeddings.ema_cache.EMACache`. The detector emits `advisory` only — never `block` on its own — and feeds the session state machine (ADR-026). Input checks run the topic-coherence detector per B-008a.
 - The session state machine sits between the pipeline and per-detector cost decisions: it gates the LLM cost tier (skipped at `Normal`, run at ≥ `Watching`), accumulates risk from advisory verdicts, and short-circuits all detectors at `Blocked` while still writing the forensic incident (ADR-024).
-- The rolling buffer (per-session concatenation, 8 KB / 20 turns per ADR-025) is consumed by `detectors.canary_paraphrase`, which scans for ≥ K distinct n-grams of any active canary and emits an `advisory` (per B-009a / B-009b). A standalone chunked-canary `block` path on the rolling buffer is not currently wired.
+- The rolling buffer (per-session concatenation, 8 KB / 20 turns per ADR-025) is consumed by two detectors: `detectors.canary_paraphrase` scans for ≥ K distinct n-grams of any active canary and emits an `advisory` (per B-009a / B-009b), and `detectors.canary_chunked` scans the concatenated buffer for a complete canary value reconstructed across turns and emits `block` on a full match (per B-009c).
 - The canaries module (`armor.canaries.catalogue.Catalogue`, `armor.canaries._generate.write_values_file`) manages the injected credential catalogue — placeholders are substituted at honeypot LLM prompt-build time.
 - The structured logger (`armor.logging`) is the event sink for all daemon operations: verdicts, state transitions, honeypot invocations, and forensic incidents. Event schema is defined in ADR-029.
 - The SDK (`armor.sdk.client.ArmorClient`, `armor.sdk.async_client.AsyncArmorClient`) provides importable clients for third-party integrations; daemon communication is via Unix socket, never in-process.
@@ -200,6 +200,7 @@ sequenceDiagram
     D->>DS: extract URLs / IPs / emails
     D->>ES: high-entropy substring scan
     D->>RB: canary.paraphrase n-gram scan over rolling buffer (B-009b)
+    D->>RB: canary.chunked full-value scan over rolling buffer (B-009c)
     alt canary tripped (per-turn full match)
         CS-->>D: HIT (canary_id, position)
         alt state ≥ Watching ∧ block detected
@@ -208,6 +209,11 @@ sequenceDiagram
             D->>V: honeypot LLM confirmation
             V-->>D: verdict
         end
+        D->>FL: write incident<br/>(input + attempted output + destination)
+        D-->>H: BLOCK
+        H-->>CC: replace output with safe message
+    else chunked canary reconstructed (B-009c)
+        RB-->>D: HIT (canary_id, full value across turns)
         D->>FL: write incident<br/>(input + attempted output + destination)
         D-->>H: BLOCK
         H-->>CC: replace output with safe message
