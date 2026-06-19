@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Public-release readiness fitness checks (task 032 / 035 / 037 / 038 / 044).
 
 This module encodes public-release hygiene checks from the task 032 test spec

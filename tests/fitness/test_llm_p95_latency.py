@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: P95 LLM latency under budget (validator and honeypot).
 
 Per ADR-023 (amended by task 043), enforce two latency budgets:

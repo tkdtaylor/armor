@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for Python code injection attacks via agent code execution tools.
 
 Catches instructions that embed executable Python code designed to exfiltrate

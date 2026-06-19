@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Error types for the armor.spotlight annotator package."""
 
 from __future__ import annotations

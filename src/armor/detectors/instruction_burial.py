@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for instruction-override patterns buried in long inputs.
 
 Detects a specific positioning anomaly: when an instruction-override or

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: every IPC op constructs ``Payload`` with the correct default source.
 
 Per ADR-041 §1, the daemon's IPC routing must assign ``Payload.source`` from

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for the armor Python SDK client.
 
 These tests verify that the ArmorClient and AsyncArmorClient correctly

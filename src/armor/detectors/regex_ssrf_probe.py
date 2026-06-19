@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for SSRF (Server-Side Request Forgery) probe attacks.
 
 Detects attempts to fetch cloud instance metadata endpoints and other

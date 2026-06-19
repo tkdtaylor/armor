@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness tests for topic-coherence detector latency.
 
 Tests TC-024-10: Per-call P95 latency within budget.

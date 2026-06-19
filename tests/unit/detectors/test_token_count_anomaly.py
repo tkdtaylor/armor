@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the token_count_anomaly detector.
 
 Tests cover TC-069-01 through TC-069-09 markers from the test spec.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for jailbreak and adversarial-prompting patterns.
 
 Combines static pattern matching with optional LLM semantic validation:

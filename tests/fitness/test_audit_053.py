@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for task 053 — code and doc tidy-up."""
 
 import ast

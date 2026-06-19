@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for incidents CLI commands.
 
 Covers task 036 spec markers:

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the armor.spotlight annotator package.
 
 Tests TC-129-01 through TC-129-15 per the test spec.

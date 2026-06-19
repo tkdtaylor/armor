@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for session state machine with pipeline gating.
 
 TC-022-15 through TC-022-19: Pipeline cost-tier gating, persistence, config,

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """LLM loader: validates and instantiates the quantized model."""
 
 import logging

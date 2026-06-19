@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the daemon logging entry-point.
 
 The daemon uses the canonical `armor.logging` module (ADR-029); the legacy

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for Bash command injection via denylist patterns.
 
 Detects Bash tool calls that match known dangerous patterns:

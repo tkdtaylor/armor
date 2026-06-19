@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for daemon SQLite persistence.
 
 Note: These tests call _handle_check_operation synchronously.

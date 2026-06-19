@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unix socket server for the armor daemon.
 
 Handles NDJSON request/response protocol with concurrent client support.

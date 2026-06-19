@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Canary catalogue and Aho-Corasick scanner for exfiltration detection.
 
 The canary system uses fake but realistic-looking credentials and URLs

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Negative tests for multi-turn runner error reporting.
 
 TC-025-10: Mutating one expected value surfaces as a per-turn error

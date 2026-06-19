@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: ``jailbreak.yaml`` corpus carries the required TP/TN counts.
 
 The jailbreak detector relies on broad family coverage in the corpus to keep

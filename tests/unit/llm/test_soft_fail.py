@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for LLM soft-fail (deadline timeout) behavior.
 
 TC-021-01: Validator timeout returns advisory(confidence=0)

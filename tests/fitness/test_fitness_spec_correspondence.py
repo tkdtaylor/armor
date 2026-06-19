@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Meta-fitness check: ``docs/spec/fitness-functions.md`` ↔ ``tests/fitness/`` 1:1 correspondence.
 
 This is the gate that prevents the drift the task-091 consolidation closed

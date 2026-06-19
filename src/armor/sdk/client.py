@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Synchronous client for the armor daemon.
 
 This module provides a typed, ergonomic synchronous client for communicating

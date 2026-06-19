@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for tool-call rate anomalies.
 
 Detects abnormally bursty per-tool call patterns within a session using a sliding window.

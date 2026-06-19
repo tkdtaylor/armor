@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for topic-coherence detector with session state machine.
 
 Tests TC-024-08 and TC-024-09 from the test spec.

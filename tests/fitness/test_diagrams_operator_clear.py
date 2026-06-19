@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: docs/architecture/diagrams.md describes the operator-clear flow.
 
 Covers task 036 spec markers:

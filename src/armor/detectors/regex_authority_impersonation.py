@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for authority-impersonation injection attacks.
 
 Detects patterns where the attacker invokes fake authority to coerce the model,

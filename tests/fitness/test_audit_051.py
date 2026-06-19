@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness tests for task 051: README and public-doc fixes."""
 
 import re

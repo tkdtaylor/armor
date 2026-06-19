@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for Payload.source field (per ADR-041, task 065)."""
 
 import pytest

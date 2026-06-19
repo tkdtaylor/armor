@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Paraphrase n-gram detector — detects fragmented canary leaks via sub-prefix n-gram matching.
 
 This detector operates on the rolling buffer (per ADR-025) and scans for paraphrased or

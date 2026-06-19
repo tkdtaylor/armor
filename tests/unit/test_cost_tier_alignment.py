@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for cost_tier enum alignment across detectors, pipeline, and spec.
 
 Tests that all detectors use canonical cost_tier values and that the pipeline

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """armor Python SDK - A client library for the armor security daemon.
 
 This module provides synchronous and asynchronous clients for interfacing

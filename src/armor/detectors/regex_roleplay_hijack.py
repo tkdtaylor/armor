@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for role-play hijack injection attacks.
 
 Detects patterns where the attacker tries to make the model role-play as an

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Project email rebrand fitness checks (task 039).
 
 Asserts that all shipped contact-info files and the canonical-email

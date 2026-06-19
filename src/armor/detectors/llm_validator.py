@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """LLM validator detector for semantic threat classification.
 
 This detector runs the validator LLM on payloads when triggered by:

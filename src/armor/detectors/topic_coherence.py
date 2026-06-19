@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Topic-coherence detector for detecting abrupt semantic shifts in a session.
 
 Detects when a user suddenly pivots to a different topic mid-conversation,

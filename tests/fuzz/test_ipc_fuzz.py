@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """IPC fuzz harness — validates daemon robustness to malformed input.
 
 Tests that the daemon:

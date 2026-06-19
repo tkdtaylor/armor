@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for Catalogue.active_for() method and activation integration."""
 
 from datetime import UTC, datetime

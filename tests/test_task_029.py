@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Test Task 029 — Release artifacts acceptance criteria.
 
 Tests verify release infrastructure (workflows, CHANGELOG gate, docs, ADR, metadata).

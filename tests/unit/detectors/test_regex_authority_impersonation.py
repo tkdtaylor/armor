@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the regex_authority_impersonation detector."""
 
 import pytest

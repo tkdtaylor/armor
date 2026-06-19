@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Round-trip integration tests for the operator-UX IPC ops added by task 036.
 
 These tests start the real daemon as a subprocess, seed test rows directly

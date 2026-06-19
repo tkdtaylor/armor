@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for sensitive file read and environment variable probe attacks.
 
 Detects two related probe families in user input text:

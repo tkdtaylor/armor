@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Regression gate tests for corpus and detector changes.
 
 These tests are normally skipped; enable with ARMOR_TEST_REGRESSION_GATE=1.

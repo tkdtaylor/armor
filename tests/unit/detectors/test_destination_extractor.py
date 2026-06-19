@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the destination extractor detector."""
 
 from armor.detectors.destination_extractor import (

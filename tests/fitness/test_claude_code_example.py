@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for the examples/claude_code/ integration example (task 055).
 
 Spec markers:

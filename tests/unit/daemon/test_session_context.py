@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for daemon SessionContext building (Task 083)."""
 
 import asyncio

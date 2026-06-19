@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """README truthfulness fitness checks (task 057).
 
 Asserts the README contains the structural and content elements that make

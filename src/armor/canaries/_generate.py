@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Generate canary values for the catalogue at install time.
 
 This module generates fresh, deterministic canary values given a seed

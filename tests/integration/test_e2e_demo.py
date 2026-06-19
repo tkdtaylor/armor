@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration test for the end-to-end demo script.
 
 This test runs the demo.sh script as a subprocess and verifies that it

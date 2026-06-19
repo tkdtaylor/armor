@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for SessionStore.apply_and_persist (advisory accumulation + FSM integration).
 
 TC-084-01: Advisory accumulation — score = confidence x weight.

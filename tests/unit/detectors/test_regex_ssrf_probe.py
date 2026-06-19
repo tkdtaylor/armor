@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the regex_ssrf_probe detector."""
 
 import pytest

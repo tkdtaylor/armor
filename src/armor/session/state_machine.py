@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Session state machine with cooldown rules.
 
 This module implements a five-state finite state machine (Normal → Watching → Elevated

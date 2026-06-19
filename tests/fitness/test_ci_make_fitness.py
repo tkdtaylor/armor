@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CI wiring assertions for the make-fitness job (tasks 042 & 043).
 
 Asserts that .github/workflows/ci.yml has a top-level make-fitness job that

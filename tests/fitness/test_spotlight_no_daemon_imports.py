@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: armor.spotlight package has no daemon/pipeline/detector imports.
 
 Defends the isolation invariant from ADR-043 section 2: the spotlight annotator is

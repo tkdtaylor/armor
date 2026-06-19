@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the llm_validator detector.
 
 Tests cover TC-085-01 through TC-085-05 markers from the test spec.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """armor.spotlight — provenance annotation for LLM context windows.
 
 A pure, importable library transform that annotates a context window with

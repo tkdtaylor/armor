@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for task 047 — Spec drift: docs/spec/architecture.md component table.
 
 This module encodes the architecture spec audit as runnable assertions that prevent

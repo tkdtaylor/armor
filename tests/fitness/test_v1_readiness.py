@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for the v1.0 readiness gate (task 099).
 
 Spec markers:

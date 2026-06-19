@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for the demo recording artifact (task 059).
 
 Spec markers:

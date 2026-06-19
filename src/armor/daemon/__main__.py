@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """armor daemon entry point.
 
 Run with: python -m armor.daemon [--socket PATH] [--max-concurrent N] [--log-level LEVEL]

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: daemon cold-start within budget.
 
 Per task 017, the daemon must accept connections within 5 s of process start

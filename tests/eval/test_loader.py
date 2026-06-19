@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for the corpus loader, including multi-turn scenario support.
 
 TC-025-01: Existing single-shot rows still parse

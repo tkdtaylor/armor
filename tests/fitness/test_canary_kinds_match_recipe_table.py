@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: ensure canary kinds in catalogue match ADR-031 §3 recipe table.
 
 This function asserts that:

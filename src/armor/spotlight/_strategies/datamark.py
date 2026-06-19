@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Datamark strategy for the armor.spotlight annotator.
 
 Interleaves a sentinel token between every N words of marked spans (Microsoft's

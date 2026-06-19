@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for the make release-check target + RELEASE_CHECKLIST.md (task 054).
 
 Spec markers:

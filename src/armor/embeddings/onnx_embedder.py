@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """ONNX-based sentence-transformer embedding inference.
 
 Wraps the sentence-transformers all-MiniLM-L6-v2 ONNX model for

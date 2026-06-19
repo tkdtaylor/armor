@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for the canary scanner detector."""
 
 from armor.canaries.scanner import CanaryScanner

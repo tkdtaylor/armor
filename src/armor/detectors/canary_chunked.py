@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Chunked canary detector — detects full canary values reconstructed from rolling buffer.
 
 This detector operates on the rolling buffer (per ADR-025) and scans for complete

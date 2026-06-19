@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Asynchronous client for the armor daemon.
 
 This module provides an async-compatible client for communicating

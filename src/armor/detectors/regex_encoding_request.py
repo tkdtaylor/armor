@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for encoding-request injection patterns.
 
 Detects requests asking the model to encode, encrypt, or obfuscate output,

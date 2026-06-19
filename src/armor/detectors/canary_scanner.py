@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Canary scanner detector — detects exfiltration via honeypot canary values.
 
 This detector scans output text for any active canary values using

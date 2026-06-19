@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for task 050 — armor.toml post-FSM rewrite.
 
 This module encodes spec audit checks as runnable assertions that prevent

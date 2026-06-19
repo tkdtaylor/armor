@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration test: Daemon completes check pipeline without network access.
 
 Verifies the no-network invariant at runtime. The daemon must complete:

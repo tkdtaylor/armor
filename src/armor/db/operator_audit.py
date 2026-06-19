@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Operator audit-log writer.
 
 Provides an append-only writer for `OperatorAuditLog`. The state-machine's

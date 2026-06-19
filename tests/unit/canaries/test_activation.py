@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for canary activation rules."""
 
 from datetime import UTC, datetime

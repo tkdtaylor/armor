@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for SessionStore (orthogonal behavior).
 
 The risk-score / signal-history / FSM behavior previously tested via the

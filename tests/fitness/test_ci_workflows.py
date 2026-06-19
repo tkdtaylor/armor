@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness checks for the GitHub Actions CI workflows + README badges (task 058).
 
 The existing ci.yml splits `make check`'s components into separate jobs (lint,

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Fitness check: prompt templates contain no literal canary values.
 
 Per ADR-021, prompt templates carry only ``{{canary:id}}`` placeholders, never

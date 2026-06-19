@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Detector for memory-planting injection attacks.
 
 Detects patterns where the attacker attempts to plant persistent instructions
