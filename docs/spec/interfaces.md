@@ -198,6 +198,66 @@ incident: Incident | None = client.incident("inc-abc123")
 
 **Stability:** The re-exported classes (`ArmorClient`, `AsyncArmorClient`, `Verdict`, `HealthReport`, `Incident`) are stable across minor versions. See ADR-028 for the semver contract.
 
+### Spotlight annotator (armor.spotlight)
+
+A pure, importable transform that annotates a context window with provenance delimiters. Runs in the **agent process**, not the daemon. No daemon call, no network call. On the ADR-028 stable SDK surface — additive on minor versions.
+
+```python
+from armor.spotlight import annotate, Span, SentinelForgeryError
+from armor.types import Source
+
+marked_text, boundary_instruction = annotate(
+    [
+        Span(text=system_prompt, source=Source.USER_INPUT),
+        Span(text=web_page_body, source=Source.TOOL_RESULT_UNTRUSTED),
+        Span(text=user_msg, source=Source.USER_INPUT),
+    ],
+    strategy="delimit",           # "delimit" (default) | "datamark" | "encode" (raises NotImplementedError)
+    annotate_sources=[Source.TOOL_RESULT_UNTRUSTED, Source.TOOL_RESULT_TRUSTED],  # default per ADR-043 §5
+    sentinel="ARMOR-UNTRUSTED",   # base sentinel; default
+)
+# Prepend boundary_instruction to your system prompt.
+# Pass marked_text as the context to the downstream LLM.
+```
+
+**`Span` dataclass:**
+
+```python
+@dataclass(frozen=True)
+class Span:
+    text: str          # Text content of this span
+    source: Source     # Provenance label (from armor.types.Source)
+```
+
+**`annotate()` signature:**
+
+| Parameter | Type | Default | Effect |
+|-----------|------|---------|--------|
+| `spans` | `list[Span]` | — | Ordered list of provenance-labeled spans |
+| `strategy` | `str` | `"delimit"` | `"delimit"`: outer sentinel delimiters; `"datamark"`: interleaved tokens; `"encode"`: raises `NotImplementedError` (deferred — ADR-043 §4) |
+| `annotate_sources` | `list[Source] \| None` | `[TOOL_RESULT_UNTRUSTED, TOOL_RESULT_TRUSTED]` | Which sources receive marking |
+| `sentinel` | `str` | `"ARMOR-UNTRUSTED"` | Base sentinel string; a random alphanumeric suffix is appended per call |
+| `datamark_word_group_size` | `int` | `5` | Word group size for the `datamark` strategy |
+
+**Return value:** `(marked_text: str, boundary_instruction: str)` — a 2-tuple. `marked_text` is the provenance-annotated context string. `boundary_instruction` is a string for prepending to the agent's system prompt that instructs the downstream LLM to treat marked content as data, not commands.
+
+**Exceptions:**
+
+| Exception | Raised when |
+|-----------|-------------|
+| `NotImplementedError` | `strategy="encode"` (deferred strategy — ADR-043 §4) |
+| `SentinelForgeryError` | An untrusted span's text contains the sentinel base string (boundary-escape attempt). Carries `.partial_result: str` (marked text with forgery neutralized and outer delimiters applied) and `.span_index: int` (which span triggered). The forgery is neutralized before outer delimiters are applied. |
+
+**Strategies:**
+
+| Strategy | Description | Stability |
+|----------|-------------|-----------|
+| `delimit` (default) | Wraps each marked span with `«{sentinel}-{SUFFIX}»…«/{sentinel}-{SUFFIX}»` where SUFFIX is cryptographically random per call. Cheapest in tokens. | Stable |
+| `datamark` | Interleaves `{sentinel}-{SUFFIX}` between every N words of marked spans. More robust signal for the model; costs tokens. | Stable |
+| `encode` | Raises `NotImplementedError` — deferred to a future ADR pending corpus evidence. | Not yet available |
+
+**Stability:** `annotate`, `Span`, `SentinelForgeryError` are on the ADR-028 stable surface — additive on minor versions. See ADR-043 §2.
+
 ---
 
 ## Outbound interfaces

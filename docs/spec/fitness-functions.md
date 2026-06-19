@@ -54,6 +54,7 @@ and every file there corresponds to exactly one row.
 | Detectors do not cross-import sibling detectors | Per modularity principle, detector modules must not import each other; only public utility functions (e.g., `get_compiled_patterns()`) are allowed. `__init__.py` and future `registry.py` exempt. | [test_detector_no_cross_import.py](../../tests/fitness/test_detector_no_cross_import.py) |
 | `types.py` has no runtime internal imports | Per dependency hierarchy, `src/armor/types.py` must not import armor modules at runtime; only TYPE_CHECKING blocks allowed. | [test_types_no_internal_imports.py](../../tests/fitness/test_types_no_internal_imports.py) |
 | Forensic logger never writes canary values | Per ADR-021, the forensic log stores only `canary_id`, never plaintext `canary.value`. Static analysis rejects any `triggered_canary` assignment that accesses `.value`. | [test_forensic_canary_id_gate.py](../../tests/fitness/test_forensic_canary_id_gate.py) |
+| `armor.spotlight` has no daemon/pipeline/detector imports | Per ADR-043 §2, the spotlight annotator is a pure library transform that must not import `armor.pipeline`, `armor.daemon`, or `armor.detectors`. AST scan of all `.py` files under `src/armor/spotlight/`. Importing `armor.types` (for `Source`) is allowed. | [test_spotlight_no_daemon_imports.py](../../tests/fitness/test_spotlight_no_daemon_imports.py) |
 
 ### Performance / footprint
 
