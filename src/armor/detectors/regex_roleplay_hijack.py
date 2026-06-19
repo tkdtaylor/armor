@@ -14,6 +14,33 @@ import re
 from armor.types import Payload, SessionContext, Verdict
 
 
+def get_compiled_patterns() -> list[re.Pattern[str]]:
+    """Get the compiled role-play-hijack patterns for reuse.
+
+    Returns:
+        List of compiled regex patterns (case-insensitive) that match
+        role-play-hijack injection attempts.
+
+    Note:
+        These patterns are the authoritative source for role-play-hijack
+        detection. Other detectors that need to reuse these patterns should
+        call this function rather than duplicating the pattern definitions
+        (e.g., the cross_boundary_override detector).
+    """
+    pattern_strings = [
+        # "you are now" + named entity (DAN, jailbroken, developer, etc.)
+        r"\byou\s+are\s+now\s+(dan|developer\s+mode|jailbroken|unrestricted)\b",
+        # "pretend you are" or "pretend to be"
+        r"\bpretend\s+(you\s+are|to\s+be)\b",
+        # "act as if you have no" + restrictions/rules/guidelines
+        r"\bact\s+as\s+if\s+you\s+have\s+no\s+(restrictions|rules|guidelines|limitations)\b",
+        # "from now on you are"
+        r"\bfrom\s+now\s+on\s+you\s+are\b",
+    ]
+
+    return [re.compile(pattern, re.IGNORECASE) for pattern in pattern_strings]
+
+
 class RegexRoleplayHijack:
     """Detects role-play hijack injection patterns.
 
@@ -32,28 +59,8 @@ class RegexRoleplayHijack:
         """Initialize the detector."""
         # Lazy-compile patterns on first instantiation
         if RegexRoleplayHijack._patterns is None:
-            RegexRoleplayHijack._patterns = self._compile_patterns()
+            RegexRoleplayHijack._patterns = get_compiled_patterns()
         self.patterns = RegexRoleplayHijack._patterns
-
-    @staticmethod
-    def _compile_patterns() -> list[re.Pattern[str]]:
-        """Compile all detection patterns.
-
-        Returns:
-            List of compiled regex patterns (case-insensitive).
-        """
-        pattern_strings = [
-            # "you are now" + named entity (DAN, jailbroken, developer, etc.)
-            r"\byou\s+are\s+now\s+(dan|developer\s+mode|jailbroken|unrestricted)\b",
-            # "pretend you are" or "pretend to be"
-            r"\bpretend\s+(you\s+are|to\s+be)\b",
-            # "act as if you have no" + restrictions/rules/guidelines
-            r"\bact\s+as\s+if\s+you\s+have\s+no\s+(restrictions|rules|guidelines|limitations)\b",
-            # "from now on you are"
-            r"\bfrom\s+now\s+on\s+you\s+are\b",
-        ]
-
-        return [re.compile(pattern, re.IGNORECASE) for pattern in pattern_strings]
 
     def check(self, payload: Payload, ctx: SessionContext) -> Verdict:
         """Check payload for role-play hijack patterns.

@@ -54,6 +54,28 @@ class Pipeline:
         dict[Source | str, float], dict(DEFAULT_SOURCE_MULTIPLIERS)
     )
 
+    # Indirect-injection regex detectors skipped when the payload source is
+    # TOOL_RESULT_TRUSTED (ADR-041): trust applies to a source's *origin/integrity*,
+    # not to its content, so the user-side override regex family is soft-pedalled on
+    # vouched-for sources. Canary/entropy detectors still run.
+    #
+    # NOTE: `cross_boundary_override` is INTENTIONALLY EXCLUDED from this set per
+    # ADR-043 §3 — the trust allowlist vouches for integrity, not for a source's
+    # right to issue agent-directed overrides; a poisoned-but-vouched source must
+    # not disarm that tripwire. The detector therefore always runs on trusted
+    # sources, at full confidence. The only sanctioned way to let external content
+    # legitimately carry override strings is the explicit `[pipeline.exempt]` list,
+    # never the trust label.
+    _TRUSTED_SOURCE_SKIP_SET: ClassVar[frozenset[str]] = frozenset(
+        {
+            "regex.instruction_override",
+            "regex.roleplay_hijack",
+            "regex.system_prompt_extraction",
+            "regex.authority_impersonation",
+            "regex.encoding_request",
+        }
+    )
+
     @classmethod
     def set_source_multipliers(cls, multipliers: dict[str, float]) -> None:
         """Set per-source multipliers from configuration.
@@ -97,18 +119,14 @@ class Pipeline:
         Returns:
             Aggregated Verdict.
         """
-        # When source is TOOL_RESULT_TRUSTED (ADR-041), skip indirect-injection regex detectors
-        # (trust applies to origin, not content — canary/entropy detectors still run)
+        # When source is TOOL_RESULT_TRUSTED (ADR-041), skip the indirect-injection
+        # regex family (trust applies to origin, not content — canary/entropy
+        # detectors still run). `cross_boundary_override` is deliberately NOT in
+        # this set (ADR-043 §3); it always runs on trusted sources. See
+        # Pipeline._TRUSTED_SOURCE_SKIP_SET for the full rationale.
         detectors_to_run = detectors
         if payload.source == Source.TOOL_RESULT_TRUSTED:
-            indirect_injection_detectors = {
-                "regex.instruction_override",
-                "regex.roleplay_hijack",
-                "regex.system_prompt_extraction",
-                "regex.authority_impersonation",
-                "regex.encoding_request",
-            }
-            detectors_to_run = [d for d in detectors if d.id not in indirect_injection_detectors]
+            detectors_to_run = [d for d in detectors if d.id not in Pipeline._TRUSTED_SOURCE_SKIP_SET]
 
         try:
             verdicts: list[Verdict] = []

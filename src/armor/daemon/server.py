@@ -303,6 +303,31 @@ class DaemonServer:
             f"Injected conversation_hijack detector (unsupported_confidence={unsupported_confidence}, supported_confidence={supported_confidence})"
         )
 
+        # Inject cross_boundary_override detector with config (ADR-043 §3).
+        # Default-protect: on unless explicitly disabled. The entry-point registry
+        # already discovers a default-config instance; this re-injects it with the
+        # configured sentinel / block_threshold (and removes it if disabled).
+        from armor.detectors.cross_boundary_override import (
+            DEFAULT_SENTINEL,
+            CrossBoundaryOverride,
+        )
+
+        cbo_config = self.config.get("detector", {}).get("cross_boundary_override", {})
+        if cbo_config.get("enabled", True):
+            cbo_sentinel = str(cbo_config.get("sentinel", DEFAULT_SENTINEL))
+            cbo_block_threshold = float(cbo_config.get("block_threshold", 0.7))
+            self.registry.detectors["cross_boundary_override"] = CrossBoundaryOverride(
+                sentinel=cbo_sentinel,
+                block_threshold=cbo_block_threshold,
+            )
+            logger.info(
+                "Injected cross_boundary_override detector (block_threshold=%.2f)",
+                cbo_block_threshold,
+            )
+        else:
+            self.registry.detectors.pop("cross_boundary_override", None)
+            logger.info("cross_boundary_override detector disabled by config")
+
         # Opt-in: output_harmful_content detector
         ohc_config = self.config.get("detector", {}).get("output_harmful_content", {})
         if ohc_config.get("enabled", False):

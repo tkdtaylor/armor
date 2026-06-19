@@ -338,6 +338,13 @@ class ForensicLogger:
             else:
                 return f"direct_injection.{vector}"
 
+        # Cross-boundary override tripwire (ADR-043 §3): always categorized as
+        # indirect_injection.cross_boundary regardless of which reused corpus rule
+        # fired or whether the source was trusted/untrusted (the detector only runs
+        # on external-origin content).
+        if prefix == "cross_boundary_override":
+            return "indirect_injection.cross_boundary"
+
         # Handle other signal types
         if prefix.startswith("canary."):
             return "exfiltration.canary_leak"
