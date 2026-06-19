@@ -80,7 +80,7 @@ Important limitations:
 
 ## License
 
-armor is licensed under the PolyForm Noncommercial License 1.0.0.
+armor is licensed under the Apache License 2.0 — free for use in commercial and
+proprietary products. See LICENSE and NOTICE.
 
-Commercial use requires a separate commercial license. Contact
-licensing@taylorguard.me.
+Commercial support and consulting are available — contact tools@taylorguard.me.

@@ -1,12 +1,18 @@
 # Contributing to armor
 
-Thank you for considering a contribution. Before opening a PR, please read this short guide — armor uses a deliberate, test-spec-first workflow and a non-OSI license, both of which affect what's accepted.
+Thank you for considering a contribution. Before opening a PR, please read this short guide — armor uses a deliberate, test-spec-first workflow that affects what's accepted.
 
 ## License posture
 
-armor ships under [PolyForm Noncommercial 1.0.0](LICENSE). Free for personal use, research, education, hobby, charitable, and government work. **Commercial use requires a separate paid license.** Contributions are accepted under the same terms — by opening a PR you agree your changes are licensed under PolyForm Noncommercial 1.0.0.
+armor ships under the [Apache License 2.0](LICENSE) — free to use, modify, and distribute, including in commercial and proprietary products. By contributing, you agree your contributions are licensed under Apache-2.0. Under Apache-2.0 §5, contributions are inbound=outbound — they become part of the project and usable by everyone, including commercially. **No CLA is required.**
 
-The project is **source-available, not OSI open source.** Please use the wording "source-available" or "publicly published" rather than "open source" / "OSS" / "FOSS" in any docs you touch.
+We use the [Developer Certificate of Origin (DCO)](https://developercertificate.org/) instead of a CLA. Certify you wrote (or have the right to submit) the code by signing off every commit:
+
+```bash
+git commit -s -m "your message"
+```
+
+This appends `Signed-off-by: Your Name <you@example.com>` (must match your git identity). A CI check enforces it on every PR. To fix a commit you forgot to sign off: `git commit --amend -s --no-edit`.
 
 ## Workflow
 

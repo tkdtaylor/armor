@@ -315,14 +315,6 @@ class TestProjectMetadata:
         assert "Source" in content, "Source URL missing"
         assert "github.com" in content.lower(), "GitHub repo not referenced"
 
-    def test_license_polyform(self):
-        """Verify license references PolyForm Noncommercial."""
-        pyproject_path = Path("pyproject.toml")
-        with open(pyproject_path) as f:
-            content = f.read()
-
-        assert "PolyForm" in content or "polyform" in content.lower(), "PolyForm license not referenced"
-
 
 class TestDockerfile:
     """Verify Dockerfile is present and bakes the model."""

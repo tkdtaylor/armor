@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/tkdtaylor/armor/actions/workflows/ci.yml/badge.svg)](https://github.com/tkdtaylor/armor/actions/workflows/ci.yml)
 [![Release-check](https://github.com/tkdtaylor/armor/actions/workflows/release-check.yml/badge.svg)](https://github.com/tkdtaylor/armor/actions/workflows/release-check.yml)
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm--NC--1.0.0-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.12 | 3.13](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](pyproject.toml)
 
 A defense-in-depth security layer for LLM agents. Detects prompt injection, exfiltration via canary tokens, encoding/obfuscation, jailbreaks, tool/API abuse, and session-level multi-turn attacks. Ships as a Docker container with a small embedded validator LLM and an importable Python library.
@@ -346,8 +346,27 @@ This project follows a TDD + atomic-commit workflow: every change has a paired t
 
 ## License
 
-This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+armor is licensed under the **Apache License 2.0** — free to use, modify, and distribute, including in commercial and proprietary products. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for attribution and trademark terms.
 
-**Free for:** personal use, research, education, hobby projects, charitable and government organisations.
+> **Security notice:** armor is a security tool provided **as-is, without warranty**. It does not guarantee the security of any system. See the disclaimer in [NOTICE](NOTICE).
 
-**Commercial use** (companies, paid products, internal business tooling) requires a separate commercial license. Contact: licensing@taylorguard.me
+## Enterprise Support
+
+Need hardened deployments, integration help, custom detectors, or a support SLA? **Commercial support and consulting are available.**
+
+📧 Contact **[tools@taylorguard.me](mailto:tools@taylorguard.me)**
+
+Apache-2.0 means you can build on armor freely — paid support is there if you want a partner, never a requirement to use it.
+
+## Sponsorship
+
+armor is independent, open-source security tooling. If it saves you time or risk, consider sponsoring continued development:
+
+- 💜 [GitHub Sponsors](https://github.com/sponsors/tkdtaylor)
+<!-- - 🤝 [Open Collective](https://opencollective.com/armor)  (uncomment once the collective exists) -->
+
+## Contributing
+
+Contributions are welcome and become part of the project under Apache-2.0, so everyone (including commercial users) can build on them. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+We use the **Developer Certificate of Origin (DCO)** — sign off your commits with `git commit -s`. No CLA required.

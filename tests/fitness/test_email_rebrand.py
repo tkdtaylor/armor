@@ -2,9 +2,8 @@
 
 Asserts that all shipped contact-info files and the canonical-email
 references inside the task 038 planning docs cite the post-rebrand
-addresses (`tools@taylorguard.me` for general/security/CoC contact;
-`licensing@taylorguard.me` for the commercial-license channel) and
-contain no occurrences of the pre-rebrand addresses (the maintainer's
+address (`tools@taylorguard.me` for general/security/CoC/enterprise contact)
+and contain no occurrences of the pre-rebrand addresses (the maintainer's
 former personal-mailbox address and the former personal-domain
 licensing alias; both held internally as `<REDACTED-OLD-GENERAL>` and
 `<REDACTED-OLD-LICENSING>` placeholders).
@@ -13,7 +12,6 @@ Spec markers:
     TC-039-01 — SECURITY.md uses tools@taylorguard.me
     TC-039-02 — pyproject.toml authors email is tools@taylorguard.me
     TC-039-03 — CODE_OF_CONDUCT.md enforcement contact is tools@taylorguard.me
-    TC-039-04 — README.md commercial-license contact is licensing@taylorguard.me
     TC-039-05 — No regressions in shipped contact files
     TC-039-06 — Task 038 planning docs reference the new canonical email
     TC-039-07 — No new occurrences of the old emails outside excluded paths
@@ -33,7 +31,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 OLD_GENERAL = "<REDACTED-OLD-GENERAL>"
 OLD_LICENSING = "<REDACTED-OLD-LICENSING>"
 NEW_GENERAL = "tools@taylorguard.me"
-NEW_LICENSING = "licensing@taylorguard.me"
 
 
 def test_security_md_uses_new_general_email() -> None:
@@ -59,13 +56,6 @@ def test_code_of_conduct_uses_new_general_email() -> None:
     text = (REPO_ROOT / "CODE_OF_CONDUCT.md").read_text(encoding="utf-8")
     assert NEW_GENERAL in text, f"CODE_OF_CONDUCT.md missing {NEW_GENERAL!r}"
     assert OLD_GENERAL not in text, f"CODE_OF_CONDUCT.md still references {OLD_GENERAL!r}"
-
-
-def test_readme_commercial_license_uses_new_licensing_email() -> None:
-    """TC-039-04: README.md commercial-license line cites licensing@taylorguard.me."""
-    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    assert NEW_LICENSING in text, f"README.md missing {NEW_LICENSING!r}"
-    assert OLD_LICENSING not in text, f"README.md still references {OLD_LICENSING!r}"
 
 
 def test_no_old_emails_in_shipped_contact_files() -> None:

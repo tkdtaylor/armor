@@ -214,19 +214,6 @@ def test_tc_038_04_squashed_history_count_in_range() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TC-032-03 — License unchanged. (TC-035 has no direct alias.)
-# ---------------------------------------------------------------------------
-
-
-def test_tc_032_03_license_unchanged() -> None:
-    """TC-032-03: First line of LICENSE is `PolyForm Noncommercial License 1.0.0`."""
-    first = (ROOT / "LICENSE").read_text(encoding="utf-8").splitlines()[0]
-    assert first.strip() == "PolyForm Noncommercial License 1.0.0", (
-        f"LICENSE first line is {first!r}; expected 'PolyForm Noncommercial License 1.0.0'"
-    )
-
-
-# ---------------------------------------------------------------------------
 # TC-032-04 / TC-035-01 — All required contributor files exist and are non-empty.
 # ---------------------------------------------------------------------------
 
@@ -282,33 +269,6 @@ def test_tc_032_05_personal_harness_state_untracked() -> None:
     tracked = _git_ls_files(".claude/")
     bad = [p for p in tracked if p.endswith(("settings.local.json", ".last-checkpoint"))]
     assert not bad, f"these personal harness files are still tracked: {bad}"
-
-
-# ---------------------------------------------------------------------------
-# TC-032-06 / TC-035-05 — No "open source" wording outside the LICENSE.
-# ---------------------------------------------------------------------------
-
-OSS_RE = re.compile(r"open[- ]source|\bOSS\b|\bFOSS\b", re.IGNORECASE)
-SCOPE_PATHS = ["README.md", "docs/spec", "docs/architecture", "docs/plans"]
-
-
-def test_tc_032_06_no_open_source_wording() -> None:
-    """TC-032-06 / TC-035-05: zero 'open source' / 'OSS' / 'FOSS' matches."""
-    matches: list[str] = []
-    for rel in SCOPE_PATHS:
-        path = ROOT / rel
-        if not path.exists():
-            continue
-        files = [path] if path.is_file() else [p for p in path.rglob("*.md") if p.is_file()]
-        for f in files:
-            try:
-                text = f.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            for lineno, line in enumerate(text.splitlines(), 1):
-                if OSS_RE.search(line):
-                    matches.append(f"{f.relative_to(ROOT)}:{lineno}: {line.strip()}")
-    assert not matches, "'open source' wording found:\n" + "\n".join(matches)
 
 
 # ---------------------------------------------------------------------------
