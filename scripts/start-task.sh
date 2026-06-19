@@ -40,6 +40,27 @@ STALE_SECONDS=$(( 4 * 60 * 60 ))
 
 cd "$(git rev-parse --show-toplevel)"
 
+# If we are already inside a harness-provided linked worktree (e.g. a parallel
+# backlog runner dispatched this agent with `isolation: worktree`), skip the
+# session-lock branch/worktree decision entirely — the worktree is the isolation.
+# Just make sure the task branch is checked out *here* and report WORKTREE.
+# Detection: in a linked worktree, the per-worktree git dir differs from the
+# shared common dir; in the main worktree they resolve to the same path.
+git_dir=$(cd "$(git rev-parse --git-dir)" && pwd)
+common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+if [[ "${git_dir}" != "${common_dir}" ]]; then
+    current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+    if [[ "${current_branch}" != "${TASK_REF}" ]]; then
+        if git show-ref --verify --quiet "refs/heads/${TASK_REF}"; then
+            git checkout "${TASK_REF}"
+        else
+            git checkout -b "${TASK_REF}"
+        fi
+    fi
+    echo "WORKTREE $(pwd)"
+    exit 0
+fi
+
 # Sweep stale locks (mtime older than staleness window). POSIX-portable.
 sessions_dir=".claude/sessions"
 mkdir -p "${sessions_dir}"
@@ -63,9 +84,22 @@ for lock in "${sessions_dir}"/*.lock; do
     active=$(( active + 1 ))
 done
 
-# Determine the default branch (prefer `main`, fall back to `master` or HEAD).
+# Determine the base branch task branches are cut from.
+# TASK_BASE_BRANCH (if set and existing) overrides default-branch discovery — the
+# /autopilot integration-branch flow sets it so tasks branch off the integration
+# branch instead of main. Unset → discover the default branch as usual.
 default_branch=""
+if [[ -n "${TASK_BASE_BRANCH:-}" ]]; then
+    if git show-ref --verify --quiet "refs/heads/${TASK_BASE_BRANCH}"; then
+        default_branch="${TASK_BASE_BRANCH}"
+    else
+        echo "start-task: TASK_BASE_BRANCH=${TASK_BASE_BRANCH} set but that branch does not exist" >&2
+        exit 2
+    fi
+fi
+# Prefer `main`, fall back to `master`/`trunk` or HEAD.
 for candidate in main master trunk; do
+    [[ -n "${default_branch}" ]] && break
     if git show-ref --verify --quiet "refs/heads/${candidate}"; then
         default_branch="${candidate}"
         break
