@@ -363,7 +363,7 @@ Apache-2.0 means you can build on armor freely — paid support is there if you 
 armor is independent, open-source security tooling. If it saves you time or risk, consider sponsoring continued development:
 
 - 💜 [GitHub Sponsors](https://github.com/sponsors/tkdtaylor)
-<!-- - 🤝 [Open Collective](https://opencollective.com/armor)  (uncomment once the collective exists) -->
+- 🤝 [Open Collective](https://opencollective.com/tkdtaylor)
 
 ## Contributing
 
