@@ -12,9 +12,11 @@ docs/plans/
 docs/tasks/
 
 # Local agent harnesses — keep public integration examples under examples/.
+# AGENTS.md is the canonical, committed cross-harness briefing (ADR-039 pattern):
+# Codex loads it directly, Gemini via the GEMINI.md symlink, Claude Code via the
+# CLAUDE.md @AGENTS.md import. CLAUDE.md (the Claude-specific layer) stays local.
 .claude/
 CLAUDE.md
-AGENTS.md
 
 # Secrets
 .env
