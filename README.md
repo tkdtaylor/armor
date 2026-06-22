@@ -30,10 +30,10 @@ When a check fails, the response is **blocked** before reaching the user, and th
 **What armor does:** an LLM content/behavioural guard — prompt-injection / jailbreak / exfiltration detection, canary honeypots, tool-call validation, and a validator LLM (ASI01/ASI02/ASI06-output). It guards the *content* crossing the user↔agent and agent↔tool boundaries; it is **not** a process sandbox.
 
 **What it does *not* do (and which sibling owns it instead):**
-- OS / process execution isolation — armor inspects content, it does not contain code → **exec-sandbox**
-- What gets written into agent memory/context → **memory-guard**
-- Storing or brokering secrets → **vault**
-- Supply-chain / dependency CVEs and malicious code-logic scanning → **dep-scan** / **code-scanner**
+- OS / process execution isolation — armor inspects content, it does not contain code → **exec-sandbox** (Coming soon)
+- What gets written into agent memory/context → **memory-guard** (Coming soon)
+- Storing or brokering secrets → **vault** (Coming soon)
+- Supply-chain / dependency CVEs and malicious code-logic scanning → **[dep-scan](https://github.com/tkdtaylor/dep-scan)** / **[code-scanner](https://github.com/tkdtaylor/code-scanner)**
 
 For the adversary-model gaps *within* armor's own remit (what it cannot defend against even where it is the right layer), see the **Limitations** section below.
 
