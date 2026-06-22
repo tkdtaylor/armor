@@ -334,8 +334,8 @@ flowchart LR
     SOCK --> Daemon
     Daemon --> PIPE
     PIPE --> LLM
-    Daemon -->|"forensic incident<br/>(canary_id, never value)"| DB
-    Daemon -->|"verdict (exit 0 / 2)"| SH
+    Daemon -->|"forensic incident<br/>canary_id, never value"| DB
+    Daemon -->|"verdict: exit 0 / 2"| SH
     SH -->|"halt at lifecycle event<br/>if exit 2"| CC
 ```
 
