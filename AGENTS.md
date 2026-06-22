@@ -355,8 +355,9 @@ These are excuses agents use to skip steps. Don't fall for them.
 ## External tools
 
 - **dep-scan** — install-time supply-chain scan for PyPI/npm/Cargo/Go packages. Use
-  the `pipds` wrapper instead of `pip install` for any new dep. Doubly important for
-  a security tool. Install:
+  `dep-scan install <pkg>` (it wraps the underlying package manager) instead of a
+  bare `pip install` for any new dep, or `dep-scan check <pkg>` to scan without
+  installing. Doubly important for a security tool. Install:
   `curl -fsSL https://raw.githubusercontent.com/tkdtaylor/dep-scan/main/install.sh | bash`
 - **code-scanner** — sandboxed scan of any new dependency or third-party code before
   installing. A malicious dep in armor's supply chain would undermine the whole
