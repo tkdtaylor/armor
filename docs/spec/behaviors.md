@@ -15,15 +15,7 @@ Not in this file:
 
 ## Format
 
-Each behavior is a numbered subsection:
-
-> **B-NNN: Short imperative title**
->
-> - **Trigger:** what causes this behavior to fire
-> - **Response:** what the system does
-> - **Side effects:** observable effects beyond the immediate response (writes, log entries)
-> - **Failure modes:** how it can fail and what the system does when it does
-> - *(optional)* **References:** ADRs and test specs
+Each behavior is a numbered subsection: a `B-NNN` heading followed by **Trigger** (what causes it to fire), **Response** (what the system does), **Side effects** (observable effects beyond the immediate response — writes, log entries), and **Failure modes** (how it can fail and what the system does), plus an optional **References** line citing ADRs and test specs.
 
 Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable references — never reuse a number, even if a behavior is removed (mark it `B-NNN: REMOVED — see ADR-XXX` and leave the number).
 
