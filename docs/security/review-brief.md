@@ -200,10 +200,9 @@ armor hooks install --shell bash --dry-run
 
 ## Review Tracking
 
-| Reviewer Name | Affiliation | Invite Date | Confirmation Date | Review Complete | Notes |
-|---|---|---|---|---|---|
-| [Pending] | [Pending] | [TBD] | [TBD] | [ ] | |
-| [Pending] | [Pending] | [TBD] | [TBD] | [ ] | |
+No external reviews are underway yet. When invitations go out, each engagement is
+tracked here as a row: reviewer, affiliation, invite date, confirmation date,
+completion, and notes.
 
 **Instructions for this table:**
 - Add the reviewer's name and affiliation once confirmed.
