@@ -46,6 +46,11 @@ make demo           # end-to-end smoke
 make release-check  # full pre-tag verification (check + fitness + demo + offline-smoke examples)
 ```
 
+> **Note on the LLM P95 latency gate:** the latency *budgets* (validator ≤ 500 ms,
+> honeypot ≤ 16 s) are calibrated to the maintainer's benchmark host. On other
+> machines the measurement is not comparable, so the budget assertions skip unless
+> `ARMOR_BENCH_HOST=1` is set — a skip there is expected, not a gap.
+
 Maintainers run `make release-check` before tagging any release. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for the full process.
 
 Running the daemon locally:

@@ -16,7 +16,10 @@ so pytest's default glob skips it). Two tests are exposed:
   runs against the full ≥100 / ≥30 row corpora via ``ARMOR_FITNESS_FULL=1``.
 
 Either test cleanly skips when the model weights or ``llama-cpp-python`` are
-unavailable, or when ``ARMOR_DISABLE_LLM=true``.
+unavailable, or when ``ARMOR_DISABLE_LLM=true``. The P95 *budgets* are
+calibrated to the maintainer's benchmark host (ADR-018 baseline 486 ms); on
+other machines the measured latency is not comparable, so the budget
+assertions additionally skip unless ``ARMOR_BENCH_HOST=1`` is set.
 
 Spec markers:
     TC-033-01..06 — original LLM P95 fitness behaviours.
@@ -137,6 +140,10 @@ def _llm_disabled() -> bool:
     return os.environ.get("ARMOR_DISABLE_LLM", "false").lower() in ("true", "1", "yes")
 
 
+def _on_benchmark_host() -> bool:
+    return os.environ.get("ARMOR_BENCH_HOST") == "1"
+
+
 def _model_available() -> bool:
     if _llm_disabled():
         return False
@@ -153,6 +160,8 @@ def test_llm_p95_under_budget_smoke() -> None:
     weights are present), gets skipped cleanly otherwise, and is excluded from
     ``make fitness-smoke``.
     """
+    if not _on_benchmark_host():
+        pytest.skip("P95 budgets are calibrated to the benchmark host; set ARMOR_BENCH_HOST=1 to enforce")
     if not _model_available():
         pytest.skip("LLM model weights not available (ARMOR_DISABLE_LLM=true or model missing)")
     # Force smoke variant regardless of ambient env.
@@ -165,6 +174,8 @@ def test_llm_p95_under_budget_smoke() -> None:
 @pytest.mark.requires_llm
 def test_llm_p95_under_budget_full() -> None:
     """TC-091-09: full corpus run (≥100 validator / ≥30 honeypot rows)."""
+    if not _on_benchmark_host():
+        pytest.skip("P95 budgets are calibrated to the benchmark host; set ARMOR_BENCH_HOST=1 to enforce")
     if not _model_available():
         pytest.skip("LLM model weights not available (ARMOR_DISABLE_LLM=true or model missing)")
     with patch.dict(os.environ, {"ARMOR_FITNESS_FULL": "true"}):
