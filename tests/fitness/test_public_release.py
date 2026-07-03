@@ -42,6 +42,7 @@ Task-035-local markers (label this task's own deliverable behaviors):
     TC-035-06 — meta: this task has no ADR (operational follow-up)
 """
 
+import hashlib
 import os
 import re
 import subprocess
@@ -53,16 +54,20 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 # ---------------------------------------------------------------------------
-# Banned-literal constants for TC-044-01..03.
+# Banned-literal digests for TC-044-01..03.
 #
-# Constructed from split strings so the bytes of this file do not themselves
-# contain the banned substring — without the split, the fitness sweep would
-# false-positive on its own source file. The split must keep both halves
-# non-empty and the concatenation must equal the original literal.
+# The retired strings must never appear in the tree — this file included — so
+# they are stored only as SHA-256 digests. The scan extracts candidate tokens
+# (email-shaped strings / AWS access-key IDs) from each tracked file and
+# compares their digests against the banned set; nothing in this file can be
+# reassembled into an original literal.
 # ---------------------------------------------------------------------------
-_AWS_CANARY_LITERAL = "AKIAB141Y3" + "VZX0Y6RRQQ"
-_OLD_GENERAL_EMAIL = "old-contact" + "@example.invalid"
-_OLD_LICENSING_EMAIL = "kevin" + "@taylorguard.me"
+_EMAIL_TOKEN_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_AWS_KEY_TOKEN_RE = re.compile(r"AKIA[A-Z0-9]{16}")
+
+_BANNED_AWS_CANARY_SHA256 = "f4c04a14d1ccec619a40b776871fda67a1bd633fd885f772a88e8993293f0dc6"
+_BANNED_GENERAL_EMAIL_SHA256 = "6bb8e107efec2bb873ad11735c9ced314fe93f1d5ee7fba8e74c7a5c0a078bef"
+_BANNED_LICENSING_EMAIL_SHA256 = "39af38465b1772110d69586646b70da564084cc5c7926b544336e6e6a688d252"
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +303,12 @@ def test_tc_032_09_ci_jobs_present() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _scan_tracked_files_for_literal(literal: str) -> list[str]:
+def _text_has_banned_token(text: str, pattern: re.Pattern[str], digest_hex: str) -> bool:
+    """True iff ``text`` contains a token matching ``pattern`` whose SHA-256 is ``digest_hex``."""
+    return any(hashlib.sha256(tok.encode()).hexdigest() == digest_hex for tok in pattern.findall(text))
+
+
+def _scan_tracked_files_for_banned_token(pattern: re.Pattern[str], digest_hex: str) -> list[str]:
     files = subprocess.check_output(["git", "ls-files"], cwd=ROOT, text=True).splitlines()
     hits: list[str] = []
     for f in files:
@@ -306,28 +316,39 @@ def _scan_tracked_files_for_literal(literal: str) -> list[str]:
         if not p.is_file():
             continue
         try:
-            if literal in p.read_text(errors="ignore"):
+            if _text_has_banned_token(p.read_text(errors="ignore"), pattern, digest_hex):
                 hits.append(f)
         except Exception:
             pass
     return hits
 
 
+def test_tc_044_00_banned_token_scanner_detects_planted_literal() -> None:
+    """The digest scanner must bite: a synthetic banned pair is detected, a near-miss is not."""
+    planted = "sample" + "@example.com"  # synthetic — not one of the real banned literals
+    digest = hashlib.sha256(planted.encode()).hexdigest()
+    assert _text_has_banned_token(f"contact: {planted} ok", _EMAIL_TOKEN_RE, digest)
+    assert not _text_has_banned_token("contact: other@example.com ok", _EMAIL_TOKEN_RE, digest)
+    key = "AKIA" + "A" * 16
+    key_digest = hashlib.sha256(key.encode()).hexdigest()
+    assert _text_has_banned_token(f"id={key} trailing", _AWS_KEY_TOKEN_RE, key_digest)
+
+
 def test_tc_044_01_no_leaked_aws_canary_literal() -> None:
-    """TC-044-01: Zero matches for the pre-rotation AWS canary in any tracked file."""
-    hits = _scan_tracked_files_for_literal(_AWS_CANARY_LITERAL)
-    assert hits == [], f"pre-rotation AWS canary literal still present in: {hits}"
+    """TC-044-01: Zero digest matches for the pre-rotation AWS canary in any tracked file."""
+    hits = _scan_tracked_files_for_banned_token(_AWS_KEY_TOKEN_RE, _BANNED_AWS_CANARY_SHA256)
+    assert hits == [], f"pre-rotation AWS canary still present in: {hits}"
 
 
 def test_tc_044_02_no_old_general_email_literal() -> None:
-    """TC-044-02: Zero matches for the pre-rebrand general email in any tracked file."""
-    hits = _scan_tracked_files_for_literal(_OLD_GENERAL_EMAIL)
+    """TC-044-02: Zero digest matches for the pre-rebrand general email in any tracked file."""
+    hits = _scan_tracked_files_for_banned_token(_EMAIL_TOKEN_RE, _BANNED_GENERAL_EMAIL_SHA256)
     assert hits == [], f"pre-rebrand general email still present in: {hits}"
 
 
 def test_tc_044_03_no_old_licensing_email_literal() -> None:
-    """TC-044-03: Zero matches for the pre-rebrand licensing email in any tracked file."""
-    hits = _scan_tracked_files_for_literal(_OLD_LICENSING_EMAIL)
+    """TC-044-03: Zero digest matches for the pre-rebrand licensing email in any tracked file."""
+    hits = _scan_tracked_files_for_banned_token(_EMAIL_TOKEN_RE, _BANNED_LICENSING_EMAIL_SHA256)
     assert hits == [], f"pre-rebrand licensing email still present in: {hits}"
 
 
