@@ -100,7 +100,7 @@ and every file there corresponds to exactly one row.
 
 | Invariant | Why | Test |
 |-----------|-----|------|
-| README is structurally and substantively truthful | Per task 057, the README must contain the structural and content elements that make it honest about what the project does and does not do. | [test_readme_truthfulness.py](../../tests/fitness/test_readme_truthfulness.py) |
+| Public docs are structurally and substantively truthful | Per task 057, the published docs keep their claims auditable: the README carries an honest status disclosure linking the threat model, `docs/architecture/threat-model.md` enumerates the not-defended attack classes, and `docs/performance.md` cites every performance number with sample size, hardware envelope, source path, and a dated run. | [test_readme_truthfulness.py](../../tests/fitness/test_readme_truthfulness.py) |
 | Public-release readiness (SECURITY.md matchers, project-status badges, etc.) | Verification of release-readiness invariants. | [test_public_release.py](../../tests/fitness/test_public_release.py) |
 | SDK type-strictness, docstring coverage, ADR requirements | The SDK surface is type-strict, every public symbol has a docstring, and the SDK's invariants are pinned. | [test_sdk_polish.py](../../tests/fitness/test_sdk_polish.py) |
 | Daemon emits structured-log JSON with required fields | Per TC-028-08, all logs from the daemon must be valid JSON with required fields (`ts`, `level`, `event`). | [test_structured_logs.py](../../tests/fitness/test_structured_logs.py) |
@@ -108,7 +108,7 @@ and every file there corresponds to exactly one row.
 | `docs/architecture/diagrams.md` describes the operator-clear flow | The diagrams file must describe the operator-clear quarantine-release flow. | [test_diagrams_operator_clear.py](../../tests/fitness/test_diagrams_operator_clear.py) |
 | `examples/claude_code/` integration example fitness | The Claude Code SDK example structure, README references, and offline-smoke contract are pinned. | [test_claude_code_example.py](../../tests/fitness/test_claude_code_example.py) |
 | `examples/custom_agent.py` fitness | The custom-agent example structure and offline-smoke contract are pinned. | [test_custom_agent_example.py](../../tests/fitness/test_custom_agent_example.py) |
-| Demo recording artifact pins | The demo recording artifact's path, format, and README references are pinned. | [test_demo_recording.py](../../tests/fitness/test_demo_recording.py) |
+| Demo recording artifact pins | The demo recording artifact's existence, path, format, size, and canary-safety are pinned. | [test_demo_recording.py](../../tests/fitness/test_demo_recording.py) |
 | v1.0 readiness gate is concrete (detection floor, perf gates, integration gates, external-validation plan) | Per task 099, `docs/v1-readiness.md` must carry the five required sections with concrete (non-aspirational) gates and a dated external-validation plan; closes the readiness-drift gap before tagging. | [test_v1_readiness.py](../../tests/fitness/test_v1_readiness.py) |
 
 ### Spec-drift audits (post-audit pins)
@@ -124,7 +124,7 @@ post-launch audits. They prevent the same drift from recurring silently.
 | Spec drift cluster fixes | Pins a cluster of small spec/code mismatches so they cannot return. | [test_audit_048.py](../../tests/fitness/test_audit_048.py) |
 | `incidents export` spec/code alignment | The spec documents `incidents export` if and only if the code implements it. | [test_audit_049.py](../../tests/fitness/test_audit_049.py) |
 | `armor.toml` post-FSM rewrite pins | Spec audit checks for the FSM-aware `armor.toml`. | [test_audit_050.py](../../tests/fitness/test_audit_050.py) |
-| README + public-doc doc-fix pins | Pins the doc fixes so the same paragraph drift cannot return. | [test_audit_051.py](../../tests/fitness/test_audit_051.py) |
+| Public-doc doc-fix pins | Pins the doc fixes (canary-storage wording in `docs/detectors.md`, PyPI/socket walkthrough in `docs/installation.md`, project-structure tree in AGENTS.md) so the same paragraph drift cannot return. | [test_audit_051.py](../../tests/fitness/test_audit_051.py) |
 | `docs/architecture/diagrams.md` refresh pins | Pins the diagrams refresh so the diagrams cannot fall out of sync silently. | [test_audit_052.py](../../tests/fitness/test_audit_052.py) |
 | Code and doc tidy-up pins | Pins the cleanup so the tidy-up cannot regress. | [test_audit_053.py](../../tests/fitness/test_audit_053.py) |
 

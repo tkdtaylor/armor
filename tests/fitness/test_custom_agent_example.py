@@ -6,7 +6,6 @@ Spec markers:
     TC-056-02 — only stdlib + armor + anthropic imports
     TC-056-03 — invokes check_input, check_tool*, check_output
     TC-056-08 — no real-shape canary strings without FAKE/EXAMPLE markers
-    TC-056-09 — root README references the example
 """
 
 from __future__ import annotations
@@ -62,9 +61,3 @@ def test_tc_056_08_no_real_canary_strings() -> None:
     matches = re.findall(r"AKIA[A-Z0-9]{8,20}", text)
     for m in matches:
         assert "FAKE" in m or "EXAMPLE" in m, f"canary-shaped string lacks FAKE/EXAMPLE marker: {m}"
-
-
-def test_tc_056_09_root_readme_references_example() -> None:
-    """TC-056-09: project root README links to custom_agent.py."""
-    text = (REPO_ROOT / "README.md").read_text()
-    assert "examples/custom_agent.py" in text, "root README does not reference custom_agent.py"

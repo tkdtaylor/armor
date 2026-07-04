@@ -15,17 +15,21 @@ def test_tc_051_01_readme_uses_socket_not_socket_path():
 
 
 def test_tc_051_02_readme_canary_location_corrected():
-    """TC-051-02: README canary-location wording matches ADR-010."""
-    text = (REPO_ROOT / "README.md").read_text()
-    text_lower = text.lower()
+    """TC-051-02: public canary-storage wording is not inverted, and the detector
+    doc states the invariant correctly (canary values never stored verbatim; only
+    the canary_id is recorded). Content moved from README to docs/detectors.md in
+    the ecosystem-style rewrite."""
+    readme = (REPO_ROOT / "README.md").read_text().lower()
+    detectors = (REPO_ROOT / "docs" / "detectors.md").read_text()
 
-    # The old broken wording must be gone
+    # The old broken wording must be gone from every public doc
     banned = "canary values live only in"
-    assert banned not in text_lower, "README still inverts the canary storage invariant"
+    assert banned not in readme, "README still inverts the canary storage invariant"
+    assert banned not in detectors.lower(), "detectors.md inverts the canary storage invariant"
 
-    # The corrected wording must reference the runtime path or ADR
-    assert "daemon.canary_values_path" in text or "ADR-010" in text or "adr-010" in text, (
-        "README does not reference daemon.canary_values_path or ADR-010"
+    # The corrected wording must state the never-verbatim / canary_id-only invariant
+    assert re.search(r"never.{0,40}verbatim", detectors, flags=re.I | re.S) and "canary_id" in detectors, (
+        "detectors.md does not state the canary_id-only forensic-log invariant"
     )
 
 
@@ -47,8 +51,11 @@ def test_tc_051_03_readme_no_unguarded_ghcr_image():
 
 
 def test_readme_pypi_install_path_is_current():
-    """README/PyPI long description must not describe the package as unreleased."""
-    text = (REPO_ROOT / "README.md").read_text()
+    """Public install docs must not describe the package as unreleased, and must
+    give the current PyPI command. Install instructions moved from README to
+    docs/installation.md in the ecosystem-style rewrite."""
+    readme = (REPO_ROOT / "README.md").read_text()
+    install = (REPO_ROOT / "docs" / "installation.md").read_text()
     stale_phrases = (
         "There is no PyPI release yet",
         "When published, the package will be",
@@ -56,9 +63,10 @@ def test_readme_pypi_install_path_is_current():
     )
 
     for phrase in stale_phrases:
-        assert phrase not in text, f"README still contains stale PyPI wording: {phrase!r}"
+        assert phrase not in readme, f"README still contains stale PyPI wording: {phrase!r}"
+        assert phrase not in install, f"installation.md still contains stale PyPI wording: {phrase!r}"
 
-    assert "pip install armor-ai" in text, "README missing current PyPI install command"
+    assert "pip install armor-ai" in install, "installation.md missing current PyPI install command"
 
 
 def test_pypi_readme_is_package_focused():
@@ -87,19 +95,22 @@ def test_pypi_readme_is_package_focused():
     assert "https://github.com/tkdtaylor/armor" in text
 
 
-def test_tc_051_05_readme_smoke_test_includes_socket():
-    """TC-051-05: README smoke-test example passes `--socket`."""
-    text = (REPO_ROOT / "README.md").read_text()
+def test_tc_051_05_smoke_test_includes_socket():
+    """TC-051-05: the documented smoke-test example passes `--socket`. The CLI
+    walkthrough moved from README to docs/installation.md."""
+    text = (REPO_ROOT / "docs" / "installation.md").read_text()
 
-    # Find the armor check input line in the Commands section
+    # Find the armor check input line in the install walkthrough
     m = re.search(r"armor check input[^\n]*", text)
-    assert m is not None, "README missing 'armor check input' example"
-    assert "--socket" in m.group(0), f"README smoke-test missing --socket: {m.group(0)}"
+    assert m is not None, "installation.md missing 'armor check input' example"
+    assert "--socket" in m.group(0), f"smoke-test example missing --socket: {m.group(0)}"
 
 
-def test_tc_051_04_readme_project_structure_matches_repo():
-    """TC-051-04: README project structure includes all major public entries."""
-    text = (REPO_ROOT / "README.md").read_text()
+def test_tc_051_04_project_structure_matches_repo():
+    """TC-051-04: the documented project structure includes all major public
+    entries. The tree lives in AGENTS.md (the canonical briefing) after the
+    README rewrite delegated structure there."""
+    text = (REPO_ROOT / "AGENTS.md").read_text()
 
     # Extract the tree block (between the ``` markers in the Project structure section)
     tree_start = text.find("## Project structure")

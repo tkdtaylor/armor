@@ -3,7 +3,6 @@
 
 Spec markers:
     TC-059-01 — recording artifact exists (local SVG/cast OR hosted asciinema link)
-    TC-059-02 — README references the recording in the top section
     TC-059-03 — artifacts/recording.md (or README.md) documents the recording process
     TC-059-04 — recording artifact does not contain real canary values
     TC-059-05 — recording artifact size is ≤1 MB
@@ -41,12 +40,6 @@ def test_tc_059_01_recording_artifact_exists() -> None:
     local = _local_recording()
     hosted = "asciinema.org/a/" in _readme_text()
     assert local or hosted, "no demo recording artifact found and no asciinema.org link in README"
-
-
-def test_tc_059_02_readme_references_recording_in_top_section() -> None:
-    """TC-059-02: top of README references the recording (path or hosted link)."""
-    head = "\n".join(_readme_text().splitlines()[:50])
-    assert "artifacts/demo" in head or "asciinema.org/a/" in head, "README top section does not reference the recording"
 
 
 def test_tc_059_03_recording_doc_exists() -> None:
