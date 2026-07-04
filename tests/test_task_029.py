@@ -118,50 +118,45 @@ class TestREADME:
     """TC-029-06, TC-029-07: README Getting Started section."""
 
     def test_readme_getting_started_section_exists(self):
-        """Verify ## Getting started heading."""
-        readme_path = Path("README.md")
-        with open(readme_path) as f:
-            content = f.read()
+        """Verify the README leads with a getting-started entry point. After the
+        ecosystem-style rewrite this is the `## Quick start` section; full install
+        options live in docs/installation.md (linked from it)."""
+        content = Path("README.md").read_text()
 
-        assert "## Getting started" in content, "Getting started section not found"
+        assert "## Quick start" in content or "## Getting started" in content, "no getting-started/quick-start section"
 
     def test_readme_container_path(self):
-        """TC-029-06: Container path documents the build/run command and points to the GHCR plan.
-
-        Per the public-release docs refresh (2026-05-07), the README
-        no longer claims `docker run ghcr.io/tkdtaylor/armor:latest` works today
-        because the multi-arch image has not been published yet. Instead it shows
-        the local `docker compose` build path and references the release workflow
-        that will publish the image with the first tag. Assertions updated to
-        match: any docker invocation + the release workflow reference.
+        """TC-029-06: the container path documents the build/run command and points
+        to the GHCR release plan. The Docker walkthrough moved from README to
+        docs/installation.md, which shows the local `docker compose` build path and
+        references the release workflow that publishes the multi-arch image.
         """
-        readme_path = Path("README.md")
-        with open(readme_path) as f:
-            content = f.read()
+        content = Path("docs/installation.md").read_text()
 
         assert "docker compose" in content, "docker compose command not found"
-        assert ".github/workflows/release.yml" in content, "release workflow reference not found"
+        assert "release workflow" in content or "GHCR" in content, "release/GHCR publishing reference not found"
 
     def test_readme_pypi_path(self):
-        """TC-029-07 / TC-102-01: PyPI path uses the reserved `armor-ai` distribution."""
-        readme_path = Path("README.md")
-        with open(readme_path) as f:
-            content = f.read()
+        """TC-029-07 / TC-102-01: PyPI path uses the reserved `armor-ai` distribution.
+        Install instructions moved to docs/installation.md; the README keeps the
+        examples/ cross-link."""
+        install = Path("docs/installation.md").read_text()
+        readme = Path("README.md").read_text()
 
-        assert "PyPI" in content, "PyPI is not mentioned in README"
-        assert "pip install armor-ai" in content, "README does not use the armor-ai install command"
+        assert "PyPI" in install, "PyPI is not mentioned in installation.md"
+        assert "pip install armor-ai" in install, "installation.md does not use the armor-ai install command"
         old_dist_name = "ai" + "-armor"
-        assert old_dist_name not in content, "README still contains the old distribution name"
-        assert "examples/" in content, "examples/ cross-link not found"
+        assert old_dist_name not in install, "installation.md still contains the old distribution name"
+        assert "examples/" in readme, "examples/ cross-link not found in README"
 
     def test_readme_mentions_demo(self):
-        """Verify README documents the demo."""
-        readme_path = Path("README.md")
-        with open(readme_path) as f:
-            content = f.read()
+        """Verify the demo is documented: the README surfaces `make demo` and the
+        demo script documents its two scenarios."""
+        readme = Path("README.md").read_text()
+        demo = Path("scripts/demo.sh").read_text()
 
-        assert "make demo" in content, "make demo not mentioned"
-        assert "Scenario 1" in content and "Scenario 2" in content, "Demo scenarios not documented"
+        assert "make demo" in readme, "make demo not mentioned in README"
+        assert "Scenario 1" in demo and "Scenario 2" in demo, "demo scenarios not documented in scripts/demo.sh"
 
 
 class TestCHANGELOGFitness:
