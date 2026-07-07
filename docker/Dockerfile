@@ -1,6 +1,6 @@
 # multi-stage Docker image for armor daemon
 # Stage 1: Builder — compiles dependencies
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
@@ -36,7 +36,7 @@ RUN python3 -c "from huggingface_hub import hf_hub_download; import os, shutil; 
     shutil.copy(gguf_path, '/build/models/active.gguf')"
 
 # Stage 2: Runtime — minimal image with only the installed Python packages and model
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
