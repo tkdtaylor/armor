@@ -360,6 +360,15 @@ Behaviors are numbered `B-001`, `B-002`, … sequentially. Numbers are stable re
 - **Failure modes:** Detector raises → that detector's verdict is recorded as `error`, pipeline continues (fail-open per detector). Empty payload text → `pass`.
 - **References:** ADR-043 (§3, §4), ADR-041, ADR-033, ADR-024. Unit tests at `tests/unit/detectors/test_cross_boundary_override.py`.
 
+### B-020: Emit blocking incidents to the ecosystem audit-trail (opt-in)
+
+- **Trigger:** Any check operation (`check.input`, `check.output`, `check.tool`, `check.fetched`) produces a `block` verdict, the daemon has already written the SQLite `Incident` row, and `[audit_trail].enabled = true` in the loaded config.
+- **Response:** `AuditTrailEmitter.build_event` constructs one contract-v1 event (`actor="armor"`, `action`=the operation with `.` replaced by `_`, `target`=session id, `decision="block"`, `refs=[{"type": "incident", "id": "<incident id>"}]`, `context={signal_id, attack_category, severity, source[, source_tool]}`) and `emit()` sends it as one newline-terminated `{"op": "emit", "event": {...}}` line over the configured Unix socket, with a connect/read timeout of `timeout_ms` (default 250 ms). The SQLite incident write happens unconditionally and independently of this behavior; the audit-trail emit is additive, never a substitute.
+- **Side effects:** On successful emit, no observable side effect beyond the remote audit-trail chain gaining one entry. `attack_category` is derived via `ForensicLogger.infer_category`, the same code path that categorizes the SQLite row, so the two never disagree.
+- **Failure modes:** Socket path absent, connection refused, or read timeout: the event is logged at WARNING and appended to a bounded in-memory retry buffer (`deque(maxlen=retry_buffer_size)`, default 256, oldest dropped first); `emit()` returns `None` and never raises. The buffer is flushed oldest-first on the next successful `emit()` call before the new event is sent; a flush failure partway through leaves the unsent backlog and the new event all buffered. A contract-level rejection (`{"error": {...}}`) is logged at ERROR and the event is dropped without buffering (a rejected event is permanently invalid). In every failure mode, the check response (verdict, `signal_id`, `incident_id`) and the SQLite incident write are byte-identical to the emit-disabled case: armor's own blocking behavior never depends on audit-trail availability.
+- **Never emitted:** payload text, quarantined content, or any canary value. `context` is an allowlist of `signal_id`, `attack_category`, `severity`, `source`, and (for `check.fetched`) `source_tool`.
+- **References:** ADR-045; audit-trail `docs/CONTRACT.md` (frozen v1, sibling repo). Tests at `tests/unit/test_audit_trail.py` and `tests/integration/test_audit_trail_emit.py`.
+
 ---
 
 ## Edge cases and error behaviors

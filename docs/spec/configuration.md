@@ -93,6 +93,10 @@ Every knob the system exposes — env vars, config files, runtime parameters, de
 | `safe_message.input_block` | string | `"Input blocked by armor."` | no | User-facing message on input block |
 | `safe_message.output_block` | string | `"Output suppressed by armor."` | no | User-facing message on output block |
 | `logging.format` | string | `"json"` | no | Daemon log format: `json` (one JSON object per line; required schema per ADR-029 — fields: `ts`, `level`, `event`, `session_id?`, `request_id?`, `detector_id?`, `decision?`, `latency_ms?`) or `text` (legacy human-readable). Operator UX features (`incidents tail`, `sessions list`) require `json`. |
+| `audit_trail.enabled` | bool | `false` | no | Opt-in gate for emitting blocking incidents to the ecosystem audit-trail block (task 134, ADR-045). `false` by default: no `AuditTrailEmitter` is constructed and no connection is ever attempted. |
+| `audit_trail.socket` | path | `"/var/run/audit-trail.sock"` | no | Unix socket path of the audit-trail daemon (`audit-trail serve --socket <path>`). Read once at daemon-init. |
+| `audit_trail.timeout_ms` | integer | `250` | no | Connect/read timeout for a single emit, in milliseconds. |
+| `audit_trail.retry_buffer_size` | integer | `256` | no | Max number of events kept in the in-memory retry buffer on transport failure; oldest dropped first once full. Not persisted across daemon restarts. |
 
 #### Example
 
@@ -226,6 +230,12 @@ destination_whitelist = [
 [safe_message]
 input_block  = "Your input was blocked because it matched a known injection pattern."
 output_block = "The model's response was suppressed because it appeared to leak protected data."
+
+[audit_trail]
+enabled           = false
+socket            = "/var/run/audit-trail.sock"
+timeout_ms        = 250
+retry_buffer_size = 256
 ```
 
 ---

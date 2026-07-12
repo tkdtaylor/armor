@@ -121,3 +121,12 @@ sentinel        = "ARMOR-UNTRUSTED"  # base spotlight sentinel; embedded in untr
 [safe_message]
 input_block = "Your input was blocked because it matched a known injection pattern."
 output_block = "The model's response was suppressed because it appeared to leak protected data."
+
+# Ecosystem forensic emit (audit-trail block). Opt-in; armor's own SQLite
+# incident store is always written regardless. Fail-safe: if the socket is
+# absent or unresponsive, armor logs locally, buffers (bounded), and continues.
+[audit_trail]
+enabled           = false
+socket            = "/var/run/audit-trail.sock"
+timeout_ms        = 250
+retry_buffer_size = 256
