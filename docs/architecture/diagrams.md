@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
 **Project:** armor
-**Last updated:** 2026-06-19 (v2.3 — drift fix: documented canary.chunked block path (B-009c) and cross_boundary_override in §1 and §3)
+**Last updated:** 2026-07-12 (v2.4: added the audit-trail emitter boundary to §1, task 134 / ADR-045)
 
 Mermaid diagrams for the overall system and key runtime flows. See [overview.md](overview.md) for prose context and [decisions/](decisions/) for the ADRs referenced here.
 
@@ -88,6 +88,11 @@ flowchart TB
         Forensic["Forensic logger<br/>(blocked-attack records, canary_id only)"]
         Honeypot["Honeypot LLM<br/>(shared model session, canary-bearing prompt per ADR-038)"]
         Logger["Structured logger (armor.logging)<br/>(event sink, ADR-029)"]
+        AuditEmit["AuditTrailEmitter<br/>(armor.audit_trail — outside daemon/ tree,<br/>opt-in, fail-safe, task 134 / ADR-045)"]
+    end
+
+    subgraph AuditTrail["audit-trail block (sibling, external process)"]
+        AuditSock[("AF_UNIX socket<br/>hash-chained forensic log")]
     end
 
     CC --> Hook
@@ -110,6 +115,8 @@ flowchart TB
     Daemon --> Session
     Daemon --> Forensic
     Daemon --> Logger
+    Forensic -.on block, opt-in.-> AuditEmit
+    AuditEmit -.AF_UNIX, NDJSON.-> AuditSock
     PipelineOrch -.feeds verdicts.-> FSM
 ```
 
@@ -127,6 +134,7 @@ flowchart TB
 - The SDK (`armor.sdk.client.ArmorClient`, `armor.sdk.async_client.AsyncArmorClient`) provides importable clients for third-party integrations; daemon communication is via Unix socket, never in-process.
 - Session state is process-local (SQLite file in a mounted volume). A daemon restart preserves session history, FSM fields (`current_state`, `risk_score`, `last_signal_at`), and the rolling buffer.
 - The `armor.spotlight` annotator (`armor.spotlight.annotate`) is a pure library transform that runs in the **agent process**, not inside the daemon container. It accepts a list of `Span` objects (each tagged with a `Source` provenance label) and returns `(marked_text, boundary_instruction)`. The agent prepends `boundary_instruction` to its system prompt and passes `marked_text` as context to the downstream LLM. This transform has no daemon call, no network call, and does not touch the detector pipeline — it is a standalone ADR-028 stable SDK surface (ADR-043 §2). Detection of sentinel forgery in untrusted spans is the annotator's secondary role: if an untrusted span's text contains the sentinel base string, the annotator neutralizes it and raises `SentinelForgeryError` so the agent can log the boundary-escape attempt.
+- `AuditTrailEmitter` (`armor.audit_trail`, task 134 / ADR-045) is the only module that opens a socket to the sibling audit-trail block, and it deliberately lives outside `src/armor/daemon/` so the daemon package keeps zero `socket` imports (enforced by `tests/fitness/test_no_outbound_network.py`, TC-091-14). It fires only on `block` verdicts, only when `[audit_trail].enabled = true`, and only after the SQLite `Incident` row already exists: it is additive, fail-safe telemetry, never a precondition for armor's own blocking behavior. On transport failure it buffers (bounded, in-memory) and continues; it never raises.
 
 ---
 

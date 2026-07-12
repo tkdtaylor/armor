@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from armor.audit_trail import AuditTrailEmitter
 from armor.canaries._generate import sub_pattern_map
 from armor.canaries.catalogue import Catalogue
 from armor.canaries.scanner import CanaryScanner
@@ -127,6 +128,10 @@ class DaemonServer:
         self.quarantine_store: QuarantineStore | None = None
         self._sweeper_task: asyncio.Task[None] | None = None
 
+        # Ecosystem audit-trail emitter (task 134, ADR-045). Opt-in via
+        # [audit_trail] in armor.toml; constructed below once self.config loads.
+        self.audit_emitter: AuditTrailEmitter | None = None
+
         # LLM session (loaded if ARMOR_DISABLE_LLM=false and model path exists/provided)
         self.llm_session: LLMSession | None = None
         disable_llm = os.environ.get("ARMOR_DISABLE_LLM", "false").lower() in ("true", "1", "yes")
@@ -218,6 +223,20 @@ class DaemonServer:
                 logger.warning(f"Configuration file not found: {config_path}")
             except Exception as e:
                 logger.error(f"Failed to load configuration: {e}")
+
+        # Construct the ecosystem audit-trail emitter, opt-in via [audit_trail]
+        # (task 134, ADR-045). Absent section or enabled=false means no emitter
+        # and no connection is ever attempted.
+        audit_trail_config = self.config.get("audit_trail", {}) if isinstance(self.config, dict) else {}
+        if isinstance(audit_trail_config, dict) and audit_trail_config.get("enabled", False):
+            self.audit_emitter = AuditTrailEmitter(
+                socket_path=audit_trail_config.get("socket", "/var/run/audit-trail.sock"),
+                timeout_ms=audit_trail_config.get("timeout_ms", 250),
+                retry_buffer_size=audit_trail_config.get("retry_buffer_size", 256),
+            )
+            logger.info("audit-trail emit enabled (socket=%s)", self.audit_emitter.socket_path)
+        else:
+            logger.info("audit-trail emit disabled (no [audit_trail] section or enabled=false)")
 
         # Load trusted source tools allowlist from config at daemon-init time (ADR-041)
         # Read once at daemon-init, not per-request
@@ -718,6 +737,7 @@ class DaemonServer:
                 except Exception as e:
                     logger.warning(f"Failed to write quarantine: {e}")
 
+                incident_id: int | None = None
                 try:
                     # For check.fetched, add source_tool, chunk_index, and chunk_metadata to incident details
                     incident_details = dict(verdict.details) if verdict.details else {}
@@ -747,6 +767,33 @@ class DaemonServer:
                     response["incident_id"] = incident_id
                 except Exception as e:
                     logger.error(f"Failed to write incident: {e}")
+
+                # Emit to the ecosystem audit-trail block (task 134, ADR-045), in
+                # addition to, never instead of, the SQLite write above. Only if
+                # write_incident succeeded (there is an incident id to reference)
+                # and emission is opt-in-enabled. Its own try/except: armor's own
+                # blocking behavior must never depend on audit-trail availability.
+                if incident_id is not None and self.audit_emitter is not None:
+                    try:
+                        attack_category = self.forensic_logger.infer_category(verdict_with_details, source_str)
+                        audit_source_tool: str | None = None
+                        if operation == "check.fetched":
+                            raw_source_tool = incident_details.get("source_tool")
+                            audit_source_tool = str(raw_source_tool) if raw_source_tool is not None else None
+                        event = AuditTrailEmitter.build_event(
+                            ts=int(time.time()),
+                            operation=operation,
+                            session_id=session_id,
+                            incident_id=incident_id,
+                            signal_id=verdict.signal_id or "",
+                            attack_category=attack_category,
+                            severity=verdict.severity,
+                            source=source_str,
+                            source_tool=audit_source_tool,
+                        )
+                        await asyncio.to_thread(self.audit_emitter.emit, event)
+                    except Exception as e:
+                        logger.error(f"Failed to emit audit-trail event: {e}")
 
             return response
 

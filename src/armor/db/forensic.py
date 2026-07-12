@@ -299,6 +299,22 @@ class ForensicLogger:
             conn.close()
         return dict(row) if row else None
 
+    def infer_category(self, verdict: Verdict, source: str | None = None) -> str:
+        """Public wrapper around `_infer_category` (task 134).
+
+        Lets callers outside this module (e.g. the daemon's audit-trail emit path)
+        derive the same `attack_category` string that the SQLite `Incident` row is
+        written with, without duplicating the inference logic.
+
+        Args:
+            verdict: The verdict.
+            source: Payload source (e.g., "tool_result_untrusted", "user_input").
+
+        Returns:
+            Attack category string.
+        """
+        return self._infer_category(verdict, source)
+
     def _infer_category(self, verdict: Verdict, source: str | None = None) -> str:
         """Infer attack category from signal_id and source.
 
